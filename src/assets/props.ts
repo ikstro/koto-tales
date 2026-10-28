@@ -1,4 +1,4 @@
-/** Arrow, campfire and treasure chest. Materials from the skin. */
+/** Arrow, campfire, treasure chest and the house furniture (bed, cushion, door). Materials from the skin. */
 import * as THREE from 'three';
 import type { Skin } from '../contracts';
 import { Kit } from './parts/kit';
@@ -160,6 +160,128 @@ export function createChest(skin: Skin): Chest {
     root,
     setOpen(open: boolean) {
       target = open ? OPEN : 0;
+    },
+  };
+}
+
+// ─── house furniture ────────────────────────────────────────────────────────
+
+export interface Bed {
+  root: THREE.Group;
+  /** 0 = the blanket covers the sleeper, 1 = folded at the foot of the bed. */
+  fold(k: number): void;
+}
+
+const mixN = (a: number, b: number, k: number) => a + (b - a) * k;
+
+/**
+ * A child's bed, 1×2 blocks, origin at the floor centre, head end towards -Z:
+ * plank base, cream sheet, headboard with gold knobs, a pillow and a blanket
+ * that folds to the foot. `height` is the sheet top; 0 gives only the bedding
+ * (pillow + blanket), to lay on top of a BED block.
+ */
+export function createBed(skin: Skin, blanketColor: string, height = 0.75): Bed {
+  const root = new THREE.Group();
+  root.name = 'bed';
+  const kit = new Kit('bed', skin);
+  const H = height;
+  if (H > 0) {
+    const WOOD = '#b5793c';
+    const DARK = '#7d5128';
+    kit
+      .part('frame', root)
+      .box([0.98, H - 0.18, 1.94], [0, (H - 0.18) / 2, 0], WOOD)
+      .box([1.0, 0.06, 1.96], [0, H - 0.2, 0], DARK)
+      .box([0.92, 0.18, 1.86], [0, H - 0.09, 0], '#f6ecd6')
+      .box([1.04, H + 0.5, 0.12], [0, (H + 0.5) / 2, -0.97], WOOD)
+      .box([1.1, 0.08, 0.16], [0, H + 0.54, -0.97], DARK)
+      .box([0.12, 0.1, 0.12], [0.46, H + 0.63, -0.97], '#eab02b')
+      .box([0.12, 0.1, 0.12], [-0.46, H + 0.63, -0.97], '#eab02b')
+      .box([1.04, H + 0.18, 0.12], [0, (H + 0.18) / 2, 0.97], WOOD)
+      .box([1.1, 0.06, 0.16], [0, H + 0.21, 0.97], DARK)
+      .done();
+  }
+  const bedding = new THREE.Group();
+  bedding.position.y = H;
+  root.add(bedding);
+  kit.part('pillow', bedding).box([0.78, 0.16, 0.48], [0, 0.08, -0.66], '#fff1d0').done();
+
+  const band = new THREE.Color(blanketColor).lerp(new THREE.Color('#ffffff'), 0.3).getStyle();
+  const blanket = new THREE.Group();
+  const hem = new THREE.Group();
+  bedding.add(blanket, hem);
+  kit.part('blanket', blanket).box([0.98, 0.2, 1.12], [0, 0, 0], blanketColor).done();
+  kit.part('hem', hem).box([0.86, 0.02, 0.24], [0, 0, 0], band).done();
+
+  const fold = (k: number) => {
+    const sy = mixN(1, 1.15, k);
+    const sz = mixN(1, 0.4, k);
+    blanket.position.set(0, mixN(0.34, 0.1, k), mixN(0.37, 0.7, k));
+    blanket.scale.set(1, sy, sz);
+    hem.position.set(0, blanket.position.y + 0.1 * sy + 0.01, blanket.position.z - 0.56 * sz + 0.13);
+    hem.scale.set(1, 1, mixN(1, 0.6, k));
+  };
+  fold(1);
+  root.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) o.receiveShadow = true;
+  });
+  return { root, fold };
+}
+
+const cushionGeo = {
+  base: new THREE.CylinderGeometry(0.66, 0.68, 0.12, 20).translate(0, 0.06, 0),
+  top: new THREE.CylinderGeometry(0.54, 0.62, 0.06, 20).translate(0, 0.14, 0),
+};
+/** Height of the cushion's top, where Пупся lies. */
+export const CUSHION_TOP = 0.17;
+
+/** Пупся's round teal cushion, origin bottom centre. */
+export function createCushion(skin: Skin): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'cushion';
+  const base = new THREE.Mesh(cushionGeo.base, skin.partMaterial('#2f918b'));
+  const top = new THREE.Mesh(cushionGeo.top, skin.partMaterial('#59b3ab'));
+  base.receiveShadow = top.receiveShadow = true;
+  g.add(base, top);
+  return g;
+}
+
+export interface Door {
+  root: THREE.Group;
+  /** 0 = closed, 1 = open (values past 1 overswing, for a spring). */
+  setOpen(k: number): void;
+}
+
+const DOOR_OPEN = -1.72;
+
+/**
+ * A plank door one block wide and two high, origin at the bottom of the
+ * hinged (left) edge, the leaf running towards +X; it opens outwards (+Z).
+ * Visual only: the doorway stays air, so it never blocks anyone.
+ */
+export function createDoor(skin: Skin): Door {
+  const root = new THREE.Group();
+  root.name = 'door';
+  const leaf = new THREE.Group();
+  root.add(leaf);
+  new Kit('door', skin)
+    .part('door', leaf)
+    .box([0.31, 1.96, 0.1], [0.16, 0.98, 0], '#b5793c')
+    .box([0.31, 1.96, 0.1], [0.47, 0.98, 0], '#a8692f')
+    .box([0.3, 1.96, 0.1], [0.775, 0.98, 0], '#b8803f')
+    .box([0.9, 0.14, 0.05], [0.46, 0.42, 0.07], '#7d5128')
+    .box([0.9, 0.14, 0.05], [0.46, 1.52, 0.07], '#7d5128')
+    .box([0.9, 0.14, 0.05], [0.46, 0.42, -0.07], '#7d5128')
+    .box([0.9, 0.14, 0.05], [0.46, 1.52, -0.07], '#7d5128')
+    .box([0.1, 0.1, 0.24], [0.8, 0.98, 0], '#eab02b')
+    .done();
+  leaf.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) o.receiveShadow = true;
+  });
+  return {
+    root,
+    setOpen(k: number) {
+      leaf.rotation.y = DOOR_OPEN * k;
     },
   };
 }

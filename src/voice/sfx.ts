@@ -167,6 +167,38 @@ const recipes: Record<SfxName, (k: K) => void> = {
   click(k) {
     tone(k, 880, 0, 0.05, 0.15, 'triangle', 640);
   },
+  door(k) {
+    // a soft wooden creak: a low reedy voice that bends up and down, chopped into
+    // fast grains by a tremolo and rounded by a band-pass, then a gentle knock
+    const o = k.c.createOscillator();
+    const f = k.c.createBiquadFilter();
+    const g = k.c.createGain();
+    const trem = k.c.createOscillator();
+    const tg = k.c.createGain();
+    const t0 = k.t;
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(150 * k.p, t0);
+    o.frequency.linearRampToValueAtTime(205 * k.p, t0 + 0.28);
+    o.frequency.linearRampToValueAtTime(165 * k.p, t0 + 0.6);
+    f.type = 'bandpass';
+    f.frequency.value = 900 * k.p;
+    f.Q.value = 2.2;
+    trem.frequency.setValueAtTime(34, t0);
+    trem.frequency.linearRampToValueAtTime(22, t0 + 0.6);
+    tg.gain.value = 0.5;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(0.16 * k.v, t0 + 0.06);
+    g.gain.setValueAtTime(0.16 * k.v, t0 + 0.42);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.62);
+    trem.connect(tg).connect(g.gain);
+    o.connect(f).connect(g).connect(k.dest);
+    o.start(t0);
+    trem.start(t0);
+    o.stop(t0 + 0.65);
+    trem.stop(t0 + 0.65);
+    tone(k, 120, 0.6, 0.16, 0.22, 'sine', 75);
+    hiss(k, 0.6, 0.05, 0.06, 'lowpass', 700);
+  },
 };
 
 // ─── ambience ───────────────────────────────────────────────────────────────

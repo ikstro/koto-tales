@@ -2,7 +2,9 @@
  * The heroes' house: 9×7 blocks, log corners, plank walls, glass windows, a
  * cobble-rimmed plank floor with a red rug, a bed, a lantern and an open
  * doorway in the middle of the front (+Z) wall. The roof is a separate model
- * so the game can fade it while a hero is inside.
+ * so the game can fade it while a hero is inside. Soft furniture (Соломія's
+ * bed, the bedding, Пупся's cushion) and the door are props, not blocks, so
+ * houses already written into old saves get them too (see systems/house.ts).
  *
  *   dy=0  floor layer (feet stand at dy=1)
  *   dy=1..3  walls; interior written as AIR so terrain never pokes in
@@ -122,5 +124,14 @@ export const HOUSE: HouseBlueprint = {
   wakeSpot: { dx: 2.5, dy: 1, dz: 2.5 },
   chestSpot: { dx: 4.5, dy: 1, dz: 1.5 },
   campfireSpot: { dx: 4.5, dy: 1, dz: 9.5 },
+  // Льоша on the BED block (top at dy=2), Соломія on a prop bed under the right
+  // window next to the lantern, Пупся on her round cushion on the rug.
+  sleepSpots: {
+    lyosha: { dx: 1.5, dy: 2, dz: 2, yaw: 0 },
+    solomiia: { dx: 7.5, dy: 1.75, dz: 3, yaw: 0 },
+    pupsia: { dx: 4.5, dy: 1.17, dz: 3.6, yaw: 0.55 },
+  },
+  // in the doorway (x 4..5) of the front wall, hinge on the left, swings out
+  doorSpot: { dx: 4.04, dy: 1, dz: 6.86, yaw: 0 },
   interior: { x0: 1, z0: 1, x1: 8, z1: 6 },
 };

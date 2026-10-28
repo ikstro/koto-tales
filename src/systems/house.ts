@@ -1,8 +1,16 @@
 import * as THREE from 'three';
-import { createCampfire, createChest } from '../assets/props';
+import type { HeroId } from '../contracts';
+import { createBed, createCampfire, createChest, createCushion, createDoor, type Bed } from '../assets/props';
+import { HERO_ORDER } from '../content/heroes';
 import { HOUSE } from '../content/house';
 import type { Ctx, HouseState } from '../core/ctx';
 import { events } from '../core/events';
+import { B } from '../world/blocks';
+
+const BLANKET: Partial<Record<HeroId, string>> = { lyosha: '#6fb2d6', solomiia: '#ee6a82' };
+/** Lantern light by day and by night (it is the house's own warm lamp). */
+const LAMP_DAY = 1.2;
+export const LAMP_NIGHT = 6;
 
 /**
  * The house: built once next to the world origin, then remembered by the
@@ -56,6 +64,38 @@ export function buildHouse(ctx: Ctx): HouseState {
   campfire.root.position.copy(at(HOUSE.campfireSpot));
   scene.add(campfire.root);
 
+  // Furniture is props, not blocks: it shows up in houses already written into
+  // old saves without touching their edits. Daytime state: blankets folded, door open.
+  const beds: HouseState['beds'] = {};
+  let cushion: THREE.Group | null = null;
+  for (const id of HERO_ORDER) {
+    const s = HOUSE.sleepSpots[id];
+    const colour = BLANKET[id];
+    if (!colour) {
+      cushion = createCushion(skin);
+      cushion.position.copy(at({ dx: s.dx, dy: 1, dz: s.dz }));
+      scene.add(cushion);
+      continue;
+    }
+    // On a BED block only the bedding is added; elsewhere a whole bed up to the sleeper.
+    const onBlock = world.getBlock(Math.floor(origin.x + s.dx), origin.y + 1, Math.floor(origin.z + s.dz)) === B.BED;
+    const bed: Bed = onBlock ? createBed(skin, colour, 0) : createBed(skin, colour, s.dy - 1);
+    bed.root.position.copy(at({ dx: s.dx, dy: onBlock ? s.dy : 1, dz: s.dz }));
+    bed.root.rotation.y = s.yaw;
+    scene.add(bed.root);
+    beds[id] = bed;
+  }
+  const door = createDoor(skin);
+  door.root.position.copy(at(HOUSE.doorSpot));
+  door.root.rotation.y = HOUSE.doorSpot.yaw;
+  door.setOpen(1);
+  scene.add(door.root);
+
+  // The lantern's light, just in front of the lantern block in the back corner.
+  const lamp = new THREE.PointLight(0xffa64a, LAMP_DAY, 9, 1.4);
+  lamp.position.copy(at({ dx: 6.9, dy: 2.5, dz: 2.3 }));
+  scene.add(lamp);
+
   const i = HOUSE.interior;
   return {
     origin,
@@ -66,6 +106,10 @@ export function buildHouse(ctx: Ctx): HouseState {
     roof,
     roofMaterials,
     roofFade: 1,
+    beds,
+    cushion: cushion ?? new THREE.Group(),
+    door,
+    lamp,
     interior: { x0: origin.x + i.x0, z0: origin.z + i.z0, x1: origin.x + i.x1, z1: origin.z + i.z1 },
     footprint: { x0: origin.x, z0: origin.z, x1: origin.x + HOUSE.sizeX, z1: origin.z + HOUSE.sizeZ, y0: origin.y },
   };
@@ -89,7 +133,8 @@ export function updateHouse(ctx: Ctx, dt: number): void {
   const h = ctx.house;
   if (!h) return;
   h.campfire.update(dt);
-  if (!ctx.playing) return;
+  if (!ctx.playing) return; // before play the start ritual (ui/wake.ts) owns the house
+  h.lamp.intensity = LAMP_DAY + (LAMP_NIGHT - LAMP_DAY) * (1 - ctx.clock.daylight);
 
   const inside = isInside(h, ctx.player.pos);
   if (inside !== wasInside) {

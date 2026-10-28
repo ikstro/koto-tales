@@ -197,8 +197,11 @@ export type ModelRef =
   | { kind: 'glb'; url: string; rig: RigType } // made in Blender: public/models/<name>.glb
   | { kind: 'drawing'; id: string }; // the child's drawing, from IndexedDB (stage 2)
 
-/** One-shot actions return to idle/walk by themselves; 'sleep' holds until another action. */
-export type ModelAction = 'idle' | 'attack' | 'cast' | 'hurt' | 'happy' | 'sleep';
+/**
+ * One-shot actions return to idle/walk by themselves; 'sleep' holds until another action.
+ * 'wake' gets up, stretches and yawns (eyes shut during the yawn); 'cheer' hops twice with arms up.
+ */
+export type ModelAction = 'idle' | 'attack' | 'cast' | 'hurt' | 'happy' | 'sleep' | 'wake' | 'cheer';
 
 /** A rig with the shared procedural animator attached. */
 export interface CharacterModel {
@@ -231,6 +234,14 @@ export interface HouseBlueprint {
   wakeSpot: { dx: number; dy: number; dz: number };
   chestSpot: { dx: number; dy: number; dz: number };
   campfireSpot: { dx: number; dy: number; dz: number };
+  /**
+   * Where each hero sleeps before the game starts: the model's feet origin on
+   * the bed / cushion top (dy may be fractional) and its yaw. A bed is centred
+   * on its sleeper's x/z, head end towards -Z.
+   */
+  sleepSpots: Record<HeroId, { dx: number; dy: number; dz: number; yaw: number }>;
+  /** The door prop's hinge (bottom of the hinged edge) and its closed yaw; the leaf runs towards +X. */
+  doorSpot: { dx: number; dy: number; dz: number; yaw: number };
   /** Interior rectangle (relative, min inclusive / max exclusive) for "hero is inside". */
   interior: { x0: number; z0: number; x1: number; z1: number };
 }
@@ -259,7 +270,8 @@ export type SfxName =
   | 'wake'
   | 'switch'
   | 'step'
-  | 'click';
+  | 'click'
+  | 'door';
 
 export interface IVoice {
   /** Must be called from a user gesture once (mobile audio unlock). */

@@ -4,7 +4,7 @@ import { HERO_STATS } from '../content/heroes';
 import { updateBuilding } from '../systems/building';
 import { updateCombat } from '../systems/combat';
 import { updateDayNight } from '../systems/daynight';
-import { createHeroes, updateHeroes } from '../systems/heroes';
+import { createHeroes, updateHeroes, type HeroHandoff } from '../systems/heroes';
 import { updateHouse } from '../systems/house';
 import { updateMonsters } from '../systems/monsters';
 import { initNarration, updateNarration } from '../systems/narration';
@@ -20,11 +20,28 @@ import type { Quality } from './quality';
 const AUTOSAVE_EVERY = 15;
 
 /**
+ * A start sequence that plays inside the running world before a hero is
+ * chosen (ui/wake.ts). The game keeps simulating and drawing the world; the
+ * intro moves the camera and its own models, and may change the light.
+ */
+export interface Intro {
+  /** Runs every frame instead of the idle camera. */
+  update(dt: number): void;
+  /** Daylight the skin shows meanwhile (overrides the clock). */
+  readonly daylight: number;
+  /** After the skin has set its lights for the frame, before drawing. */
+  light?(): void;
+  /** For automated checks (`__koto.wake`). */
+  readonly info?: object;
+}
+
+/**
  * The frame loop. Systems run in a fixed order each frame; the skin draws.
- * Before a hero is chosen the world is alive behind the start screen.
+ * Before a hero is chosen the world is alive behind the start ritual.
  */
 export class Game {
   readonly cam: FollowCamera;
+  intro: Intro | null = null;
   private last = performance.now();
   private saveTimer = AUTOSAVE_EVERY;
   private stats: HTMLElement | null = null;
@@ -56,9 +73,13 @@ export class Game {
     }
 
     // For automated checks: a small read-only window into the game.
+    const game = this;
     (window as unknown as { __koto: object }).__koto = {
       get ready() {
         return true;
+      },
+      get wake() {
+        return game.intro?.info ?? null;
       },
       get state() {
         return {
@@ -98,15 +119,22 @@ export class Game {
     requestAnimationFrame(loop);
   }
 
-  /** The hero was chosen: create the party next to the bed and hand over control. */
-  begin(hero: HeroId): void {
+  /**
+   * The hero was chosen: create the party on the doorstep and hand over control.
+   * `handoff` takes over heroes the start ritual already walked out of the house.
+   */
+  begin(hero: HeroId, handoff?: Partial<Record<HeroId, HeroHandoff>>): void {
     const ctx = this.ctx;
     const p = ctx.params;
+    this.intro = null;
     // A new adventure starts on the doorstep, between the door and the campfire —
     // not inside, where a child would first have to find the door.
     const doorstep = ctx.house!.campfire.root.position.clone().add(new THREE.Vector3(0, 0, -2));
-    const at = p.x !== null && p.z !== null ? new THREE.Vector3(p.x, 0, p.z) : doorstep;
-    createHeroes(ctx, hero, at);
+    const custom = p.x !== null && p.z !== null;
+    const at = custom ? new THREE.Vector3(p.x!, 0, p.z!) : doorstep;
+    // ?x=&z= moves the party; the ritual's models still carry over, just placed there.
+    if (custom && handoff) for (const h of Object.values(handoff)) delete h.pos;
+    createHeroes(ctx, hero, at, handoff);
     ctx.playing = true;
     ctx.hud.show(ctx.params.hud);
     ctx.hud.setBuildBlock(ctx.save.buildBlock);
@@ -141,6 +169,7 @@ export class Game {
     const focus = ctx.playing ? ctx.player.pos : ctx.house!.centre;
     ctx.world.update(focus);
     if (ctx.playing) this.cam.follow(ctx.player.pos, dt);
+    else if (this.intro) this.intro.update(dt);
     else this.cam.idle(ctx.house!.centre, dt);
     ctx.effects.update(dt);
 
@@ -161,7 +190,9 @@ export class Game {
       cutaway.from.copy(ctx.camera.position);
       ctx.player.chest(cutaway.to);
     }
-    ctx.skin.updateScene(ctx.clock.daylight, focus);
+    const intro = ctx.playing ? null : this.intro;
+    ctx.skin.updateScene(intro ? intro.daylight : ctx.clock.daylight, focus);
+    intro?.light?.();
     ctx.skin.render(ctx.renderer, ctx.scene, ctx.camera);
 
     if (this.stats) {

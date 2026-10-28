@@ -1,6 +1,7 @@
 import type * as THREE from 'three';
 import type { HeroId, IModels, IWorld, Skin } from '../contracts';
 import type { Arrow, Hero, Monster, Pickup } from '../actors/entities';
+import type { Bed, Door } from '../assets/props';
 import type { Effects } from '../render/effects';
 import type { SaveData } from '../systems/save';
 import type { Album } from '../ui/album';
@@ -19,6 +20,12 @@ export interface HouseState {
   roof: THREE.Group;
   roofMaterials: THREE.Material[];
   roofFade: number;
+  /** Bedding of the heroes who sleep in beds (Пупся has the cushion). */
+  beds: Partial<Record<HeroId, Bed>>;
+  cushion: THREE.Group;
+  door: Door;
+  /** The lantern's warm light: one PointLight, no shadows. */
+  lamp: THREE.PointLight;
   /** World-space interior rectangle. */
   interior: { x0: number; z0: number; x1: number; z1: number };
   footprint: { x0: number; z0: number; x1: number; z1: number; y0: number };

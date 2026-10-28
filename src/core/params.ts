@@ -5,6 +5,9 @@ import { SKIN_NAMES, type AnySkin } from '../render/skins';
  * URL switches for testing (and for screenshots by an agent):
  *   ?skin=pixel|toy|hybrid|diorama  ?tier=0|1  ?hero=lyosha  ?autostart=1
  *   ?x=..&z=..  (start position)  ?time=0..1  ?freeze=1  ?stats=1  ?fresh=1 (ignore the save)  ?demo=1
+ *   ?wakeTap=lyosha|solomiia|pupsia  (test only: the start ritual taps that hero by itself
+ *   ~1.2 s after it begins; no audio unlock or fullscreen, those need a real touch)
+ *   ?wakeHold=<s>  (test only: the ritual stops at <s> seconds after the touch, for screenshots)
  */
 export interface Params {
   skin: AnySkin | null;
@@ -21,6 +24,10 @@ export interface Params {
   demo: boolean;
   /** ?hud=0 hides the interface (clean frames of the world for design work). */
   hud: boolean;
+  /** Test only: simulate the start-ritual tap on this hero. */
+  wakeTap: HeroId | null;
+  /** Test only: freeze the start ritual this many seconds after the touch. */
+  wakeHold: number | null;
 }
 
 export function readParams(): Params {
@@ -44,5 +51,7 @@ export function readParams(): Params {
     fresh: q.get('fresh') === '1',
     demo: q.get('demo') === '1',
     hud: q.get('hud') !== '0',
+    wakeTap: one('wakeTap', ['lyosha', 'solomiia', 'pupsia'] as const),
+    wakeHold: num('wakeHold'),
   };
 }

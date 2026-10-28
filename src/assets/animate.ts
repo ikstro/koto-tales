@@ -1,8 +1,8 @@
 ﻿/**
  * One procedural animator per rig type. It turns any Rig (code-built, .glb or
  * drawn) into a CharacterModel: walk cycle scaled by speed, idle breathing,
- * one-shot actions (attack, cast, hurt, happy) that fall back to idle by
- * themselves, and a held 'sleep'.
+ * one-shot actions (attack, cast, hurt, happy, wake, cheer) that fall back to
+ * idle by themselves, and a held 'sleep'.
  *
  * Every animated part keeps its rest transform; each frame a target pose is
  * written as offsets from rest, then the joints ease towards it (dt = 0 snaps).
@@ -12,8 +12,12 @@
 import * as THREE from 'three';
 import type { CharacterModel, ModelAction, Rig } from '../contracts';
 
-type OneShot = 'attack' | 'cast' | 'hurt' | 'happy';
-export const ACTION_TIME: Record<OneShot, number> = { attack: 0.55, cast: 0.9, hurt: 0.45, happy: 0.95 };
+type OneShot = 'attack' | 'cast' | 'hurt' | 'happy' | 'wake' | 'cheer';
+export const ACTION_TIME: Record<OneShot, number> = { attack: 0.55, cast: 0.9, hurt: 0.45, happy: 0.95, wake: 1.45, cheer: 1.0 };
+/** Seconds into 'wake' while the character yawns (eyes shut); a caller may open a mouth in this window. */
+export const WAKE_YAWN: readonly [number, number] = [0.64, 1.3];
+/** Seconds into 'wake' of the stretch: rising, held, released. */
+const STRETCH = [0.45, 0.7, 1.2, 1.42] as const;
 
 const TAU = Math.PI * 2;
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -87,10 +91,17 @@ interface Ctx {
   lie: number;
 }
 
+/** Stretch envelope of 'wake' (0 outside the stretch). */
+const stretchOf = (a: number) => ramp(STRETCH[0], STRETCH[1], a) * (1 - ramp(STRETCH[2], STRETCH[3], a));
+/** The two hops of 'cheer', 0..1 each. */
+const cheerHop = (a: number) => arc(0.05, 0.45, a) + arc(0.5, 0.9, a);
+
 /** Common root-level reactions shared by every rig type. */
 function rootReactions(s: State, c: Ctx, lean: number): void {
   const a = s.at;
-  if (s.action === 'hurt') {
+  if (s.action === 'cheer') {
+    add(c.root, 4, 0.28 * cheerHop(a));
+  } else if (s.action === 'hurt') {
     const k = a < 0.08 ? a / 0.08 : 1 - ramp(0.08, ACTION_TIME.hurt, a);
     add(c.root, 0, -0.3 * k * lean);
     add(c.root, 5, -0.2 * k);
@@ -183,6 +194,34 @@ function biped(s: State, c: Ctx): void {
       mixRot(j.head, 0, -0.15, env);
       break;
     }
+    case 'wake': {
+      // gets up (the slow ease out of 'sleep'), reaches both arms high, arches back, yawns
+      const e = stretchOf(a);
+      const yawn = arc(WAKE_YAWN[0], WAKE_YAWN[1], a);
+      const shiver = Math.sin(t * 31) * 0.035 * e;
+      mixRot(j.armL, 0, -2.95, e);
+      mixRot(j.armR, 0, -2.95, e);
+      mixRot(j.armL, 2, 0.28 + shiver, e);
+      mixRot(j.armR, 2, -0.28 + shiver, e);
+      mixOff(j.body, 0, -0.12, e);
+      mixOff(j.head, 1, 0, e);
+      mixOff(j.head, 0, -0.18 * e - 0.32 * yawn, 1);
+      add(c.root, 4, 0.05 * e);
+      break;
+    }
+    case 'cheer': {
+      const env = ramp(0, 0.1, a) * (1 - ramp(0.85, 1.0, a));
+      const hop = cheerHop(a);
+      const wave = Math.sin(t * 16) * 0.3;
+      mixRot(j.armL, 0, -2.5 + wave, env);
+      mixRot(j.armR, 0, -2.5 - wave, env);
+      mixRot(j.armL, 2, 0.4, env);
+      mixRot(j.armR, 2, -0.4, env);
+      mixRot(j.legL, 0, -0.4 * hop, env);
+      mixRot(j.legR, 0, -0.4 * hop, env);
+      mixRot(j.head, 0, -0.2, env);
+      break;
+    }
     case 'sleep': {
       for (const n of ['head', 'armL', 'armR', 'legL', 'legR', 'body']) {
         const p = j[n];
@@ -268,6 +307,31 @@ function quadruped(s: State, c: Ctx): void {
       add(j.head, 0, -0.2 * hop);
       break;
     }
+    case 'wake': {
+      // a cat's stretch: front paws reach out, chest down, rear up, chin high, then a yawn
+      const e = stretchOf(a);
+      const yawn = arc(WAKE_YAWN[0], WAKE_YAWN[1], a);
+      add(j.body, 0, 0.36 * e);
+      add(j.head, 0, -0.8 * e - 0.15 * yawn);
+      add(j.head, 1, -(Math.sin(t * 0.5) * 0.35) * e);
+      add(j.legFL, 0, -1.0 * e);
+      add(j.legFR, 0, -1.0 * e);
+      add(j.tail, 0, 0.35 * e);
+      break;
+    }
+    case 'cheer': {
+      const env = ramp(0, 0.1, a) * (1 - ramp(0.85, 1.0, a));
+      const hop = cheerHop(a);
+      const paddle = Math.sin(t * 16) * 0.3;
+      mixOff(j.body, 0, -0.35, env);
+      mixOff(j.legFL, 0, -1.0 + paddle, env);
+      mixOff(j.legFR, 0, -1.0 - paddle, env);
+      mixOff(j.legBL, 0, 0.3 * hop, env);
+      mixOff(j.legBR, 0, 0.3 * hop, env);
+      mixOff(j.head, 0, 0.2, env);
+      add(j.tail, 0, 0.5 * env);
+      break;
+    }
     case 'sleep': {
       for (const p of Object.values(j)) p.tgt.fill(0);
       drop = -0.2 + Math.sin(t * 1.6) * 0.006;
@@ -328,6 +392,9 @@ function spider(s: State, c: Ctx): void {
       for (const l of c.legs) add(l.j, 2, l.side * 0.4 * k);
       break;
     }
+    // a spider has no arms to stretch: waking and cheering are its happy leg wiggle
+    case 'wake':
+    case 'cheer':
     case 'happy': {
       const env = ramp(0, 0.1, a) * (1 - ramp(0.8, 0.95, a));
       for (const { j: leg, side, k } of c.legs) add(leg, 2, side * (0.4 + Math.sin(t * 20 + k) * 0.3) * env);
@@ -464,7 +531,8 @@ export function animate(rig: Rig): CharacterModel {
           blinkIn = 2 + Math.random() * 3.5;
         }
         blinkLeft = Math.max(0, blinkLeft - dt);
-        const shut = s.action === 'sleep' || blinkLeft > 0;
+        const yawning = s.action === 'wake' && (s.at < 0.2 || (s.at > WAKE_YAWN[0] - 0.05 && s.at < WAKE_YAWN[1] + 0.02));
+        const shut = s.action === 'sleep' || yawning || blinkLeft > 0;
         rig.eyes.mesh.material = shut ? rig.eyes.closed : rig.eyes.open;
       }
       if (rig.parts.tool) rig.parts.tool.visible = s.action === 'attack' && s.at < 0.5;

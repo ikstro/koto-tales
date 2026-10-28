@@ -2,8 +2,9 @@ import * as THREE from 'three';
 
 /**
  * The camera hangs above and behind the hero and never turns, so "up on the
- * joystick" is always "up on the screen". Before the game starts it slowly
- * circles the house.
+ * joystick" is always "up on the screen". Before the game starts the start
+ * ritual (ui/wake.ts) moves it and lands on `poseFor`; `idle` circling the
+ * house is the fallback when no ritual runs.
  */
 export class FollowCamera {
   readonly offset = new THREE.Vector3(0, 13, 10.5);
@@ -17,11 +18,20 @@ export class FollowCamera {
     this.shakeT = Math.max(this.shakeT, strength);
   }
 
+  /** Jump straight to the follow pose (the same one `follow` settles into). */
   snap(focus: THREE.Vector3): void {
     this.target.copy(focus);
     this.camera.position.copy(focus).add(this.offset);
-    this.camera.lookAt(focus);
+    this.camera.lookAt(focus.x, focus.y + FollowCamera.LOOK_UP, focus.z);
   }
+
+  /** The follow pose for a focus point, for an intro that wants to land on it. */
+  poseFor(focus: THREE.Vector3, pos: THREE.Vector3, look: THREE.Vector3): void {
+    pos.copy(focus).add(this.offset);
+    look.copy(focus).setY(focus.y + FollowCamera.LOOK_UP);
+  }
+
+  static readonly LOOK_UP = 0.8;
 
   follow(focus: THREE.Vector3, dt: number): void {
     this.target.lerp(focus, 1 - Math.exp(-dt * 6));
@@ -33,7 +43,7 @@ export class FollowCamera {
       cam.position.x += (Math.random() - 0.5) * s;
       cam.position.y += (Math.random() - 0.5) * s;
     }
-    cam.lookAt(this.target.x, this.target.y + 0.8, this.target.z);
+    cam.lookAt(this.target.x, this.target.y + FollowCamera.LOOK_UP, this.target.z);
   }
 
   /** Start-screen flyover around a point. */

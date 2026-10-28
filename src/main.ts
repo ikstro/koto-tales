@@ -17,7 +17,7 @@ import { freshSave, loadSave, persistStorage, reconcileTerrain } from './systems
 import { Album } from './ui/album';
 import { Hud } from './ui/hud';
 import { makePortraits } from './ui/portraits';
-import { showStart } from './ui/start';
+import { wakeHeroes } from './ui/wake';
 import { voice } from './voice/voice';
 import { B, NATURAL_SURFACES, blockDef } from './world/blocks';
 import { World } from './world/World';
@@ -105,13 +105,14 @@ async function boot(): Promise<void> {
   game.onFirstFrame = bootSucceeded;
   game.start();
   loading.remove();
-  voice.preload?.(['who_are_you', ...HERO_ORDER.map((id) => HEROES[id].lines.go)]);
+  voice.preload?.(HERO_ORDER.map((id) => HEROES[id].lines.hi));
 
   // A new version waiting in the background is switched to here, before play.
   if (applyWaitingUpdate()) return;
 
-  const hero = params.autostart ? (params.hero ?? save.hero) : await showStart(ui, portraits);
-  game.begin(hero);
+  // The start is a ritual in the world itself: wake a hero by touching them.
+  if (params.autostart) game.begin(params.hero ?? save.hero);
+  else await wakeHeroes(ctx, game);
 }
 
 boot().catch((e) => {

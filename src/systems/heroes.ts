@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { HeroId } from '../contracts';
+import type { CharacterModel, HeroId } from '../contracts';
 import { Hero, turnTowards, yawOf } from '../actors/entities';
 import { placeOnGround, stepBody } from '../actors/physics';
 import { HEROES, HERO_ORDER, HERO_STATS } from '../content/heroes';
@@ -11,13 +11,31 @@ import { isInside } from './house';
 
 const tmp = new THREE.Vector3();
 
-/** Creates all three heroes; `playerId` is controlled, the others follow as helpers. */
-export function createHeroes(ctx: Ctx, playerId: HeroId, at: THREE.Vector3): void {
+/** A hero already standing in the world (the start ritual's models), taken over as is. */
+export interface HeroHandoff {
+  model: CharacterModel;
+  /** Where it stands; without it the hero is placed around `at` like the others. */
+  pos?: THREE.Vector3;
+  yaw?: number;
+}
+
+/**
+ * Creates all three heroes; `playerId` is controlled, the others follow as helpers.
+ * Heroes in `handoff` keep their model (and place and facing, if given); the rest stand around `at`.
+ */
+export function createHeroes(ctx: Ctx, playerId: HeroId, at: THREE.Vector3, handoff?: Partial<Record<HeroId, HeroHandoff>>): void {
   HERO_ORDER.forEach((id, i) => {
-    const hero = new Hero(id, ctx.models.character(HEROES[id].model));
-    ctx.scene.add(hero.model.root);
-    placeOnGround(ctx.world, hero.body, at.x + (i - 1) * 1.2, at.z + (i === 1 ? 0 : 0.8));
-    hero.model.update(0, 0);
+    const given = handoff?.[id];
+    const hero = new Hero(id, given?.model ?? ctx.models.character(HEROES[id].model));
+    if (!hero.model.root.parent) ctx.scene.add(hero.model.root);
+    if (given?.pos) {
+      placeOnGround(ctx.world, hero.body, given.pos.x, given.pos.z);
+      hero.yaw = given.yaw ?? 0;
+    } else {
+      placeOnGround(ctx.world, hero.body, at.x + (i - 1) * 1.2, at.z + (i === 1 ? 0 : 0.8));
+      if (!given) hero.model.update(0, 0);
+    }
+    hero.syncModel(0.001);
     ctx.heroes.set(id, hero);
   });
   setPlayer(ctx, playerId);
@@ -113,8 +131,17 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
   bots.forEach((bot, i) => {
     const side = i === 0 ? 1 : -1;
     // Behind the player, one on each side (character's left is +X when facing +Z).
-    const tx = player.pos.x - fwdX * 1.5 + Math.cos(player.yaw) * 1.5 * side;
-    const tz = player.pos.z - fwdZ * 1.5 - Math.sin(player.yaw) * 1.5 * side;
+    // When that spot is inside a wall (on the doorstep, facing out), try beside, then in front.
+    const leftX = Math.cos(player.yaw);
+    const leftZ = -Math.sin(player.yaw);
+    const fy = Math.floor(player.pos.y + 0.01);
+    let tx = player.pos.x;
+    let tz = player.pos.z;
+    for (const back of [1.5, 0, -1.5]) {
+      tx = player.pos.x - fwdX * back + leftX * 1.5 * side;
+      tz = player.pos.z - fwdZ * back + leftZ * 1.5 * side;
+      if (!world.isSolid(Math.floor(tx), fy, Math.floor(tz)) && !world.isSolid(Math.floor(tx), fy + 1, Math.floor(tz))) break;
+    }
     const dx = tx - bot.pos.x;
     const dz = tz - bot.pos.z;
     const dist = Math.hypot(dx, dz);
