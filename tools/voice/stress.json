@@ -1,0 +1,4 @@
+{
+  "_note": "Words the Ukrainian voices tend to stress wrong. Mark the stressed vowel with a combining acute (Пу́пся) or an apostrophe after it (Пу'пся). Inflected forms are separate entries. After editing: npm run voice (only lines with changed words are re-voiced).",
+  "words": ["Льо́ша", "Соломі́я", "Пу́пся"]
+}

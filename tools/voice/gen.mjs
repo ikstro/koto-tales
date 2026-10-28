@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { synth as azureSynth } from './azure.mjs';
+import { applyStress, loadDictionary } from './stress.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
@@ -57,6 +58,7 @@ const hashOf = (sp, text) =>
 fs.mkdirSync(outDir, { recursive: true });
 const lock = fs.existsSync(lockPath) ? JSON.parse(fs.readFileSync(lockPath, 'utf8')) : {};
 const ids = Object.keys(lines);
+const stressDict = loadDictionary();
 
 // Remove clips whose line is gone.
 for (const f of fs.readdirSync(outDir)) {
@@ -77,18 +79,23 @@ for (const id of ids) {
   const sp = speakers[speaker];
   if (!sp) { failed.push(`${id}: unknown speaker ${speaker}`); continue; }
   const file = path.join(outDir, `${id}.mp3`);
-  const hash = hashOf(sp, text);
+  // Words from stress.json go out as IPA with the stress marked. A line without
+  // such words hashes exactly as before, so adding a word re-voices only its lines.
+  const { ssml, used } = draft ? { ssml: text, used: [] } : applyStress(text, stressDict);
+  const hash = hashOf(sp, used.length ? ssml : text);
   if (!force && lock[id] === hash && fs.existsSync(file)) { cached++; continue; }
 
   const wait = lastCall + PACE_MS - Date.now();
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   try {
     lastCall = Date.now();
-    const buf = await synth(text, sp.voice, { rate: sp.rate, pitch: sp.pitch });
+    const buf = used.length
+      ? await synth(ssml, sp.voice, { rate: sp.rate, pitch: sp.pitch, raw: true })
+      : await synth(text, sp.voice, { rate: sp.rate, pitch: sp.pitch });
     fs.writeFileSync(file, buf);
     lock[id] = hash;
     made++; chars += text.length;
-    console.log(`ok  ${id} (${speaker}, ${(buf.length / 1024).toFixed(0)} KB)`);
+    console.log(`ok  ${id} (${speaker}, ${(buf.length / 1024).toFixed(0)} KB)${used.length ? ' · stress: ' + used.join(', ') : ''}`);
   } catch (e) {
     failed.push(`${id}: ${e.message}`);
     console.error(`FAIL ${id}: ${e.message}`);

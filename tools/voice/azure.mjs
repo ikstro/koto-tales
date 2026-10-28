@@ -20,24 +20,27 @@ const xml = (s) =>
 
 const sign = (n) => (n >= 0 ? '+' : '') + n;
 
-/** rate is a multiplier (1 = normal), pitch a percent string like "+8%". */
-export function buildSsml(text, voiceId, rate = 1, pitch = '0%') {
+/**
+ * rate is a multiplier (1 = normal), pitch a percent string like "+8%".
+ * `raw` = the text is already an escaped SSML fragment (e.g. with <phoneme> tags).
+ */
+export function buildSsml(text, voiceId, rate = 1, pitch = '0%', raw = false) {
   const locale = voiceId.split('-').slice(0, 2).join('-');
   const pct = Math.round((rate - 1) * 100);
   const p = String(pitch).trim();
   const pitchAttr = /^[+-]/.test(p) ? p : /^0/.test(p) ? '+0%' : '+' + p;
   return (
-    `<speak version="1.0" xml:lang="${locale}">` +
+    `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${locale}">` +
     `<voice name="${voiceId}">` +
-    `<prosody rate="${sign(pct)}%" pitch="${pitchAttr}">${xml(text)}</prosody>` +
+    `<prosody rate="${sign(pct)}%" pitch="${pitchAttr}">${raw ? text : xml(text)}</prosody>` +
     `</voice></speak>`
   );
 }
 
 /** @returns {Promise<Buffer>} */
-export async function synth(text, voiceId, { rate = 1, pitch = '0%' } = {}) {
+export async function synth(text, voiceId, { rate = 1, pitch = '0%', raw = false } = {}) {
   const { key, region } = credentials();
-  const body = buildSsml(text, voiceId, rate, pitch);
+  const body = buildSsml(text, voiceId, rate, pitch, raw);
 
   // Free tier: 20 requests / 60 s. Back off on 429 and retry.
   let res;
