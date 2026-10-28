@@ -15,6 +15,18 @@ describe('save', () => {
     expect(s.picked).toEqual([]);
   });
 
+  it('migrates v2 → v3: normal difficulty, album monsters counted once, sound on', () => {
+    const v2 = { ...freshSave(), v: 2, found: ['apple', 'm:zombie', 'm:spider'] } as Record<string, unknown>;
+    delete v2.difficulty;
+    delete v2.defeated;
+    delete v2.soundOn;
+    const s = migrate(v2);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.difficulty).toBe('normal');
+    expect(s.defeated).toEqual({ zombie: 1, spider: 1 });
+    expect(s.soundOn).toBe(true);
+  });
+
   it('a fresh save is already current', () => {
     expect(migrate(freshSave() as unknown as Record<string, unknown>)).toEqual(freshSave());
   });

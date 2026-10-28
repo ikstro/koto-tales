@@ -8,6 +8,7 @@ import { events } from '../core/events';
 import { sfx } from '../voice/sfx';
 import { castBolt, fireArrow, nearestMonster } from './combat';
 import { isInside } from './house';
+import { tuneOf } from './tune';
 
 const tmp = new THREE.Vector3();
 
@@ -118,7 +119,7 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
   // Hearts come back on their own, quickly at home.
   if (player.hearts < HERO_STATS.maxHearts && player.sinceHit > HERO_STATS.regenDelay) {
     player.regenTimer += dt;
-    const every = ctx.house && isInside(ctx.house, player.pos) ? HERO_STATS.regenEveryAtHome : HERO_STATS.regenEvery;
+    const every = ctx.house && isInside(ctx.house, player.pos) ? HERO_STATS.regenEveryAtHome : tuneOf(ctx).regenEvery;
     if (player.regenTimer >= every) {
       player.regenTimer = 0;
       player.hearts += 1;
@@ -174,7 +175,8 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
       if (target) {
         if (dist < 3) bot.yaw = turnTowards(bot.yaw, yawOf(target.pos.x - bot.pos.x, target.pos.z - bot.pos.z), dt * 12);
         if (bot.botFireCd <= 0) {
-          bot.botFireCd = 1 + Math.random() * 0.6;
+          const [lo, hi] = tuneOf(ctx).helperFireEvery;
+          bot.botFireCd = lo + Math.random() * (hi - lo);
           fireArrow(ctx, bot);
         }
         if (bot.botBoltCd <= 0 && target.pos.distanceTo(bot.pos) < 8) {

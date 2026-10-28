@@ -1,5 +1,5 @@
 {
-  "title": { "speaker": "narrator", "text": "Кото-казки!" },
+  "title": { "speaker": "narrator", "text": "Льошині казки!" },
   "who_are_you": { "speaker": "narrator", "text": "Хто ти сьогодні? Обирай героя!" },
   "go_lyosha": { "speaker": "narrator", "text": "Льоша вирушає в пригоду!" },
   "go_solomiia": { "speaker": "narrator", "text": "Соломія вирушає в пригоду!" },
@@ -18,6 +18,9 @@
   "coins_10": { "speaker": "narrator", "text": "Десять монеток! Ого!" },
   "coins_50": { "speaker": "narrator", "text": "П'ятдесят монеток! Справжній скарб!" },
   "coins_100": { "speaker": "narrator", "text": "Сто монеток! Ти справжній багатій!" },
+  "diff_easy": { "speaker": "narrator", "text": "Легко!" },
+  "diff_normal": { "speaker": "narrator", "text": "Звичайно." },
+  "diff_hard": { "speaker": "narrator", "text": "Важко! Тримайся!" },
   "win_1": { "speaker": "narrator", "text": "Ура!" },
   "win_2": { "speaker": "narrator", "text": "Так тримати!" },
   "win_3": { "speaker": "narrator", "text": "Чудово!" },

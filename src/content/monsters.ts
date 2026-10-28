@@ -25,6 +25,8 @@ export interface MonsterCard {
   color: number;
   spotLine: LineId;
   defeatLine: LineId;
+  /** Throws from a distance (on difficulties that allow it): keeps `keep` blocks away, throws every `every` s. */
+  ranged?: { range: number; keep: number; every: number; speed: number };
 }
 
 export const MONSTERS = {
@@ -32,7 +34,7 @@ export const MONSTERS = {
     kind: 'zombie',
     model: { kind: 'parts', id: 'zombie' },
     name: 'Зомбік',
-    hp: 3,
+    hp: 5,
     wanderSpeed: 1,
     chaseSpeed: 2.3,
     damage: 1,
@@ -50,7 +52,7 @@ export const MONSTERS = {
     kind: 'skeleton',
     model: { kind: 'parts', id: 'skeleton' },
     name: 'Кістлявчик',
-    hp: 2,
+    hp: 4,
     wanderSpeed: 1.2,
     chaseSpeed: 2.7,
     damage: 1,
@@ -63,12 +65,13 @@ export const MONSTERS = {
     color: 0xeeeeee,
     spotLine: 'monster_skeleton_spot',
     defeatLine: 'defeat_skeleton',
+    ranged: { range: 9, keep: 4.5, every: 2.4, speed: 9 },
   },
   spider: {
     kind: 'spider',
     model: { kind: 'parts', id: 'spider' },
     name: 'Павучок',
-    hp: 2,
+    hp: 3,
     wanderSpeed: 1.6,
     chaseSpeed: 3.5,
     damage: 1,
@@ -88,10 +91,8 @@ export type MonsterKind = keyof typeof MONSTERS;
 
 export const MONSTER_ORDER: MonsterKind[] = ['zombie', 'skeleton', 'spider'];
 
+/** Where monsters appear; how many and how often is set by the difficulty (content/difficulty.ts). */
 export const SPAWN = {
-  capDay: 4,
-  capNight: 8,
-  every: 2.5,
   minDist: 16,
   maxDist: 26,
   despawnDist: 42,

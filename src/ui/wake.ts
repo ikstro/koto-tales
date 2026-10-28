@@ -24,19 +24,7 @@ import type { HeroHandoff } from '../systems/heroes';
 import { LAMP_NIGHT } from '../systems/house';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
-
-/** Asks for fullscreen and landscape where the browser allows it (Android Chrome does). */
-async function goFullscreen(): Promise<void> {
-  try {
-    if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-      await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
-    }
-    const o = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
-    await o.lock?.('landscape');
-  } catch {
-    // Desktop browsers and iOS refuse; the game works the same in a window.
-  }
-}
+import { goFullscreen } from './fullscreen';
 
 // ─── easing ─────────────────────────────────────────────────────────────────
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);

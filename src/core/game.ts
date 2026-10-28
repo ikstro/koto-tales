@@ -12,6 +12,8 @@ import { updatePickups } from '../systems/pickups';
 import { writeSave } from '../systems/save';
 import { cutaway } from '../render/skins/cutaway';
 import { sfx } from '../voice/sfx';
+import { voice } from '../voice/voice';
+import { tuneOf } from '../systems/tune';
 import { FollowCamera } from './camera';
 import type { Ctx } from './ctx';
 import { events } from './events';
@@ -31,6 +33,8 @@ export interface Intro {
   readonly daylight: number;
   /** After the skin has set its lights for the frame, before drawing. */
   light?(): void;
+  /** Draws over the finished frame, after the skin's post pass (the title's logo). */
+  overlay?(renderer: THREE.WebGLRenderer): void;
   /** For automated checks (`__koto.wake`). */
   readonly info?: object;
 }
@@ -44,6 +48,7 @@ export class Game {
   intro: Intro | null = null;
   private last = performance.now();
   private saveTimer = AUTOSAVE_EVERY;
+  private paused = false;
   private stats: HTMLElement | null = null;
   private fps = 0;
   onFirstFrame: (() => void) | null = null;
@@ -139,13 +144,60 @@ export class Game {
     ctx.hud.show(ctx.params.hud);
     ctx.hud.setBuildBlock(ctx.save.buildBlock);
     ctx.hud.onPickBlock = (id) => (ctx.save.buildBlock = id);
+    this.wireMenu();
     this.cam.snap(ctx.player.pos);
     sfx.ambient(ctx.clock.daylight > 0.4 ? 'day' : 'night');
+  }
+
+  /** Pause menu, difficulty, sound and the monster counter. */
+  private wireMenu(): void {
+    const ctx = this.ctx;
+    const kills = () => Object.values(ctx.save.defeated).reduce((a, b) => a + (b ?? 0), 0);
+    if (ctx.params.difficulty) ctx.save.difficulty = ctx.params.difficulty;
+    ctx.hud.setKills(kills());
+    ctx.hud.setDifficulty(ctx.save.difficulty);
+    ctx.hud.setSoundOn(ctx.save.soundOn);
+    this.applySound();
+    events.on('monster:defeated', () => ctx.hud.setKills(kills()));
+    ctx.hud.onPause = (paused) => {
+      this.paused = paused;
+      ctx.input.clearPresses();
+      if (paused) this.persist();
+    };
+    ctx.hud.onDifficulty = (level) => {
+      ctx.save.difficulty = level;
+      ctx.hud.setDifficulty(level);
+      voice.say(`diff_${level}` as const, { priority: 8, interrupt: true });
+    };
+    ctx.hud.onSound = (on) => {
+      ctx.save.soundOn = on;
+      ctx.hud.setSoundOn(on);
+      this.applySound();
+    };
+    // «Exit» goes back to the title: save, then start the page afresh.
+    ctx.hud.onExit = () => {
+      this.persist();
+      location.reload();
+    };
+  }
+
+  private applySound(): void {
+    const v = this.ctx.save.soundOn && !this.ctx.params.mute ? 1 : 0;
+    voice.setVolume(v);
+    sfx.setVolume(v);
   }
 
   private frame(dt: number): void {
     const ctx = this.ctx;
     ctx.input.update();
+    if (this.paused) {
+      // Paused: the world stays drawn and still; nothing moves, nobody spawns.
+      ctx.input.clearPresses();
+      ctx.world.update(ctx.player.pos); // keeps streaming if paused before the world finished loading
+      ctx.skin.updateScene(ctx.clock.daylight, ctx.player.pos);
+      ctx.skin.render(ctx.renderer, ctx.scene, ctx.camera);
+      return;
+    }
     if (ctx.playing) {
       ctx.clock.elapsed += dt;
       this.quality.sample(dt, ctx.skin);
@@ -176,7 +228,7 @@ export class Game {
     if (ctx.playing) {
       ctx.hud.setHearts(ctx.player.hearts, HERO_STATS.maxHearts);
       ctx.hud.setCoins(ctx.save.coins);
-      ctx.hud.setBoltCooldown(ctx.player.boltCd / HERO_STATS.boltCooldown);
+      ctx.hud.setBoltCooldown(ctx.player.boltCd / tuneOf(ctx).boltCooldown);
       this.saveTimer -= dt;
       if (this.saveTimer <= 0) {
         this.saveTimer = AUTOSAVE_EVERY;
@@ -194,6 +246,7 @@ export class Game {
     ctx.skin.updateScene(intro ? intro.daylight : ctx.clock.daylight, focus);
     intro?.light?.();
     ctx.skin.render(ctx.renderer, ctx.scene, ctx.camera);
+    intro?.overlay?.(ctx.renderer);
 
     if (this.stats) {
       this.fps += ((dt > 0 ? 1 / dt : 60) - this.fps) * 0.05;

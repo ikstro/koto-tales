@@ -17,6 +17,7 @@ import { freshSave, loadSave, persistStorage, reconcileTerrain } from './systems
 import { Album } from './ui/album';
 import { Hud } from './ui/hud';
 import { makePortraits } from './ui/portraits';
+import { showTitle, startLoader } from './ui/title';
 import { wakeHeroes } from './ui/wake';
 import { voice } from './voice/voice';
 import { B, NATURAL_SURFACES, blockDef } from './world/blocks';
@@ -47,10 +48,8 @@ async function boot(): Promise<void> {
   persistStorage();
   const params = readParams();
   const ui = document.getElementById('ui')!;
-  const loading = document.createElement('div');
-  loading.className = 'screen';
-  loading.innerHTML = '<div class="loading">Завантаження…</div>';
-  ui.appendChild(loading);
+  // The loading screen is the title's logo assembling from bricks (CSS until the world is up).
+  const loading = startLoader(ui);
 
   const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game') as HTMLCanvasElement, antialias: true, powerPreference: 'high-performance' });
   const quality = new Quality(renderer, params.tier);
@@ -104,15 +103,21 @@ async function boot(): Promise<void> {
   const game = new Game(ctx, quality);
   game.onFirstFrame = bootSucceeded;
   game.start();
-  loading.remove();
   voice.preload?.(HERO_ORDER.map((id) => HEROES[id].lines.hi));
 
   // A new version waiting in the background is switched to here, before play.
   if (applyWaitingUpdate()) return;
 
-  // The start is a ritual in the world itself: wake a hero by touching them.
-  if (params.autostart) game.begin(params.hero ?? save.hero);
-  else await wakeHeroes(ctx, game);
+  // The title «Льошині казки» with its ▶ (also the gesture that unlocks sound and
+  // fullscreen), then the start ritual in the world itself: wake a hero by touching them.
+  if (params.autostart) {
+    loading.remove();
+    game.begin(params.hero ?? save.hero);
+    return;
+  }
+  if (params.title) await showTitle(ctx, game, loading);
+  else loading.remove();
+  await wakeHeroes(ctx, game);
 }
 
 boot().catch((e) => {

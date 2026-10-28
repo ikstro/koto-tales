@@ -5,8 +5,9 @@ import { placeOnGround, stepBody } from '../actors/physics';
 import { MONSTERS, MONSTER_ORDER, SPAWN, type MonsterCard, type MonsterKind } from '../content/monsters';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
-import { hurtHero } from './combat';
+import { hurtHero, throwBone } from './combat';
 import { homeDistance } from './house';
+import { tuneOf } from './tune';
 
 const spottedKinds = new Set<MonsterKind>();
 let spawnTimer = 0;
@@ -28,32 +29,44 @@ function pickKind(ctx: Ctx, x: number, z: number): MonsterKind | null {
   return null;
 }
 
+/** Monsters arrive in a small pack of one kind, a few blocks apart. */
 function trySpawn(ctx: Ctx): void {
-  const cap = isNight(ctx) ? SPAWN.capNight : SPAWN.capDay;
-  if (ctx.monsters.filter((m) => m.alive).length >= cap) return;
+  const tune = tuneOf(ctx);
+  const night = isNight(ctx);
+  const alive = ctx.monsters.filter((m) => m.alive).length;
+  const cap = night ? tune.capNight : tune.capDay;
+  if (alive >= cap) return;
   const p = ctx.player.pos;
   const a = Math.random() * Math.PI * 2;
   const d = SPAWN.minDist + Math.random() * (SPAWN.maxDist - SPAWN.minDist);
-  const x = p.x + Math.sin(a) * d;
-  const z = p.z + Math.cos(a) * d;
-  const bx = Math.floor(x);
-  const bz = Math.floor(z);
-  const y = ctx.world.groundHeight(bx, bz);
-  if (y <= SEA_LEVEL || ctx.world.isWater(bx, y, bz)) return;
-  if (homeDistance(ctx, new THREE.Vector3(x, y, z)) < SPAWN.houseSafeRadius + 4) return;
-  const kind = pickKind(ctx, x, z);
+  const cx = p.x + Math.sin(a) * d;
+  const cz = p.z + Math.cos(a) * d;
+  const kind = pickKind(ctx, cx, cz);
   if (!kind) return;
-  const m = new Monster(kind, ctx.models.character(MONSTERS[kind].model));
-  placeOnGround(ctx.world, m.body, x, z);
-  m.model.update(0, 0);
-  ctx.scene.add(m.model.root);
-  ctx.monsters.push(m);
-  events.emit('monster:spawn', { kind });
+  const [lo, hi] = tune.pack;
+  const size = Math.min(cap - alive, lo + Math.floor(Math.random() * (hi - lo + 1)));
+  for (let i = 0; i < size; i++) {
+    const x = cx + (Math.random() - 0.5) * 4;
+    const z = cz + (Math.random() - 0.5) * 4;
+    const bx = Math.floor(x);
+    const bz = Math.floor(z);
+    const y = ctx.world.groundHeight(bx, bz);
+    if (y <= SEA_LEVEL || ctx.world.isWater(bx, y, bz)) continue;
+    if (homeDistance(ctx, new THREE.Vector3(x, y, z)) < SPAWN.houseSafeRadius + 4) continue;
+    const m = new Monster(kind, ctx.models.character(MONSTERS[kind].model));
+    m.hp = Math.max(1, Math.ceil(m.card.hp * tune.monsterHp * (night ? tune.night : 1)));
+    m.throwCd = 1 + Math.random() * 1.5;
+    placeOnGround(ctx.world, m.body, x, z);
+    m.model.update(0, 0);
+    ctx.scene.add(m.model.root);
+    ctx.monsters.push(m);
+    events.emit('monster:spawn', { kind });
+  }
 }
 
 function nearestHero(ctx: Ctx, m: Monster): { hero: Hero; dist: number } | null {
   let best: Hero | null = null;
-  let bestD = m.card.sight * (isNight(ctx) ? 1.25 : 1);
+  let bestD = m.card.sight * tuneOf(ctx).sight * (isNight(ctx) ? 1.25 : 1);
   for (const h of ctx.heroes.values()) {
     const d = Math.hypot(h.pos.x - m.pos.x, h.pos.z - m.pos.z);
     if (d < bestD) {
@@ -65,18 +78,21 @@ function nearestHero(ctx: Ctx, m: Monster): { hero: Hero; dist: number } | null 
 }
 
 export function updateMonsters(ctx: Ctx, dt: number): void {
+  const tune = tuneOf(ctx);
   if (ctx.playing && !ctx.sleeping) {
     spawnTimer -= dt;
     if (spawnTimer <= 0) {
-      spawnTimer = SPAWN.every;
+      spawnTimer = tune.spawnEvery;
       trySpawn(ctx);
     }
   }
 
   const night = isNight(ctx);
+  const pace = tune.monsterSpeed * (night ? tune.night : 1);
   for (const m of ctx.monsters) {
     if (!m.alive) continue;
     m.hitCd -= dt;
+    m.throwCd -= dt;
     m.stun -= dt;
 
     const home = ctx.house ? homeDistance(ctx, m.pos) : Infinity;
@@ -95,11 +111,25 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
       m.state = 'chase';
       tx = seen.hero.pos.x - m.pos.x;
       tz = seen.hero.pos.z - m.pos.z;
-      speed = m.card.chaseSpeed * (night ? 1.15 : 1);
+      speed = m.card.chaseSpeed * pace;
       if (!m.spotted && seen.hero === ctx.player) {
         m.spotted = true;
         events.emit('monster:spot', { kind: m.kind, first: !spottedKinds.has(m.kind) });
         spottedKinds.add(m.kind);
+      }
+      const ranged = tune.ranged ? m.card.ranged : undefined;
+      if (ranged && seen.dist < ranged.range) {
+        // Keeps its distance and throws; the throw is slow enough to dodge.
+        if (seen.dist < ranged.keep) {
+          tx = -tx;
+          tz = -tz;
+        } else speed = 0;
+        if (m.throwCd <= 0 && m.stun <= 0) {
+          m.throwCd = ranged.every * (0.85 + Math.random() * 0.3);
+          m.yaw = yawOf(seen.hero.pos.x - m.pos.x, seen.hero.pos.z - m.pos.z);
+          m.model.play('attack');
+          throwBone(ctx, m, seen.hero, ranged.speed);
+        }
       }
       const reach = m.body.radius + seen.hero.body.radius + 0.45;
       if (seen.dist < reach) {
@@ -116,11 +146,15 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
       if (m.wanderTimer <= 0) {
         m.wanderTimer = 3 + Math.random() * 4;
         const a = Math.random() * Math.PI * 2;
-        m.wanderTarget.set(m.pos.x + Math.sin(a) * 6, 0, m.pos.z + Math.cos(a) * 6);
+        if (tune.hunt && ctx.playing && !ctx.sleeping) {
+          // Hunters drift towards the player's area, so standing still is not safe.
+          m.wanderTarget.set(ctx.player.pos.x + Math.sin(a) * 4, 0, ctx.player.pos.z + Math.cos(a) * 4);
+          m.wanderTimer = 2 + Math.random() * 2;
+        } else m.wanderTarget.set(m.pos.x + Math.sin(a) * 6, 0, m.pos.z + Math.cos(a) * 6);
       }
       tx = m.wanderTarget.x - m.pos.x;
       tz = m.wanderTarget.z - m.pos.z;
-      speed = Math.hypot(tx, tz) > 0.5 ? m.card.wanderSpeed : 0;
+      speed = Math.hypot(tx, tz) > 0.5 ? m.card.wanderSpeed * tune.monsterSpeed : 0;
     }
 
     const len = Math.hypot(tx, tz);
@@ -130,7 +164,7 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
       const vz = len > 0.01 ? (tz / len) * speed : 0;
       m.body.vel.x += (vx - m.body.vel.x) * k;
       m.body.vel.z += (vz - m.body.vel.z) * k;
-      if (len > 0.01) m.yaw = turnTowards(m.yaw, yawOf(tx, tz), dt * 8);
+      if (len > 0.01 && speed > 0) m.yaw = turnTowards(m.yaw, yawOf(tx, tz), dt * 8);
     } else {
       m.body.vel.x *= 1 - dt * 3;
       m.body.vel.z *= 1 - dt * 3;

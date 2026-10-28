@@ -74,6 +74,8 @@ export class Monster {
   wanderTarget = new THREE.Vector3();
   wanderTimer = 0;
   hitCd = 0;
+  /** Ranged monsters: seconds until the next throw. */
+  throwCd = 1.5;
   stun = 0;
   spotted = false;
   alive = true;
@@ -101,6 +103,9 @@ export class Monster {
 
 export class Arrow {
   readonly vel = new THREE.Vector3();
+  /** Helpers' arrows hit softer than the child's own (difficulty). */
+  damage = 1;
+  by: Hero | null = null;
   life = 2.2;
   stuck = false;
   dead = false;

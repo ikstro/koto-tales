@@ -35,8 +35,8 @@ export function initNarration(ctx: Ctx): void {
 
   events.on('item:picked', ({ item, first }) => {
     if (!first) return;
+    // The owner's call: no pop-up cards over the game, the voice names the find.
     voice.say(ITEMS[item].line, { priority: 6, interrupt: true });
-    ctx.hud.toast(ctx.portraits.items[item], ITEMS[item].name);
     sfx.play('sticker');
   });
 
@@ -52,7 +52,6 @@ export function initNarration(ctx: Ctx): void {
   events.on('monster:defeated', ({ kind, first }) => {
     if (first) {
       voice.say(MONSTERS[kind].defeatLine, { priority: 6, interrupt: true });
-      ctx.hud.toast(ctx.portraits.monsters[kind], MONSTERS[kind].name);
       sfx.play('sticker');
       if (!ctx.save.said.includes('tip_lightning')) setTimeout(() => once('tip_lightning', 7), 3000);
     } else if (Math.random() < 0.3) {

@@ -12,8 +12,8 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['icons/icon-64.png', 'icons/icon-180.png'],
       manifest: {
-        name: 'Кото-казки',
-        short_name: 'Кото-казки',
+        name: 'Льошині казки',
+        short_name: 'Казки',
         lang: 'uk',
         display: 'fullscreen',
         orientation: 'landscape',

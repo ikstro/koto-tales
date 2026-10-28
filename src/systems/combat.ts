@@ -8,6 +8,7 @@ import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { dropCoins } from './pickups';
 import { sendHome } from './heroes';
+import { tuneOf } from './tune';
 
 const tmp = new THREE.Vector3();
 const tmp2 = new THREE.Vector3();
@@ -51,6 +52,8 @@ export function fireArrow(ctx: Ctx, hero: Hero): void {
   obj.position.copy(from);
   ctx.scene.add(obj);
   const a = new Arrow(obj, from);
+  a.by = hero;
+  a.damage = hero.isPlayer ? HERO_STATS.arrowDamage : HERO_STATS.arrowDamage * tuneOf(ctx).helperDamage;
   a.vel.copy(dir).multiplyScalar(HERO_STATS.arrowSpeed);
   a.vel.y += 1.2; // a slight arc reads as a real arrow
   ctx.arrows.push(a);
@@ -65,7 +68,9 @@ export function castBolt(ctx: Ctx, hero: Hero): void {
     if (hero.isPlayer) sfx.play('click');
     return;
   }
-  hero.boltCd = HERO_STATS.boltCooldown;
+  const tune = tuneOf(ctx);
+  hero.boltCd = tune.boltCooldown;
+  const scale = hero.isPlayer ? 1 : tune.helperDamage;
   hero.model.play('cast');
   const hit = new Set<Monster>();
   let first = nearestMonster(ctx, hero.pos, HERO_STATS.boltRange);
@@ -78,7 +83,7 @@ export function castBolt(ctx: Ctx, hero: Hero): void {
   } else {
     hero.yaw = yawOf(first.pos.x - hero.pos.x, first.pos.z - hero.pos.z);
     let from = centreOf(first, new THREE.Vector3()).setY(first.pos.y + 14);
-    let damage = HERO_STATS.boltDamage;
+    let damage = HERO_STATS.boltDamage * scale;
     let current: Monster | null = first;
     for (let i = 0; current && i <= HERO_STATS.boltChains; i++) {
       hit.add(current);
@@ -86,7 +91,7 @@ export function castBolt(ctx: Ctx, hero: Hero): void {
       ctx.effects.lightning(from, to);
       damageMonster(ctx, current, damage, tmp.subVectors(current.pos, hero.pos).setY(0).normalize(), hero);
       from = to;
-      damage = HERO_STATS.boltChainDamage;
+      damage = HERO_STATS.boltChainDamage * scale;
       current = nearestMonster(ctx, to, 5, undefined, hit);
     }
   }
@@ -124,6 +129,7 @@ function defeatMonster(ctx: Ctx, m: Monster, by: Hero): void {
   const key = `m:${m.kind}`;
   const first = !ctx.save.found.includes(key);
   if (first) ctx.save.found.push(key);
+  ctx.save.defeated[m.kind] = (ctx.save.defeated[m.kind] ?? 0) + 1;
   events.emit('monster:defeated', { kind: m.kind, first, by: by.id });
 }
 
@@ -143,13 +149,80 @@ export function hurtHero(ctx: Ctx, hero: Hero, damage: number, from: THREE.Vecto
   }
   sfx.play('hurt');
   hero.hearts = Math.max(0, hero.hearts - damage);
-  hero.invulnerable = 1.2;
+  hero.invulnerable = 1.6; // a pack can't take hearts in one burst
   hero.sinceHit = 0;
   events.emit('hero:hurt', { hero: hero.id, hearts: hero.hearts });
   if (hero.hearts <= 0) void sendHome(ctx);
 }
 
+// ─── bones thrown by Кістлявчик ────────────────────────────────────────────
+
+interface Bone {
+  obj: THREE.Object3D;
+  pos: THREE.Vector3;
+  vel: THREE.Vector3;
+  life: number;
+}
+let bones: Bone[] = [];
+let boneTemplate: THREE.Object3D | null = null;
+
+function boneModel(ctx: Ctx): THREE.Object3D {
+  if (!boneTemplate) {
+    const mat = ctx.skin.partMaterial('#f1ead8');
+    const g = new THREE.Group();
+    const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.5), mat);
+    g.add(shaft);
+    for (const z of [-0.25, 0.25])
+      for (const x of [-0.06, 0.06]) {
+        const knob = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.13, 0.11), mat);
+        knob.position.set(x, 0, z);
+        g.add(knob);
+      }
+    boneTemplate = g;
+  }
+  return boneTemplate.clone();
+}
+
+/** A slow, arcing bone towards where the hero stands now: a child can step aside. */
+export function throwBone(ctx: Ctx, m: Monster, target: Hero, speed: number): void {
+  const from = new THREE.Vector3(m.pos.x, m.pos.y + m.body.height * 0.75, m.pos.z);
+  const to = target.chest(new THREE.Vector3());
+  const flat = Math.hypot(to.x - from.x, to.z - from.z);
+  const t = Math.max(0.35, flat / speed);
+  const vel = new THREE.Vector3((to.x - from.x) / t, (to.y - from.y) / t + 0.5 * 14 * t, (to.z - from.z) / t);
+  const obj = boneModel(ctx);
+  obj.position.copy(from);
+  ctx.scene.add(obj);
+  bones.push({ obj, pos: from, vel, life: 3 });
+  sfx.play('arrow', { pitch: 0.6, volume: 0.6 });
+}
+
+function updateBones(ctx: Ctx, dt: number): void {
+  for (const b of bones) {
+    b.life -= dt;
+    b.vel.y -= 14 * dt;
+    b.pos.addScaledVector(b.vel, dt);
+    b.obj.position.copy(b.pos);
+    b.obj.rotation.x += dt * 12;
+    b.obj.rotation.y += dt * 7;
+    for (const h of ctx.heroes.values()) {
+      if (h.chest(tmp2).distanceTo(b.pos) < h.body.radius + 0.35) {
+        hurtHero(ctx, h, 1, tmp.copy(b.pos).sub(b.vel));
+        b.life = 0;
+        break;
+      }
+    }
+    if (b.life > 0 && ctx.world.isSolid(Math.floor(b.pos.x), Math.floor(b.pos.y), Math.floor(b.pos.z))) {
+      ctx.effects.poof(b.pos, 0xf1ead8, 6);
+      b.life = 0;
+    }
+    if (b.life <= 0) ctx.scene.remove(b.obj);
+  }
+  bones = bones.filter((b) => b.life > 0);
+}
+
 export function updateCombat(ctx: Ctx, dt: number): void {
+  updateBones(ctx, dt);
   const { input, player } = ctx;
   if (ctx.playing && !ctx.sleeping) {
     if (input.take('fire') || input.fireHeld) fireArrow(ctx, player);
@@ -166,7 +239,7 @@ export function updateCombat(ctx: Ctx, dt: number): void {
       for (const m of ctx.monsters) {
         if (!m.alive) continue;
         if (centreOf(m, tmp2).distanceTo(a.pos) < m.body.radius + 0.45 + m.body.height * 0.3) {
-          damageMonster(ctx, m, HERO_STATS.arrowDamage, tmp.copy(a.vel).setY(0).normalize(), player);
+          damageMonster(ctx, m, a.damage, tmp.copy(a.vel).setY(0).normalize(), a.by ?? player);
           a.dead = true;
           break;
         }

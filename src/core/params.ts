@@ -8,8 +8,16 @@ import { SKIN_NAMES, type AnySkin } from '../render/skins';
  *   ?wakeTap=lyosha|solomiia|pupsia  (test only: the start ritual taps that hero by itself
  *   ~1.2 s after it begins; no audio unlock or fullscreen, those need a real touch)
  *   ?wakeHold=<s>  (test only: the ritual stops at <s> seconds after the touch, for screenshots)
+ *   ?title=0  (skip only the title «Льошині казки» with its ▶; the wake ritual still runs)
+ *   ?titleTap=1  (test only: the title presses ▶ by itself ~2 s after it begins; no audio unlock or fullscreen)
+ *   ?titleHold=<s>  (test only: the title freezes <s> s after it begins — the logo then assembles from
+ *   scratch, so small values catch it mid-assembly — or, with ?titleTap=1, <s> s after the press)
  */
 export interface Params {
+  /** ?mute=1 silences everything (automated checks). */
+  mute: boolean;
+  /** ?difficulty=easy|normal|hard overrides the saved level (checks). */
+  difficulty: 'easy' | 'normal' | 'hard' | null;
   skin: AnySkin | null;
   tier: QualityTier | null;
   hero: HeroId | null;
@@ -28,6 +36,16 @@ export interface Params {
   wakeTap: HeroId | null;
   /** Test only: freeze the start ritual this many seconds after the touch. */
   wakeHold: number | null;
+  /** ?title=0 skips the title screen (straight to the wake ritual). */
+  title: boolean;
+  /** Test only: the title presses ▶ by itself. */
+  titleTap: boolean;
+  /** Test only: freeze the title this many seconds after it begins (after the press with titleTap). */
+  titleHold: number | null;
+  /** Test only (?album=1 ?palette=1 ?pause=1): the HUD opens the album / brick tray / pause menu after the start. */
+  album: boolean;
+  palette: boolean;
+  pause: boolean;
 }
 
 export function readParams(): Params {
@@ -39,6 +57,8 @@ export function readParams(): Params {
   };
   const tier = num('tier');
   return {
+    mute: q.get('mute') === '1',
+    difficulty: one('difficulty', ['easy', 'normal', 'hard'] as const),
     skin: one('skin', SKIN_NAMES),
     tier: tier === 0 || tier === 1 ? tier : null,
     hero: one('hero', ['lyosha', 'solomiia', 'pupsia'] as const),
@@ -53,5 +73,11 @@ export function readParams(): Params {
     hud: q.get('hud') !== '0',
     wakeTap: one('wakeTap', ['lyosha', 'solomiia', 'pupsia'] as const),
     wakeHold: num('wakeHold'),
+    title: q.get('title') !== '0',
+    titleTap: q.get('titleTap') === '1',
+    titleHold: num('titleHold'),
+    album: q.get('album') === '1',
+    palette: q.get('palette') === '1',
+    pause: q.get('pause') === '1',
   };
 }

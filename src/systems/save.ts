@@ -1,4 +1,5 @@
-import { TERRAIN_VERSION, type HeroId, type ItemId } from '../contracts';
+import { TERRAIN_VERSION, type HeroId, type ItemId, type MonsterKind } from '../contracts';
+import type { Difficulty } from '../content/difficulty';
 
 /**
  * Everything a tablet remembers between sessions. Each device keeps its own
@@ -27,9 +28,14 @@ export interface SaveData {
   /** One-off lines already spoken (tutorial tips, milestones). */
   said: string[];
   buildBlock: number;
+  /** Chosen in the pause menu. */
+  difficulty: Difficulty;
+  /** Monsters defeated, per kind (the HUD counter shows the total). */
+  defeated: Partial<Record<MonsterKind, number>>;
+  soundOn: boolean;
 }
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -50,6 +56,9 @@ export function freshSave(): SaveData {
     house: null,
     said: [],
     buildBlock: 14,
+    difficulty: 'normal',
+    defeated: {},
+    soundOn: true,
   };
 }
 
@@ -65,6 +74,14 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
     picked: [],
     said: [...((d.said as string[]) ?? []), ...((d.coinMilestones as number[]) ?? []).map((n) => `coins_${n}`)],
   }),
+  // v3: difficulty, defeated-monster counts and the sound switch. Monsters
+  // already in the album count as one each, so the counter never starts below
+  // what the child has seen.
+  2: (d) => {
+    const defeated: Record<string, number> = {};
+    for (const f of (d.found as string[]) ?? []) if (f.startsWith('m:')) defeated[f.slice(2)] = 1;
+    return { ...d, v: 3, difficulty: 'normal', defeated, soundOn: true };
+  },
 };
 
 export function migrate(raw: Raw): SaveData {

@@ -3,12 +3,18 @@ import { MONSTERS, MONSTER_ORDER } from '../content/monsters';
 import type { SaveData } from '../systems/save';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
+import { Piece, TOP, ninePlate } from './hud';
 import type { Portraits } from './portraits';
 
+const CELL = 120;
+const PAD = 44;
+const HEAD = 104;
+
 /**
- * The album of finds: one sticker per kind of thing. Found stickers are bright
- * and speak their name when tapped; missing ones are dark silhouettes that
- * make the empty spots tempting.
+ * The album of finds: a studded plate with one sticker tile per kind of thing.
+ * Found stickers are bright printed tiles that speak their name when tapped (with
+ * «×N» when there are several); missing ones are dark tiles with a silhouette that
+ * make the empty spots tempting. Numbers only, no words.
  */
 export class Album {
   private root = document.createElement('div');
@@ -30,56 +36,80 @@ export class Album {
   }
 
   open(save: SaveData): void {
-    const book = document.createElement('div');
-    book.className = 'album-book';
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const k = Number(getComputedStyle(document.documentElement).getPropertyValue('--hud-k')) || 0.85;
+    const found = new Set(save.found);
+    const entries: { img: string; got: boolean; line: string; count: number }[] = [];
+    for (const id of ITEM_ORDER) {
+      const count = id === 'coin' ? save.coins : (save.inv[id] ?? 0);
+      entries.push({ img: this.portraits.items[id], got: found.has(id), line: ITEMS[id].line, count });
+    }
+    for (const kind of MONSTER_ORDER) {
+      entries.push({ img: this.portraits.monsters[kind], got: found.has(`m:${kind}`), line: MONSTERS[kind].spotLine, count: save.defeated?.[kind] ?? 0 });
+    }
 
-    const close = document.createElement('button');
-    close.className = 'btn album-close';
-    close.textContent = '✖';
-    close.addEventListener('pointerdown', (e) => {
+    const cols = W >= H ? 6 : 4;
+    const rows = Math.ceil(entries.length / cols);
+    const pw = PAD * 2 + cols * CELL;
+    const ph = HEAD + rows * CELL + 36;
+    const s = Math.min(k * 1.1, (W - 20) / (pw + 16), (H - 20) / (ph + 20));
+
+    const panel = document.createElement('div');
+    panel.className = 'alb-panel';
+    panel.style.transform = `translate(${Math.round((W - pw * s) / 2)}px, ${Math.round((H - ph * s) / 2)}px) scale(${s.toFixed(4)})`;
+    const plate = ninePlate(panel, pw, ph);
+    (plate.previousElementSibling as HTMLElement).style.cssText += ';left:14px;top:18px';
+
+    // Header: the book piece, «found / total», and the close tile.
+    new Piece(panel, 'album', 82, 78);
+    const n = entries.filter((e) => e.got).length;
+    const score = document.createElement('div');
+    score.className = 'alb-score';
+    score.textContent = `${n}/${entries.length}`;
+    panel.appendChild(score);
+    const close = new Piece(panel, 'close', pw - 70, 74, 'tile6-sh');
+    close.target(104).addEventListener('pointerdown', (e) => {
+      e.preventDefault();
       e.stopPropagation();
+      close.el.classList.add('down');
       this.close();
     });
-    book.appendChild(close);
 
-    const found = new Set(save.found);
-    const total = ITEM_ORDER.length + MONSTER_ORDER.length;
-    const h = document.createElement('h2');
-    h.textContent = `📖 Альбом знахідок · ${found.size} / ${total}`;
-    book.appendChild(h);
-
-    const grid = document.createElement('div');
-    grid.className = 'album-grid';
-    let n = 0;
-    const add = (img: string, got: boolean, line: string, count?: number) => {
-      const s = document.createElement('button');
-      s.className = 'sticker' + (got ? ' got' : '');
-      s.style.setProperty('--tilt', `${((n++ * 37) % 9) - 4}deg`);
-      const i = document.createElement('img');
-      i.src = img;
-      s.appendChild(i);
-      if (got && count && count > 1) {
+    const pieces: Piece[] = [close];
+    entries.forEach((en, i) => {
+      const x = PAD + CELL * ((i % cols) + 0.5);
+      const y = HEAD + CELL * Math.floor(i / cols) + CELL * 0.56;
+      const p = new Piece(panel, en.got ? 'sticker-on' : 'sticker-off', x, y, en.got ? 'sticker-sh' : null);
+      p.el.classList.add(en.got ? 'got' : 'missing');
+      if (en.got) p.lf.style.transform = `rotate(${((i * 37) % 9) - 4}deg)`;
+      const img = document.createElement('img');
+      img.className = 'stk-img';
+      img.src = en.img;
+      img.alt = '';
+      img.draggable = false;
+      img.style.top = `${-TOP - 46}px`;
+      p.pr.appendChild(img);
+      if (en.got && en.count > 1) {
         const c = document.createElement('span');
-        c.className = 'count';
-        c.textContent = `×${count}`;
-        s.appendChild(c);
+        c.className = 'stk-count';
+        c.textContent = `×${en.count}`;
+        p.pr.appendChild(c);
       }
-      s.addEventListener('pointerdown', (e) => {
+      p.target(CELL - 6, CELL - 6, 8).addEventListener('pointerdown', (e) => {
+        e.preventDefault();
         e.stopPropagation();
-        if (got) voice.say(line, { interrupt: true, priority: 5 });
-        else sfx.play('click');
+        if (en.got) {
+          voice.say(en.line, { interrupt: true, priority: 5 });
+          p.bump('translateY(-10px) scale(1.08)');
+        } else sfx.play('click');
       });
-      grid.appendChild(s);
-    };
-    for (const id of ITEM_ORDER) {
-      const count = id === 'coin' ? save.coins : save.inv[id] ?? 0;
-      add(this.portraits.items[id], found.has(id), ITEMS[id].line, count);
-    }
-    for (const kind of MONSTER_ORDER) add(this.portraits.monsters[kind], found.has(`m:${kind}`), MONSTERS[kind].spotLine);
-    book.appendChild(grid);
+      pieces.push(p);
+    });
 
-    this.root.replaceChildren(book);
+    this.root.replaceChildren(panel);
     this.root.classList.remove('hidden');
+    pieces.forEach((p, i) => p.drop(i * 22, 40));
     sfx.play('sticker');
   }
 

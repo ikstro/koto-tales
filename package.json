@@ -11,7 +11,8 @@
     "voice": "node tools/voice/gen.mjs",
     "test": "vitest run",
     "check": "tsc --noEmit && vitest run",
-    "shots": "node tools/check/shots.mjs"
+    "shots": "node tools/check/shots.mjs",
+    "hud": "node tools/hud/bake.mjs"
   },
   "dependencies": {
     "simplex-noise": "^4.0.3",

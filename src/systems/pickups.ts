@@ -86,6 +86,9 @@ function collect(ctx: Ctx, p: Pickup): void {
   ctx.effects.sparkle(tmp.copy(p.pos).setY(p.pos.y + 0.4), ITEMS[p.item].color);
   let total: number;
   if (p.item === 'coin') {
+    // The coin flies from where it was into the HUD counter, which ticks when it lands.
+    tmp.copy(p.pos).setY(p.pos.y + 0.4).project(ctx.camera);
+    ctx.hud.flyCoin(((tmp.x + 1) / 2) * window.innerWidth, ((1 - tmp.y) / 2) * window.innerHeight);
     total = ++s.coins;
     sfx.play('coin', { pitch: 1 + Math.random() * 0.1 });
     events.emit('coins:changed', { coins: s.coins });

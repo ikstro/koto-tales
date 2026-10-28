@@ -1,13 +1,14 @@
-# Кото-казки — design rules
+# Льошині казки — design rules
 
 The source of the look is the game's own world, the «Діорама» skin: warm golden-hour toy bricks with rounded bevels and studs. The interface is made of the same material. Chosen by the owner on 2026-10-28 (comp `design-lab/2026-10-28-ui/comps/03-pieces`).
 
 ## Principles
 - **The UI is toy pieces from this world**, rendered with the skin's plastic and the same sun (upper left), each with its own soft shadow. Never: white web circles, dark-outlined cartoon buttons, wooden boards, glossy candy gradients, stars, red badges.
 - **The hero is always visible**: controls hug the corners, the centre stays free.
-- **Nothing needs reading**: icons are printed on tiles; the only text is the coin number. Every element is voiced.
+- **Nothing needs reading**: icons are printed on tiles; the only text is numbers (coins, monsters defeated, album counts). Finds are announced by voice only — no pop-up cards over the game.
 - **One touch = one thing**, answered at once by motion and a click.
-- Touch targets ≥ 72 px. Landscape tablet, design canvas 1280×800.
+- **Sized by the screen, not the mock-up**: one unit `--u: clamp(44px, 8.5vmin, 76px)`; the bow ≈ 1.35u, other actions 1u, top pieces ≈ 0.8u. Nothing overlaps at 1280×800, 1024×600, 844×390 or 390×844 (portrait phone uses a compact layout).
+- **Top right**: one hero piece (the current face; a tap fans out the three heroes), album, fullscreen, pause. Pause opens a plate of picture pieces: continue, sound, home (exit to the title); difficulty as three pieces with 1/2/3 skulls.
 
 ## Palette
 | Token | Value | Use |

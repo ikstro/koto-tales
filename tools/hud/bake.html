@@ -1,0 +1,420 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>HUD piece bake</title>
+<style>html,body{margin:0;background:transparent}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas><pre id="out"></pre>
+<script type="module">
+// Renders every HUD piece as a real toy part with the game's diorama skin material
+// (skin.partMaterial) under the world's warm sun, on a transparent background.
+// Run by tools/hud/bake.mjs (`npm run hud`), which writes public/hud/*.png and src/ui/hudSprites.ts.
+//
+// Every sprite has a css "frame" (w × h, 1 stud = 40 css px) that all pieces share the
+// scale and camera tilt of; the PNG is trimmed to its visible pixels, and the trim rect
+// (x, y, cw, ch, css px inside the frame) is recorded. Bodies are stored at 2× for tablet
+// DPR; contact shadows are blurred here and stored at 1× (they are soft anyway).
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { createSkin } from '/src/render/skins/index.ts';
+import { Models } from '/src/assets/models.ts';
+import { BLOCKS, BUILD_PALETTE } from '/src/world/blocks.ts';
+
+const U = 40, DPR = 2, LO = 1.5, TILT = THREE.MathUtils.degToRad(34);
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, premultipliedAlpha: false });
+renderer.setPixelRatio(1);
+renderer.setClearColor(0x000000, 0);
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const skin = createSkin('diorama');
+const models = new Models(skin);
+const M = (c, o) => skin.partMaterial(c, o);
+
+// --- the world's light (DAY key of the diorama skin), sun from the screen's upper-left
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.45;
+scene.add(new THREE.HemisphereLight(0xe8ecdc, 0x6e5a32, 1.0));
+const sun = new THREE.DirectionalLight(0xffd9a0, 3.6);
+sun.position.set(-0.85, 0.85, -0.55).multiplyScalar(20);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7, near: 1, far: 50 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02; sun.shadow.radius = 3;
+scene.add(sun, sun.target);
+const fill = new THREE.DirectionalLight(0xffc887, 0.6); fill.position.set(3, 2, 4); scene.add(fill);
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ color: 0x3a2008, opacity: 0.55 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
+
+const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+
+// --- geometry helpers ------------------------------------------------------------
+const STUD_R = 0.3, STUD_H = 0.2, PLATE_H = 0.4, BRICK_H = 1.2;
+/** A rounded-edge solid of revolution: outer radius R, height h, edge round b (optionally a hole). */
+function roundDisc(R, h, b, inner = 0) {
+  const pts = [];
+  const arc = (cx, cy, a0, a1, n = 8) => { for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; pts.push(new THREE.Vector2(cx + Math.cos(a) * b, cy + Math.sin(a) * b)); } };
+  if (inner) { arc(inner + b, h - b, Math.PI / 2, Math.PI, 6); arc(inner + b, b, Math.PI, Math.PI * 1.5, 6); }
+  else pts.push(new THREE.Vector2(0, 0));
+  arc(R - b, b, -Math.PI / 2, 0); arc(R - b, h - b, 0, Math.PI / 2);
+  if (inner) pts.push(pts[0].clone()); else pts.push(new THREE.Vector2(0, h));
+  const g = new THREE.LatheGeometry(pts, 96);
+  g.computeVertexNormals();
+  return g;
+}
+const studGeo = roundDisc(STUD_R, STUD_H, 0.045);
+function stud(mat, x, y, z) { const s = new THREE.Mesh(studGeo, mat); s.position.set(x, y, z); return s; }
+function rectPlate(cols, rows, color, h = PLATE_H, studs = true) {
+  const g = new THREE.Group(); const m = M(color);
+  const b = new THREE.Mesh(new RoundedBoxGeometry(cols, h, rows, 4, 0.08), m); b.position.y = h / 2; g.add(b);
+  if (studs) for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) g.add(stud(m, i + 0.5 - cols / 2, h - 0.01, j + 0.5 - rows / 2));
+  return g;
+}
+/** A printed decal on a flat top: the tile's own plastic, with a texture printed in flat colours. */
+function printMat(tex, opts) {
+  const m = M('#ffffff', opts).clone();
+  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8; m.map = tex; m.needsUpdate = true;
+  return m;
+}
+function canvasTex(size, draw) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const x = c.getContext('2d'); draw(x, size);
+  return new THREE.CanvasTexture(c);
+}
+/** Round tile: R in studs (1 = 2x2), with a printed top. */
+function roundTile(R, color, print, h = PLATE_H) {
+  const g = new THREE.Group(); const b = 0.1;
+  g.add(new THREE.Mesh(roundDisc(R, h, b), M(color)));
+  if (print) {
+    const top = new THREE.Mesh(new THREE.CircleGeometry(R - b * 0.9, 96), printMat(canvasTex(512, (x, s) => {
+      x.fillStyle = color; x.fillRect(0, 0, s, s); x.save(); print(x, s); x.restore();
+    })));
+    top.rotation.x = -Math.PI / 2; top.position.y = h + 0.002; g.add(top);
+  }
+  return g;
+}
+/** The gold rim of the active tile, alone: laid over a round tile of radius R, height h. */
+function rim(R, h, color) {
+  const g = new THREE.Group();
+  const r = new THREE.Mesh(roundDisc(R + 0.02, 0.1, 0.045, R - 0.2), M(color)); r.position.y = h - 0.02; g.add(r);
+  return g;
+}
+
+// --- printed icons (flat, high-contrast, drawn in a 512 box) -------------------
+const CREAM = '#ffe3a3', INK = '#4a2c14';
+function printBow(x, s) {
+  x.translate(s / 2, s / 2); x.rotate(-Math.PI / 4); x.lineCap = 'round'; x.lineJoin = 'round';
+  x.strokeStyle = CREAM; x.lineWidth = 40;
+  x.beginPath(); x.moveTo(-40, -150); x.quadraticCurveTo(-210, 0, -40, 150); x.stroke();
+  x.lineWidth = 10; x.beginPath(); x.moveTo(-40, -150); x.lineTo(-40, 150); x.stroke();
+  x.strokeStyle = '#3b2010'; x.lineWidth = 22;
+  x.beginPath(); x.moveTo(-110, 0); x.lineTo(130, 0); x.stroke();
+  x.fillStyle = '#3b2010'; x.beginPath(); x.moveTo(190, 0); x.lineTo(110, -46); x.lineTo(126, 0); x.lineTo(110, 46); x.closePath(); x.fill();
+  x.fillStyle = CREAM;
+  for (const d of [-1, 1]) { x.beginPath(); x.moveTo(-70, 0); x.lineTo(-130, d * 44); x.lineTo(-160, d * 40); x.lineTo(-110, 0); x.closePath(); x.fill(); }
+}
+function boltPath(x, s) {
+  const p = [[0.12, 0.66], [-0.32, -0.04], [-0.03, -0.04], [-0.17, -0.66], [0.34, 0.1], [0.05, 0.1], [0.22, 0.66]];
+  x.beginPath(); p.forEach(([a, b], i) => { const X = s / 2 + a * s * 0.56, Y = s / 2 - b * s * 0.56; i ? x.lineTo(X, Y) : x.moveTo(X, Y); }); x.closePath();
+}
+const printBolt = (col) => (x, s) => { x.lineJoin = 'round'; boltPath(x, s); x.fillStyle = col; x.fill(); x.strokeStyle = col; x.lineWidth = 16; x.stroke(); };
+function printPick(x, s) {
+  x.translate(s / 2, s / 2); x.rotate(-Math.PI / 4); x.lineCap = 'round';
+  x.strokeStyle = '#5a3418'; x.lineWidth = 44; x.beginPath(); x.moveTo(0, 170); x.lineTo(0, -120); x.stroke();
+  x.fillStyle = '#34414e';
+  x.beginPath(); x.moveTo(-190, -40); x.quadraticCurveTo(0, -210, 190, -40); x.quadraticCurveTo(0, -130, -190, -40); x.fill();
+  x.beginPath(); x.arc(0, -130, 46, 0, Math.PI * 2); x.fill();
+}
+function printJoy(x, s) {
+  x.fillStyle = '#eab02b';
+  for (let i = 0; i < 4; i++) { x.save(); x.translate(s / 2, s / 2); x.rotate(i * Math.PI / 2); x.beginPath(); x.moveTo(0, -s * 0.36); x.lineTo(-s * 0.07, -s * 0.28); x.lineTo(s * 0.07, -s * 0.28); x.closePath(); x.lineJoin = 'round'; x.lineWidth = 14; x.strokeStyle = '#eab02b'; x.fill(); x.stroke(); x.restore(); }
+  x.fillStyle = 'rgba(0,0,0,0.16)'; x.beginPath(); x.arc(s / 2, s / 2, s * 0.21, 0, Math.PI * 2); x.fill();
+}
+/** Fullscreen: four corner brackets pointing out (enter) or in (leave). */
+const printFull = (out, col) => (x, s) => {
+  x.strokeStyle = col; x.lineWidth = 46; x.lineCap = 'round'; x.lineJoin = 'round';
+  const a = 140, L = 82;
+  for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    const cx = s / 2 + sx * a, cy = s / 2 + sy * a;
+    x.beginPath();
+    if (out) { x.moveTo(cx - sx * L, cy); x.lineTo(cx, cy); x.lineTo(cx, cy - sy * L); }
+    else { const ix = s / 2 + sx * (a - L * 0.15), iy = s / 2 + sy * (a - L * 0.15); x.moveTo(ix + sx * L, iy); x.lineTo(ix, iy); x.lineTo(ix, iy + sy * L); }
+    x.stroke();
+  }
+};
+const printPause = (col) => (x, s) => { x.fillStyle = col; for (const d of [-1, 1]) { x.beginPath(); x.roundRect(s / 2 + d * 70 - 34, s / 2 - 120, 68, 240, 26); x.fill(); } };
+const printPlay = (col) => (x, s) => {
+  x.fillStyle = col; x.strokeStyle = col; x.lineJoin = 'round'; x.lineWidth = 40;
+  x.beginPath(); x.moveTo(s / 2 - 70, s / 2 - 120); x.lineTo(s / 2 + 120, s / 2); x.lineTo(s / 2 - 70, s / 2 + 120); x.closePath(); x.fill(); x.stroke();
+};
+const printSound = (on, col) => (x, s) => {
+  x.fillStyle = col; x.strokeStyle = col; x.lineJoin = 'round'; x.lineCap = 'round';
+  x.translate(s / 2 - 50, s / 2);
+  x.beginPath(); x.moveTo(-110, -50); x.lineTo(-50, -50); x.lineTo(30, -125); x.lineTo(30, 125); x.lineTo(-50, 50); x.lineTo(-110, 50); x.closePath();
+  x.lineWidth = 24; x.fill(); x.stroke();
+  x.lineWidth = 32;
+  if (on) { for (const r of [80, 150]) { x.beginPath(); x.arc(30, 0, r, -0.75, 0.75); x.stroke(); } }
+  else { x.beginPath(); x.moveTo(90, -70); x.lineTo(210, 70); x.moveTo(210, -70); x.lineTo(90, 70); x.stroke(); }
+};
+const printHome = (col) => (x, s) => {
+  x.fillStyle = col; x.strokeStyle = col; x.lineJoin = 'round'; x.lineWidth = 28;
+  x.translate(s / 2, s / 2 + 20);
+  x.beginPath(); x.moveTo(-170, -10); x.lineTo(0, -170); x.lineTo(170, -10); x.closePath(); x.fill(); x.stroke();
+  x.beginPath(); x.roundRect(-120, -30, 240, 170, 14); x.fill();
+  x.fillStyle = '#e0583f'; x.beginPath(); x.roundRect(-36, 40, 72, 100, [36, 36, 0, 0]); x.fill();
+};
+const printX = (col) => (x, s) => {
+  x.strokeStyle = col; x.lineWidth = 64; x.lineCap = 'round';
+  x.beginPath(); x.moveTo(s / 2 - 110, s / 2 - 110); x.lineTo(s / 2 + 110, s / 2 + 110); x.moveTo(s / 2 + 110, s / 2 - 110); x.lineTo(s / 2 - 110, s / 2 + 110); x.stroke();
+};
+/** 1, 2 or 3 small Зомбік faces (difficulty): the face print clipped into round stickers. */
+const printZombies = (n, drawFace) => (x, s) => {
+  const r = n === 1 ? 165 : n === 2 ? 118 : 104;
+  const pos = n === 1 ? [[0, 0]] : n === 2 ? [[-112, 0], [112, 0]] : [[-118, 62], [118, 62], [0, -98]];
+  for (const [dx, dy] of pos) {
+    const cx = s / 2 + dx, cy = s / 2 + dy;
+    x.save(); x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fillStyle = INK; x.fill();
+    x.beginPath(); x.arc(cx, cy, r - 12, 0, Math.PI * 2); x.clip();
+    x.translate(cx - r, cy - r); drawFace(x, r * 2); x.restore();
+  }
+};
+
+// --- pieces ------------------------------------------------------------------
+const C = {
+  plate: '#2a6466', coral: '#e0583f', navy: '#2a5fa8', navyDeep: '#1d3f70', mustard: '#eab02b', heart: '#e8463a',
+  num: '#f4cd72', blue: '#2f7fd6', gold: '#ffc93a', teal: '#2f918b', socket: '#1e4a4c', mint: '#59b3ab', green: '#3fa142',
+  sky: '#8fcbe8',
+};
+function heartShape() {
+  const s = new THREE.Shape();
+  s.moveTo(0, -0.62); s.bezierCurveTo(-0.22, -0.42, -0.74, -0.08, -0.74, 0.26); s.bezierCurveTo(-0.74, 0.62, -0.3, 0.74, 0, 0.44);
+  s.bezierCurveTo(0.3, 0.74, 0.74, 0.62, 0.74, 0.26); s.bezierCurveTo(0.74, -0.08, 0.22, -0.42, 0, -0.62);
+  return s;
+}
+function heartTile() {
+  const geo = new THREE.ExtrudeGeometry(heartShape(), { depth: 0.26, bevelEnabled: true, bevelThickness: 0.1, bevelSize: 0.09, bevelSegments: 6, curveSegments: 32 });
+  geo.rotateX(-Math.PI / 2); geo.translate(0, 0.1, 0);
+  const g = new THREE.Group(); g.add(new THREE.Mesh(geo, M(C.heart))); return g;
+}
+/** Where a heart was: a low dark heart socket left on the plate. */
+function heartSocket() {
+  const geo = new THREE.ExtrudeGeometry(heartShape(), { depth: 0.04, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.05, bevelSegments: 3, curveSegments: 32 });
+  geo.rotateX(-Math.PI / 2); geo.translate(0, 0.03, 0);
+  const g = new THREE.Group(); g.add(new THREE.Mesh(geo, M(C.socket))); return g;
+}
+function brick(color, cols = 2, rows = 2, opts) {
+  const g = new THREE.Group(); const m = M(color, opts);
+  const b = new THREE.Mesh(new RoundedBoxGeometry(cols, BRICK_H, rows, 4, 0.08), m); b.position.y = BRICK_H / 2; g.add(b);
+  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) g.add(stud(m, i + 0.5 - cols / 2, BRICK_H - 0.01, j + 0.5 - rows / 2));
+  return g;
+}
+function coin() {
+  const o = models.item('coin'); const holder = new THREE.Group(); holder.add(o);
+  const b = new THREE.Box3().setFromObject(o), sz = b.getSize(new THREE.Vector3());
+  if (sz.z < sz.x && sz.z < sz.y) o.rotation.x = -Math.PI / 2; else if (sz.x < sz.y) o.rotation.z = Math.PI / 2;
+  holder.updateMatrixWorld(true);
+  const b2 = new THREE.Box3().setFromObject(holder), s2 = b2.getSize(new THREE.Vector3());
+  const k = 1.7 / Math.max(s2.x, s2.z); holder.scale.setScalar(k);
+  holder.updateMatrixWorld(true);
+  const b3 = new THREE.Box3().setFromObject(holder), c3 = b3.getCenter(new THREE.Vector3());
+  o.parent.position.set(-c3.x, -b3.min.y + 0.02, -c3.z);
+  const g = new THREE.Group(); g.add(holder); return g;
+}
+function numTile() { const g = new THREE.Group(); const t = new THREE.Mesh(new RoundedBoxGeometry(2, 0.4, 2, 4, 0.1), M(C.num)); t.position.y = 0.2; g.add(t); return g; }
+function squareTile(color, size = 2.6) { const g = new THREE.Group(); const t = new THREE.Mesh(new RoundedBoxGeometry(size, 0.4, size, 4, 0.14), M(color)); t.position.y = 0.2; g.add(t); return g; }
+function album() {
+  const g = new THREE.Group();
+  const cover = M(C.teal), deep = M('#1c615d'), pages = M('#f1dfae');
+  const W = 2.1, D = 2.6;
+  const back = new THREE.Mesh(new RoundedBoxGeometry(W, 0.16, D, 4, 0.06), cover); back.position.y = 0.08; g.add(back);
+  const pg = new THREE.Mesh(new RoundedBoxGeometry(W - 0.16, 0.5, D - 0.16, 3, 0.04), pages); pg.position.set(0.06, 0.4, 0); g.add(pg);
+  const front = new THREE.Mesh(new RoundedBoxGeometry(W, 0.16, D, 4, 0.06), cover); front.position.y = 0.72; g.add(front);
+  const spine = new THREE.Mesh(new RoundedBoxGeometry(0.3, 0.8, D, 4, 0.12), deep); spine.position.set(-W / 2 + 0.1, 0.4, 0); g.add(spine);
+  const tex = canvasTex(512, (x, s) => {
+    x.fillStyle = C.teal; x.fillRect(0, 0, s, s);
+    x.save(); x.translate(s * 0.53, s * 0.5); x.rotate(0.1);
+    x.fillStyle = '#f3d58a'; x.beginPath(); x.roundRect(-150, -150, 300, 300, 34); x.fill();
+    x.fillStyle = C.heart; x.beginPath(); x.moveTo(0, 90); x.bezierCurveTo(-40, 50, -110, 10, -110, -35); x.bezierCurveTo(-110, -90, -40, -100, 0, -50); x.bezierCurveTo(40, -100, 110, -90, 110, -35); x.bezierCurveTo(110, 10, 40, 50, 0, 90); x.fill();
+    x.restore();
+  });
+  const top = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.3, D - 0.2), printMat(tex)); top.rotation.x = -Math.PI / 2; top.position.set(0.1, 0.802, 0); g.add(top);
+  return g;
+}
+function joyPlate() {
+  const g = roundTile(2.5, C.plate, printJoy);
+  const m = M(C.plate);
+  for (let i = 0; i < 12; i++) { const a = (i + 0.5) / 12 * Math.PI * 2; g.add(stud(m, Math.cos(a) * 2.05, PLATE_H - 0.01, Math.sin(a) * 2.05)); }
+  return g;
+}
+function joyKnob() {
+  const g = new THREE.Group(); const m = M(C.mustard);
+  g.add(new THREE.Mesh(roundDisc(1, 0.9, 0.12), m));
+  const st = new THREE.Mesh(roundDisc(0.55, 0.3, 0.08), m); st.position.y = 0.88; g.add(st);
+  return g;
+}
+const RING_N = 8, RING_R = 1.55;
+function ringPlate() {
+  const g = new THREE.Group(); const m = M(C.plate);
+  g.add(new THREE.Mesh(roundDisc(2, PLATE_H, 0.1), m));
+  for (let i = 0; i < RING_N; i++) { const a = -Math.PI / 2 + i / RING_N * Math.PI * 2; g.add(stud(M('#1e4a4c'), Math.cos(a) * RING_R, PLATE_H - 0.01, Math.sin(a) * RING_R)); }
+  return g;
+}
+function ringLit(i) {
+  const g = new THREE.Group(); const a = -Math.PI / 2 + i / RING_N * Math.PI * 2;
+  g.add(stud(M('#ffd23a', { emissive: true }), Math.cos(a) * RING_R, PLATE_H - 0.01, Math.sin(a) * RING_R));
+  return g;
+}
+
+// faces, rendered with the game's own models, printed onto round tiles
+function face(id, yaw, bg) {
+  const m = models.character({ kind: 'parts', id }); m.update(0, 0);
+  const root = m.root; root.rotation.y = yaw; scene.add(root); root.updateMatrixWorld(true);
+  const head = m.rig?.parts?.head ?? root.getObjectByName('head');
+  const b = new THREE.Box3().setFromObject(head);
+  const hair = root.getObjectByName('hair'); if (hair) b.union(new THREE.Box3().setFromObject(hair));
+  b.min.y -= (b.max.y - b.min.y) * 0.45;
+  const c = b.getCenter(new THREE.Vector3()), sz = b.getSize(new THREE.Vector3());
+  const r = Math.max(sz.x, sz.y) * 0.62;
+  const pc = new THREE.PerspectiveCamera(22, 1, 0.01, 100);
+  pc.position.copy(c).add(new THREE.Vector3(0, r * 0.25, r / Math.tan(THREE.MathUtils.degToRad(11)))); pc.lookAt(c);
+  renderer.setSize(512, 512); renderer.clear(); renderer.render(scene, pc); scene.remove(root);
+  const cv = document.createElement('canvas'); cv.width = cv.height = 512; const x = cv.getContext('2d');
+  x.fillStyle = bg; x.fillRect(0, 0, 512, 512);
+  x.fillStyle = 'rgba(255,240,200,0.18)'; for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) { x.beginPath(); x.arc(42 + i * 86, 42 + j * 86, 16, 0, Math.PI * 2); x.fill(); }
+  x.drawImage(canvas, 0, 40, 512, 512);
+  return (ctx, s) => ctx.drawImage(cv, 0, 0, s, s);
+}
+
+// --- shoot ---------------------------------------------------------------------
+const out = {};
+const nine = {};
+/** Alpha bounding box of a 2D canvas, in its pixels; null if empty. */
+function bbox(cv) {
+  const { width: W, height: H } = cv; const d = cv.getContext('2d').getImageData(0, 0, W, H).data;
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] > 2) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  return x1 < 0 ? null : { x0, y0, x1: x1 + 1, y1: y1 + 1 };
+}
+/** Trim a canvas to its visible pixels on a grid of `step` px (so the css rect is whole). */
+function trimmed(cv, scale, q = [4, 8]) {
+  posterize(cv, q[0], q[1]);
+  const st = scale === 1.5 ? 3 : scale < 1 ? 1 : scale;
+  const b = bbox(cv) ?? { x0: 0, y0: 0, x1: st, y1: st }; const x0 = Math.floor(b.x0 / st) * st, y0 = Math.floor(b.y0 / st) * st;
+  const x1 = Math.min(cv.width, Math.ceil(b.x1 / st) * st), y1 = Math.min(cv.height, Math.ceil(b.y1 / st) * st);
+  const t = document.createElement('canvas'); t.width = x1 - x0; t.height = y1 - y0;
+  t.getContext('2d').drawImage(cv, -x0, -y0);
+  return { png: t.toDataURL('image/png'), x: x0 / scale, y: y0 / scale, cw: (x1 - x0) / scale, ch: (y1 - y0) / scale, px0: x0, py0: y0 };
+}
+/** Fewer distinct values → much smaller PNGs; invisible at sprite size. */
+function posterize(cv, rgbStep, aStep) {
+  const x = cv.getContext('2d'); const im = x.getImageData(0, 0, cv.width, cv.height); const d = im.data;
+  const qa = (v) => Math.min(255, Math.round(v / aStep) * aStep), qc = (v) => Math.min(255, Math.round(v / rgbStep) * rgbStep);
+  for (let i = 0; i < d.length; i += 4) {
+    const a = qa(d[i + 3]); d[i + 3] = a;
+    if (a === 0) { d[i] = d[i + 1] = d[i + 2] = 0; } else { d[i] = qc(d[i]); d[i + 1] = qc(d[i + 1]); d[i + 2] = qc(d[i + 2]); }
+  }
+  x.putImageData(im, 0, 0);
+}
+function grab() { const c = document.createElement('canvas'); c.width = canvas.width; c.height = canvas.height; c.getContext('2d').drawImage(canvas, 0, 0); return c; }
+/** A contact shadow: blur the alpha, tint it warm, store at 1×. */
+function shadowOf(cv, w, h, dpr) {
+  const blur = document.createElement('canvas'); blur.width = cv.width + 0; blur.height = cv.height;
+  const bx = blur.getContext('2d'); bx.filter = `blur(${5 * dpr / 2}px)`; bx.drawImage(cv, 0, 0); bx.filter = 'none';
+  bx.globalCompositeOperation = 'source-in'; bx.fillStyle = 'rgb(58,32,8)'; bx.fillRect(0, 0, blur.width, blur.height);
+  const one = document.createElement('canvas'); one.width = w / 2; one.height = h / 2;
+  const ox = one.getContext('2d'); ox.imageSmoothingQuality = 'high'; ox.drawImage(blur, 0, 0, w / 2, h / 2);
+  return one;
+}
+function frameCam(w, h, oy) {
+  const hw = w / 2 / U, hh = h / 2 / U;
+  Object.assign(cam, { left: -hw, right: hw, top: hh + oy, bottom: -hh + oy }); cam.updateProjectionMatrix();
+  cam.position.set(0, Math.cos(TILT), Math.sin(TILT)).multiplyScalar(30); cam.lookAt(0, 0, 0); cam.updateMatrixWorld(true);
+}
+/** Project a world point to css px inside the frame. */
+function toFrame(v, w, h) { const p = v.clone().project(cam); return [(p.x + 1) / 2 * w, (1 - p.y) / 2 * h]; }
+
+function shoot(name, obj, w, h, { shadow = name + '-sh', oy = 0, dpr = DPR } = {}) {
+  obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  scene.add(obj); obj.updateMatrixWorld(true);
+  frameCam(w, h, oy);
+  renderer.setSize(Math.round(w * dpr), Math.round(h * dpr));
+  renderer.clear(); renderer.render(scene, cam);
+  const t = trimmed(grab(), dpr);
+  out[name] = { w, h, oy, scale: dpr, x: t.x, y: t.y, cw: t.cw, ch: t.ch, png: t.png };
+  if (shadow && !out[shadow]) {
+    const mats = new Map();
+    obj.traverse((o) => { if (o.isMesh) { const ms = Array.isArray(o.material) ? o.material : [o.material]; for (const m of ms) if (!mats.has(m)) { mats.set(m, [m.colorWrite, m.depthWrite]); m.colorWrite = false; m.depthWrite = false; } } });
+    scene.add(ground); renderer.clear(); renderer.render(scene, cam); scene.remove(ground);
+    for (const [m, [c, d]] of mats) { m.colorWrite = c; m.depthWrite = d; }
+    const s = trimmed(shadowOf(grab(), w, h, dpr), 0.5, [1, 6]);
+    out[shadow] = { w, h, oy, scale: 1, x: s.x, y: s.y, cw: s.cw, ch: s.ch, png: s.png };
+  }
+  scene.remove(obj);
+  return out[name];
+}
+
+// a studded plate for nine-slice panels (album, palette tray, pause menu): 3×3 studs,
+// sliced on the stud-cell lines so the middle cell tiles seamlessly
+{
+  const w = 180, h = 170, cols = 3;
+  const sp = shoot('plate9', rectPlate(cols, cols, C.plate), w, h, { shadow: null, dpr: LO });
+  const [xa] = toFrame(new THREE.Vector3(-0.5, PLATE_H, 0), w, h), [xb] = toFrame(new THREE.Vector3(0.5, PLATE_H, 0), w, h);
+  const [, ya] = toFrame(new THREE.Vector3(0, PLATE_H, -0.5), w, h), [, yb] = toFrame(new THREE.Vector3(0, PLATE_H, 0.5), w, h);
+  const r = (v) => Math.round(v * LO);
+  // slices in image px of the trimmed PNG
+  nine.plate9 = { top: r(ya - sp.y), left: r(xa - sp.x), right: r(sp.x + sp.cw - xb), bottom: r(sp.y + sp.ch - yb) };
+}
+
+const faces = {
+  lyosha: face('lyosha', 0.3, C.mustard),
+  solomiia: face('solomiia', 0.3, '#ee6a82'),
+  pupsia: face('pupsia', 0.5, '#f08a24'),
+  zombie: face('zombie', 0.3, '#86b04a'),
+};
+const HC = { lyosha: C.mustard, solomiia: '#ee6a82', pupsia: '#f08a24' };
+
+shoot('plate-hearts', rectPlate(8, 2, C.plate), 380, 140, { dpr: LO });
+shoot('heart', heartTile(), 90, 90, { dpr: LO });
+shoot('heart-empty', heartSocket(), 90, 90, { shadow: null, dpr: LO });
+shoot('plate-coin', rectPlate(4, 2, C.plate), 220, 140, { dpr: LO });
+shoot('coin', coin(), 100, 100);
+shoot('numtile', numTile(), 110, 110, { dpr: LO });
+shoot('plate-top', rectPlate(7, 2, C.plate), 340, 140, { dpr: LO });
+for (const id of Object.keys(HC)) shoot('hero-' + id, roundTile(1, HC[id], faces[id]), 110, 110, { shadow: 'tile-sh', dpr: LO });
+shoot('zombie', roundTile(1, '#86b04a', faces.zombie), 110, 110, { shadow: 'tile-sh', dpr: LO });
+shoot('rim', rim(1, PLATE_H, C.gold), 110, 110, { shadow: null, dpr: LO });
+shoot('full-in', roundTile(1, C.mint, printFull(true, INK)), 110, 110, { shadow: 'tile-sh', dpr: LO });
+shoot('full-out', roundTile(1, C.mint, printFull(false, INK)), 110, 110, { shadow: 'tile-sh', dpr: LO });
+shoot('pause', roundTile(1, C.mustard, printPause(INK)), 110, 110, { shadow: 'tile-sh', dpr: LO });
+for (const n of [1, 2, 3]) shoot('diff-' + n, roundTile(1, C.num, printZombies(n, faces.zombie), 0.6), 130, 130, { shadow: 'tile6-sh', dpr: LO });
+shoot('rim6', rim(1, 0.6, C.gold), 130, 130, { shadow: null, dpr: LO });
+shoot('album', album(), 180, 190, { oy: 0.25, dpr: LO });
+shoot('joy-plate', joyPlate(), 250, 250, { dpr: LO });
+shoot('joy-knob', joyKnob(), 200, 200, { oy: 0.3 });
+shoot('ring', ringPlate(), 230, 230, { dpr: LO });
+for (let i = 0; i < RING_N; i++) shoot('ring-lit-' + i, ringLit(i), 230, 230, { shadow: null });
+shoot('bolt', roundTile(1, C.navy, printBolt('#ffd23a'), 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('bolt-empty', roundTile(1, C.navy, printBolt(C.navyDeep), 0.6), 130, 130, { shadow: null });
+shoot('pick', roundTile(1, C.mustard, printPick, 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('sound-on', roundTile(1, C.navy, printSound(true, CREAM), 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('sound-off', roundTile(1, C.navy, printSound(false, CREAM), 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('home', roundTile(1, C.mustard, printHome(INK), 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('close', roundTile(1, C.coral, printX(CREAM), 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('bow', roundTile(1.35, C.coral, printBow, 0.6), 160, 160, { shadow: 'big-sh' });
+shoot('play', roundTile(1.35, C.green, printPlay(CREAM), 0.6), 160, 160, { shadow: 'big-sh' });
+for (const id of BUILD_PALETTE) {
+  const b = BLOCKS[id], look = b.side;
+  const opts = look.surface === 'glass' ? { transparent: true } : b.glow ? { emissive: true } : undefined;
+  shoot('brick-' + id, brick(look.color, 2, 2, opts), 200, 200, { oy: 0.4, shadow: 'brick-sh' });
+}
+for (const [n, c] of [['red', '#e33a2f'], ['yellow', '#f6c420'], ['green', '#3fa142']]) shoot('brick1-' + n, brick(c, 1, 1), 150, 150, { oy: 0.4, shadow: 'brick1-sh' });
+shoot('sticker-on', squareTile(C.sky), 130, 130, { shadow: 'sticker-sh', dpr: LO });
+shoot('sticker-off', squareTile(C.socket), 130, 130, { shadow: null, dpr: LO });
+
+document.getElementById('out').textContent = JSON.stringify({ sprites: out, nine });
+document.title = 'done';
+</script></body></html>
