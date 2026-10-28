@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { BossHints, STONE_REMINDER_S, WISDOM_PACE, WisdomClock, calmForWisdom, nextWisdomIn, type Calm } from './pacing';
+import { BossHints, MOUTH_REPEAT_S, STONE_REPEAT_S, WISDOM_PACE, WisdomClock, type Calm } from './pacing';
 
-const calm: Calm = { quietS: 60, monsterDist: Infinity, inBossZone: false };
+const calm: Calm = { quietS: 5, monsterDist: Infinity, inBossZone: false };
 
 /** Runs the clock in 1 s steps; returns the seconds at which thoughts were allowed. */
 function run(clock: WisdomClock, seconds: number, at: (t: number) => Calm = () => calm): number[] {
@@ -11,74 +11,56 @@ function run(clock: WisdomClock, seconds: number, at: (t: number) => Calm = () =
 }
 
 describe('wisdom pacing', () => {
-  it('waits 5–6 minutes between thoughts', () => {
-    expect(nextWisdomIn(0)).toBe(300);
-    expect(nextWisdomIn(1)).toBe(360);
-    const said = run(new WisdomClock(() => 0.5), 1000);
-    expect(said).toEqual([330, 660, 990]);
+  it('a thought every ~2–3 minutes', () => {
+    const said = run(new WisdomClock(() => 0.5), 600);
+    const mid = (WISDOM_PACE.minS + WISDOM_PACE.maxS) / 2;
+    expect(said[0]).toBe(Math.ceil(mid));
+    expect(said.length).toBe(Math.floor(600 / mid));
   });
 
-  it('never with a monster within 12 blocks, in the boss zone, or within 20 s of another line', () => {
-    expect(calmForWisdom(calm)).toBe(true);
-    expect(calmForWisdom({ ...calm, monsterDist: 12 })).toBe(false);
-    expect(calmForWisdom({ ...calm, monsterDist: 12.5 })).toBe(true);
-    expect(calmForWisdom({ ...calm, inBossZone: true })).toBe(false);
-    expect(calmForWisdom({ ...calm, quietS: WISDOM_PACE.quietS - 1 })).toBe(false);
-    expect(calmForWisdom({ ...calm, quietS: 0 })).toBe(false);
+  it('near monsters and in the boss zone she still talks', () => {
+    const said = run(new WisdomClock(() => 0), 120, () => ({ quietS: 5, monsterDist: 3, inBossZone: true }));
+    expect(said).toEqual([WISDOM_PACE.minS]);
   });
 
-  it('a thought that comes due in a busy moment waits for the first calm one', () => {
-    // a monster is close from 300 s to 400 s
-    const said = run(new WisdomClock(() => 0), 420, (t) => (t < 400 ? { ...calm, monsterDist: 5 } : calm));
-    expect(said).toEqual([400]);
+  it('never over another line: waits until it ends', () => {
+    const said = run(new WisdomClock(() => 0), 130, (t) => ({ ...calm, quietS: t < 110 ? 0 : 1 }));
+    expect(said).toEqual([110]);
   });
 });
 
 describe('boss hints', () => {
-  it('stone: once per fight, again only after 90 s in the zone without a lantern', () => {
+  const step = (h: BossHints, s: number) => {
+    for (let i = 0; i < s; i++) h.tick(1, true, true);
+  };
+
+  it('stone repeats while arrows bounce, at most every 25 s', () => {
     const h = new BossHints();
     expect(h.stone()).toBe(true);
+    step(h, STONE_REPEAT_S - 1);
     expect(h.stone()).toBe(false);
-    // 60 s in the zone, a lantern, another 60 s: no reminder yet
-    expect(h.tick(60, true, true)).toBe(false);
-    h.lantern();
-    expect(h.tick(60, true, true)).toBe(false);
-    // time outside the zone does not count
-    expect(h.tick(500, false, true)).toBe(false);
-    expect(h.tick(STONE_REMINDER_S - 60, true, true)).toBe(true);
-    // only one reminder
-    expect(h.tick(1000, true, true)).toBe(false);
-    expect(h.stone()).toBe(false);
+    step(h, 1);
+    expect(h.stone()).toBe(true);
   });
 
-  it('no reminder before the first stone line or once the armour is broken', () => {
-    const h = new BossHints();
-    expect(h.tick(200, true, true)).toBe(false);
-    h.stone();
-    expect(h.tick(200, true, false)).toBe(false);
-  });
-
-  it('mouth once; stomp once per session even across fights; a new fight resets stone and mouth', () => {
+  it('mouth repeats at most every 35 s; stomp once per session even across fights', () => {
     const h = new BossHints();
     expect(h.mouth()).toBe(true);
+    step(h, MOUTH_REPEAT_S - 1);
     expect(h.mouth()).toBe(false);
-    expect(h.stomp()).toBe(true);
-    expect(h.stomp()).toBe(false);
-    h.stone();
-    h.newFight();
-    expect(h.stone()).toBe(true);
+    step(h, 1);
     expect(h.mouth()).toBe(true);
+    expect(h.stomp()).toBe(true);
+    h.newFight();
     expect(h.stomp()).toBe(false);
+    expect(h.mouth()).toBe(true);
   });
 
-  it('the boss card counts as the hint it explained', () => {
+  it('the boss card counts as the hint it explained, then the normal pause applies', () => {
     const h = new BossHints();
     h.told(true);
     expect(h.stone()).toBe(false);
-    expect(h.tick(STONE_REMINDER_S, true, true)).toBe(true);
-    const g = new BossHints();
-    g.told(false);
-    expect(g.mouth()).toBe(false);
-    expect(g.stone()).toBe(true);
+    step(h, STONE_REPEAT_S);
+    expect(h.stone()).toBe(true);
   });
 });

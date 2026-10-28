@@ -175,8 +175,8 @@ export class Boss {
       ctx.effects.sparkle(at, 0xfff1a8);
       ctx.effects.poof(at, 0x9aa0a8, 4);
       sfx.play('clink', { pitch: 0.92 + Math.random() * 0.16 });
-      // the first bounce of the fight explains the stone (once); a closed mouth says nothing more
-      if (this.brain.armored) armourHint(this);
+      // a bounce reminds of the stone, a shot at the closed mouth reminds to wait for it (pacing.ts)
+      armourHint(this);
     } else {
       this.flare = 1;
       // a flinch rather than the monsters' blink: a huge flickering beast would be too much
@@ -277,7 +277,7 @@ const session = {
   inZone: false,
   spotSaid: false,
   farSaid: false,
-  /** Пупся's hints: few, and each at most once (systems/pacing.ts). */
+  /** Пупся's hints and how often they repeat (systems/pacing.ts). */
   hints: new BossHints(),
   /** Game time when the boss card pops up (the first visit of this save), or null. */
   guideAt: null as number | null,
@@ -290,7 +290,7 @@ function hint(line: LineId): void {
   voice.say(line, { priority: 5 });
 }
 
-/** The stone or the mouth hint, whichever fits the armour now, if it was not said yet. */
+/** The stone or the mouth hint, whichever fits the armour now, unless it was said a moment ago. */
 function armourHint(b: Boss): void {
   if (!b.alive) return;
   if (b.brain.armored) {

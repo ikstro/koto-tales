@@ -62,5 +62,5 @@ Every press plays its sound (`src/voice/sfx.ts`).
 - The first time a save enters the boss's wasteland, after its roar the game pauses on the boss card alone (with guide_boss) and a ▶; any tap continues. Remembered in save.said as guide_boss.
 
 ## Voice frequency
-- Пупся talks little (src/systems/pacing.ts, tested): her thoughts every 5–6 minutes, never with a monster within ~12 blocks, inside the boss zone, or less than 20 s after another line; the night tip once per session.
-- Boss fight: the stone hint once per fight (once more only after 90 s in the zone with no new lantern); the mouth hint once, after the armour breaks; the stomp warning once per session; one line per lantern (max 3). A boss card that popped up counts as the hint it explained.
+- Пупся is chatty on purpose (the owner's call): she keeps the child company. Rules in `src/systems/pacing.ts` (tested) only stop her talking over herself: a thought every ~2–3 minutes, waiting for any playing line to end; the night tip every night.
+- Boss fight: the stone hint whenever arrows bounce off the armour (at most every 25 s); the mouth hint after the armour breaks and when shots hit the closed mouth (at most every 35 s); the stomp warning once per session; one line per lantern. A boss card that popped up counts as the hint it explained.

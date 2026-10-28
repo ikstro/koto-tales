@@ -1,36 +1,30 @@
 /**
- * How often Пупся talks (DESIGN.md «Voice»). The owner's report: she spoke all the time. The rules
- * here are pure (no audio, no scene) so they are tested on their own; narration.ts and boss.ts
- * feed them what is happening.
+ * How often Пупся talks (DESIGN.md «Voice»). The owner wants her chatty: she
+ * is the strategist who keeps the child company, so these rules only stop her
+ * from talking over herself. Pure logic, tested on its own; narration.ts and
+ * boss.ts feed it what is happening.
  */
 
-/** Her thoughts («мудрості»): every 5–6 minutes, only in a calm moment. */
+/** Her thoughts («мудрості»): every ~2–3 minutes, whenever no other line is playing. */
 export const WISDOM_PACE = {
-  minS: 300,
-  maxS: 360,
-  /** Seconds of silence wanted before a thought (never right after another line). */
-  quietS: 20,
-  /** No thought while a monster is this close (blocks). */
-  monsterRange: 12,
+  minS: 100,
+  maxS: 170,
 };
 
 export interface Calm {
   /** Seconds since the last voice line ended (0 while one is playing). */
   quietS: number;
-  /** Distance to the nearest monster (Infinity when none). */
+  /** Distance to the nearest monster (Infinity when none). Informational. */
   monsterDist: number;
   inBossZone: boolean;
 }
 
 export const nextWisdomIn = (r: number): number => WISDOM_PACE.minS + r * (WISDOM_PACE.maxS - WISDOM_PACE.minS);
 
-export const calmForWisdom = (c: Calm): boolean =>
-  c.quietS >= WISDOM_PACE.quietS && c.monsterDist > WISDOM_PACE.monsterRange && !c.inBossZone;
+/** A thought never cuts into another line; that is the only condition. */
+export const calmForWisdom = (c: Calm): boolean => c.quietS > 0;
 
-/**
- * Counts down to the next thought. When it is due but the moment is not calm, it waits (it does
- * not skip): the thought comes at the first calm moment, then the clock starts again.
- */
+/** Counts down to the next thought; when due during another line, it waits for that line to end. */
 export class WisdomClock {
   left: number;
 
@@ -47,56 +41,39 @@ export class WisdomClock {
   }
 }
 
-/** Seconds in the wasteland without a new lantern before the stone hint may come once more. */
-export const STONE_REMINDER_S = 90;
+/** Seconds between repeats of the stone hint while arrows keep bouncing off the armour. */
+export const STONE_REPEAT_S = 25;
+/** Seconds between repeats of the mouth hint while shots miss the closed mouth. */
+export const MOUTH_REPEAT_S = 35;
 
 /**
- * Пупся's hints in the boss fight:
- *   stone  — once per fight; once more only after 90 s in the zone with no lantern placed;
- *   mouth  — once, after the armour breaks;
- *   stomp  — once per session (a new fight does not reset it).
+ * Пупся's hints in the boss fight, as they were first designed:
+ *   stone — whenever an arrow bounces off the armour, at most every 25 s;
+ *   mouth — after the armour breaks, and whenever a shot hits the closed mouth, at most every 35 s;
+ *   stomp — once per session.
  * The lantern lines (one per lantern) are the fight's own events, not hints.
  */
 export class BossHints {
-  private stoneSaid = false;
-  private reminderUsed = false;
-  private mouthSaid = false;
+  private t = 0;
+  private lastStone = -Infinity;
+  private lastMouth = -Infinity;
   private stompSaid = false;
-  /** Seconds in the zone since the stone line or the last lantern, while the armour holds. */
-  private idle = 0;
 
-  /** A new boss (first spawn or its return). */
+  /** A new boss (first spawn or its return): hints may come at once. */
   newFight(): void {
-    this.stoneSaid = false;
-    this.reminderUsed = false;
-    this.mouthSaid = false;
-    this.idle = 0;
+    this.lastStone = -Infinity;
+    this.lastMouth = -Infinity;
   }
 
-  /** The first stone line of the fight (zone entry or the first arrow that bounces). */
   stone(): boolean {
-    if (this.stoneSaid) return false;
-    this.stoneSaid = true;
-    this.idle = 0;
+    if (this.t - this.lastStone < STONE_REPEAT_S) return false;
+    this.lastStone = this.t;
     return true;
-  }
-
-  /** Time in the fight; true once, when the reminder is due. */
-  tick(dt: number, inZone: boolean, armored: boolean): boolean {
-    if (!inZone || !armored || !this.stoneSaid || this.reminderUsed) return false;
-    this.idle += dt;
-    if (this.idle < STONE_REMINDER_S) return false;
-    this.reminderUsed = true;
-    return true;
-  }
-
-  lantern(): void {
-    this.idle = 0;
   }
 
   mouth(): boolean {
-    if (this.mouthSaid) return false;
-    this.mouthSaid = true;
+    if (this.t - this.lastMouth < MOUTH_REPEAT_S) return false;
+    this.lastMouth = this.t;
     return true;
   }
 
@@ -106,11 +83,17 @@ export class BossHints {
     return true;
   }
 
-  /** The boss card already explained it (the guide popped up): counts as that hint. */
+  /** Advances the fight's clock. Repeats come from hits, so it never asks for a line by itself. */
+  tick(dt: number, _inZone: boolean, _armored: boolean): boolean {
+    this.t += dt;
+    return false;
+  }
+
+  lantern(): void {}
+
+  /** The boss card just explained it: the matching hint waits its normal pause before repeating. */
   told(armored: boolean): void {
-    if (armored) {
-      this.stoneSaid = true;
-      this.idle = 0;
-    } else this.mouthSaid = true;
+    if (armored) this.lastStone = this.t;
+    else this.lastMouth = this.t;
   }
 }

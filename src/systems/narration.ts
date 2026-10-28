@@ -20,10 +20,9 @@ const COIN_MILESTONES: [number, LineId][] = [
   [100, 'coins_100'],
 ];
 
-/** Пупся's thoughts: every 5–6 minutes, in a calm moment only (systems/pacing.ts). */
+/** Пупся's thoughts: every ~2–3 minutes, never over another line (systems/pacing.ts). */
 const wisdom = new WisdomClock();
 let lowHeartsSaid = false;
-let nightTipSaid = false;
 
 const pick = <T,>(list: T[]) => list[Math.floor(Math.random() * list.length)];
 
@@ -64,11 +63,7 @@ export function initNarration(ctx: Ctx): void {
 
   events.on('time:phase', ({ phase }) => {
     voice.say(phase, { priority: 5 });
-    // the night tip once per session: she does not repeat it every evening
-    if (phase === 'night' && !nightTipSaid) {
-      nightTipSaid = true;
-      setTimeout(() => voice.say('pupsia_tip_night', { priority: 3 }), 5000);
-    }
+    if (phase === 'night') setTimeout(() => voice.say('pupsia_tip_night', { priority: 3 }), 5000);
   });
 
   events.on('hero:hurt', ({ hearts }) => {
