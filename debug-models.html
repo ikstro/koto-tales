@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Models debug</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #bfe3f5;
+        font: 13px/1.4 system-ui, sans-serif;
+      }
+      #info {
+        position: fixed;
+        left: 8px;
+        top: 6px;
+        color: #12303f;
+        background: rgba(255, 255, 255, 0.7);
+        padding: 4px 8px;
+        border-radius: 6px;
+        white-space: pre;
+      }
+      #nav a {
+        margin-right: 8px;
+        color: #0d47a1;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="info"><div id="nav"></div><div id="stats"></div></div>
+    <script type="module" src="/src/debug/modelsDebug.ts"></script>
+  </body>
+</html>

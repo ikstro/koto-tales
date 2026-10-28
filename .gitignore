@@ -1,0 +1,6 @@
+node_modules/
+dist/
+tools/voice/.cache/
+refs/
+*.local
+.playwright-mcp/

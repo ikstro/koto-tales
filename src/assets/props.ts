@@ -1,0 +1,165 @@
+/** Arrow, campfire and treasure chest. Materials from the skin. */
+import * as THREE from 'three';
+import type { Skin } from '../contracts';
+import { Kit } from './parts/kit';
+
+/** An arrow ≈0.75 blocks long, origin at its middle, pointing +Z. */
+export function createArrow(skin: Skin): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'arrow';
+  new Kit('arrow', skin)
+    .part('arrow', g)
+    .box([0.04, 0.04, 0.62], [0, 0, 0], '#caa26a')
+    .box([0.09, 0.09, 0.08], [0, 0, 0.33], '#9aa4ad')
+    .box([0.05, 0.05, 0.06], [0, 0, 0.395], '#9aa4ad')
+    .box([0.012, 0.11, 0.14], [0, 0, -0.26], '#ef5350')
+    .box([0.11, 0.012, 0.14], [0, 0, -0.26], '#fafafa')
+    .done();
+  return g;
+}
+
+export interface Campfire {
+  root: THREE.Group;
+  update(dt: number): void;
+}
+
+const FLAMES = 7;
+const SPARKS = 4;
+
+/** Stones, crossed logs, glowing embers, rising flame cubes and a flickering warm light. Origin bottom centre. */
+export function createCampfire(skin: Skin): Campfire {
+  const root = new THREE.Group();
+  root.name = 'campfire';
+  const p = new Kit('campfire', skin).part('campfire', root);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    p.box([0.17, 0.13, 0.17], [Math.cos(a) * 0.4, 0.065, Math.sin(a) * 0.4], i % 2 ? '#8f8f96' : '#7a7a82', [0, a, 0]);
+  }
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI;
+    p.box([0.11, 0.11, 0.62], [0, 0.1 + i * 0.03, 0], '#6b4a2b', [0.12, a, 0]);
+  }
+  p.box([0.34, 0.05, 0.34], [0, 0.03, 0], { c: '#ff6d1f', glow: true }, [0, 0.4, 0]);
+  p.done();
+
+  const unit = new THREE.BoxGeometry(1, 1, 1);
+  const flames = new THREE.InstancedMesh(unit, skin.partMaterial('#ff8a1f', { emissive: true }), FLAMES);
+  const sparks = new THREE.InstancedMesh(unit, skin.partMaterial('#ffd84a', { emissive: true }), SPARKS);
+  flames.frustumCulled = sparks.frustumCulled = false;
+  root.add(flames, sparks);
+
+  const light = new THREE.PointLight(0xffa64d, 3, 5, 1.4);
+  light.position.set(0, 0.7, 0);
+  root.add(light);
+
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const e = new THREE.Euler();
+  const pos = new THREE.Vector3();
+  const scl = new THREE.Vector3();
+  const seed = (i: number) => (Math.sin(i * 91.7) * 43758.5) % 1;
+  let t = 0;
+
+  const place = (mesh: THREE.InstancedMesh, i: number, life: number, base: number, rise: number, k: number) => {
+    const s = Math.abs(seed(i + k));
+    const a = s * Math.PI * 2;
+    const r = (1 - life) * 0.11 + 0.02;
+    pos.set(Math.cos(a + life * 2) * r, 0.1 + life * rise, Math.sin(a + life * 2) * r);
+    const size = base * (1 - life * 0.85);
+    scl.set(size, size, size);
+    q.setFromEuler(e.set(life * 2 + s, life * 3, 0));
+    mesh.setMatrixAt(i, m.compose(pos, q, scl));
+  };
+
+  const update = (dt: number) => {
+    t += dt;
+    for (let i = 0; i < FLAMES; i++) place(flames, i, (t * 1.3 + i / FLAMES) % 1, 0.2, 0.62, 0);
+    for (let i = 0; i < SPARKS; i++) place(sparks, i, (t * 0.9 + i / SPARKS + 0.13) % 1, 0.1, 0.9, 7);
+    flames.instanceMatrix.needsUpdate = true;
+    sparks.instanceMatrix.needsUpdate = true;
+    light.intensity = 3 + Math.sin(t * 13) * 0.45 + Math.sin(t * 7.3 + 1) * 0.35 + Math.sin(t * 23) * 0.2;
+  };
+  update(0);
+  return { root, update };
+}
+
+export interface Chest {
+  root: THREE.Group;
+  setOpen(open: boolean): void;
+}
+
+/**
+ * A wooden chest with dark straps and gold inside, origin bottom centre,
+ * front +Z. The lid hinges at the back edge and animates itself (it eases
+ * while the chest is being rendered), so the game only calls setOpen.
+ */
+export function createChest(skin: Skin): Chest {
+  const root = new THREE.Group();
+  root.name = 'chest';
+  const kit = new Kit('chest', skin);
+  const WOOD = '#a8692f';
+  const DARK = '#5b3818';
+  const GOLD = '#ffcf33';
+  const W = 0.72;
+  const D = 0.5;
+  const H = 0.36;
+  const t = 0.06;
+  kit
+    .part('base', root)
+    .box([W, t, D], [0, t / 2, 0], WOOD)
+    .box([W, H, t], [0, H / 2, D / 2 - t / 2], WOOD)
+    .box([W, H, t], [0, H / 2, -D / 2 + t / 2], WOOD)
+    .box([t, H, D - 2 * t], [W / 2 - t / 2, H / 2, 0], WOOD)
+    .box([t, H, D - 2 * t], [-W / 2 + t / 2, H / 2, 0], WOOD)
+    .box([0.07, H + 0.005, D + 0.01], [0.22, H / 2, 0], DARK)
+    .box([0.07, H + 0.005, D + 0.01], [-0.22, H / 2, 0], DARK)
+    .box([W + 0.01, 0.05, D + 0.01], [0, 0.025, 0], DARK)
+    // treasure inside
+    .box([W - 2 * t, 0.2, D - 2 * t], [0, 0.18, 0], { c: GOLD, glow: true })
+    .box([0.12, 0.05, 0.12], [-0.12, 0.3, 0.04], { c: GOLD, glow: true }, [0, 0.5, 0])
+    .box([0.1, 0.05, 0.1], [0.1, 0.3, -0.05], { c: GOLD, glow: true }, [0, 0.2, 0])
+    .box([0.07, 0.09, 0.07], [0.02, 0.31, 0.06], { c: '#ff5c8a', glow: true }, [0, 0.785, 0])
+    .done();
+
+  const lid = new THREE.Group();
+  lid.name = 'lid';
+  lid.position.set(0, H, -D / 2);
+  root.add(lid);
+  const lidMeshes = kit
+    .part('lid', lid)
+    .box([W + 0.02, 0.12, D + 0.02], [0, 0.06, D / 2], WOOD)
+    .box([W - 0.08, 0.07, D - 0.12], [0, 0.155, D / 2], WOOD)
+    .box([0.075, 0.2, D + 0.04], [0.22, 0.09, D / 2], DARK)
+    .box([0.075, 0.2, D + 0.04], [-0.22, 0.09, D / 2], DARK)
+    .box([0.11, 0.13, 0.035], [0, -0.01, D + 0.02], GOLD)
+    .box([0.04, 0.05, 0.01], [0, -0.02, D + 0.04], DARK)
+    .done();
+
+  let target = 0;
+  let angle = 0;
+  let vel = 0;
+  let last = -1;
+  const OPEN = -1.95;
+  // A spring with a little overshoot; driven from render so no update() is needed.
+  lidMeshes[0].onBeforeRender = () => {
+    const now = performance.now() / 1000;
+    const dt = last < 0 ? 0 : Math.min(0.05, now - last);
+    last = now;
+    const k = 90;
+    const c = 11;
+    vel += (-(angle - target) * k - vel * c) * dt;
+    angle += vel * dt;
+    if (target === 0 && angle > 0) {
+      angle = 0;
+      vel = 0;
+    }
+    lid.rotation.x = angle;
+  };
+
+  return {
+    root,
+    setOpen(open: boolean) {
+      target = open ? OPEN : 0;
+    },
+  };
+}

@@ -1,0 +1,28 @@
+{
+  "name": "koto-tales",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "voice": "node tools/voice/gen.mjs",
+    "test": "vitest run",
+    "check": "tsc --noEmit && vitest run",
+    "shots": "node tools/check/shots.mjs"
+  },
+  "dependencies": {
+    "simplex-noise": "^4.0.3",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/three": "^0.186.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.0.5"
+  }
+}

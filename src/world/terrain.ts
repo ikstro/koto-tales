@@ -1,0 +1,280 @@
+/**
+ * Deterministic terrain: a height map from a few layers of simplex noise,
+ * biomes from low-frequency noise, trees placed on a jittered 5×5 grid so
+ * they can be generated chunk by chunk without seams.
+ *
+ * Column model: `h` = y of the top solid block. Columns with h < SEA_LEVEL
+ * are filled with water up to SEA_LEVEL (inclusive).
+ */
+import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
+import { CHUNK_SIZE, SEA_LEVEL, WORLD_HEIGHT, type Biome } from '../contracts';
+import { B } from './blocks';
+import { hash2, mulberry32 } from './rng';
+
+export const BIOME_MEADOW = 0;
+export const BIOME_FOREST = 1;
+export const BIOME_BEACH = 2;
+export const BIOME_HILLS = 3;
+export const BIOME_SNOW = 4;
+export const BIOME_NAMES: readonly Biome[] = ['meadow', 'forest', 'beach', 'hills', 'snow'];
+
+export const SNOW_LINE = 24;
+const TREE_CELL = 5;
+/** Trees stay out of this radius around (0,0): the house goes there. */
+const HOME_CLEAR = 10;
+
+export interface ColumnSample {
+  /** Float height before flooring. */
+  hf: number;
+  /** y of the top solid block. */
+  h: number;
+  wet: number;
+  hill: number;
+  forest: number;
+  biome: number;
+}
+
+const smoothstep = (e0: number, e1: number, x: number): number => {
+  const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+};
+
+const CS = CHUNK_SIZE;
+const G = CS + 2; // height grid with a 1-block margin
+
+export class Terrain {
+  private nA: NoiseFunction2D;
+  private nB: NoiseFunction2D;
+  private nH: NoiseFunction2D;
+  private nS: NoiseFunction2D;
+  private nC: NoiseFunction2D;
+  private nL: NoiseFunction2D;
+  private nF: NoiseFunction2D;
+  private treeSeed: number;
+  private seed: number;
+
+  // scratch (no allocations per chunk)
+  private gH = new Int16Array(G * G);
+  private gHf = new Float32Array(G * G);
+  private gWet = new Float32Array(G * G);
+  private gHill = new Float32Array(G * G);
+  private gBiome = new Uint8Array(G * G);
+  private s: ColumnSample = { hf: 0, h: 0, wet: 0, hill: 0, forest: 0, biome: 0 };
+  private s2: ColumnSample = { hf: 0, h: 0, wet: 0, hill: 0, forest: 0, biome: 0 };
+
+  constructor(seed: number) {
+    this.seed = seed | 0;
+    const mk = (salt: number) => createNoise2D(mulberry32(hash2(seed, salt, 7)));
+    this.nA = mk(1);
+    this.nB = mk(2);
+    this.nH = mk(3);
+    this.nS = mk(4);
+    this.nC = mk(5);
+    this.nL = mk(6);
+    this.nF = mk(7);
+    this.treeSeed = hash2(seed, 0x7ee5, 3);
+  }
+
+  /** Full column sample into `out`. */
+  sample(x: number, z: number, out: ColumnSample): ColumnSample {
+    const d = Math.sqrt(x * x + z * z);
+    const homeT = 1 - smoothstep(28, 72, d);
+
+    let land = 12.6 + 2.2 * this.nA(x / 70, z / 70) + 0.9 * this.nB(x / 25, z / 25);
+    const hill = smoothstep(0.2, 0.62, this.nH(x / 320, z / 320)) * (1 - homeT);
+    const hs = this.nS(x / 90, z / 90) * 0.5 + 0.5;
+    land += hill * (3 + 13 * Math.pow(hs, 1.5));
+
+    const c = this.nC(x / 400, z / 400) * 0.8 + this.nC(x / 130 + 31.7, z / 130 - 12.3) * 0.2;
+    const sea = 1 - smoothstep(-0.5, -0.22, c);
+    const lake = smoothstep(0.6, 0.85, this.nL(x / 120, z / 120));
+    const wet = Math.max(sea, lake) * (1 - homeT);
+    const bottom = 5.5 + 1.5 * this.nB(x / 30 + 50, z / 30 - 50);
+    let hf = land + (bottom - land) * wet;
+    // keep the home meadow dry
+    if (homeT > 0) hf = hf + (Math.max(hf, 12.2) - hf) * homeT;
+
+    const forest = this.nF(x / 160, z / 160) + 0.25 * this.nF(x / 40 + 9.1, z / 40 + 3.3) - homeT * 2;
+
+    let h = Math.floor(hf);
+    if (h < 1) h = 1;
+    if (h > WORLD_HEIGHT - 12) h = WORLD_HEIGHT - 12;
+
+    let biome: number;
+    if (h < SEA_LEVEL || (wet > 0.02 && h <= SEA_LEVEL + 1)) biome = BIOME_BEACH;
+    else if (hill > 0.45) biome = h >= SNOW_LINE ? BIOME_SNOW : BIOME_HILLS;
+    else biome = forest > 0.2 ? BIOME_FOREST : BIOME_MEADOW;
+
+    out.hf = hf;
+    out.h = h;
+    out.wet = wet;
+    out.hill = hill;
+    out.forest = forest;
+    out.biome = biome;
+    return out;
+  }
+
+  heightAt(x: number, z: number): number {
+    return this.sample(x, z, this.s2).h;
+  }
+
+  biomeAt(x: number, z: number): Biome {
+    return BIOME_NAMES[this.sample(Math.floor(x), Math.floor(z), this.s2).biome];
+  }
+
+  /** Fills `out` (16×48×16, index (y<<8)|(z<<4)|x) with generated terrain (no edits). */
+  generate(cx: number, cz: number, out: Uint8Array): void {
+    out.fill(0);
+    const x0 = cx * CS;
+    const z0 = cz * CS;
+    const s = this.s;
+    const { gH, gHf, gWet, gHill, gBiome } = this;
+
+    for (let gz = 0; gz < G; gz++) {
+      for (let gx = 0; gx < G; gx++) {
+        this.sample(x0 + gx - 1, z0 + gz - 1, s);
+        const i = gz * G + gx;
+        gH[i] = s.h;
+        gHf[i] = s.hf;
+        gWet[i] = s.wet;
+        gHill[i] = s.hill;
+        gBiome[i] = s.biome;
+      }
+    }
+
+    for (let lz = 0; lz < CS; lz++) {
+      for (let lx = 0; lx < CS; lx++) {
+        const gi = (lz + 1) * G + lx + 1;
+        const h = gH[gi];
+        const biome = gBiome[gi];
+        const hf = gHf[gi];
+        const slope = Math.max(
+          Math.abs(hf - gHf[gi - 1]),
+          Math.abs(hf - gHf[gi + 1]),
+          Math.abs(hf - gHf[gi - G]),
+          Math.abs(hf - gHf[gi + G]),
+        );
+        const step = Math.max(
+          Math.abs(h - gH[gi - 1]),
+          Math.abs(h - gH[gi + 1]),
+          Math.abs(h - gH[gi - G]),
+          Math.abs(h - gH[gi + G]),
+        );
+        const r = hash2(this.seed, x0 + lx, z0 + lz);
+
+        let top: number = B.GRASS;
+        let fill: number = B.DIRT;
+        let depth = 3;
+        if (h < SEA_LEVEL) {
+          top = h >= SEA_LEVEL - 2 || (r & 3) === 0 ? B.SAND : B.DIRT;
+          fill = B.SAND;
+          depth = 2;
+        } else if (biome === BIOME_BEACH) {
+          top = B.SAND;
+          fill = B.SAND;
+        } else if (gHill[gi] > 0.3 && (step >= 2 || slope > 0.85)) {
+          top = B.STONE;
+          fill = B.STONE;
+        } else if (biome === BIOME_SNOW || (gHill[gi] > 0.4 && h >= SNOW_LINE - 1 && (r & 1) === 0)) {
+          top = B.SNOW;
+          depth = 2;
+        } else if (biome === BIOME_HILLS && h >= SNOW_LINE - 4 && (r & 7) === 0) {
+          top = B.STONE;
+        }
+
+        const col = (lz << 4) | lx;
+        out[col] = B.STONE; // y = 0
+        for (let y = 1; y <= h; y++) {
+          out[(y << 8) | col] = y === h ? top : y > h - depth ? fill : B.STONE;
+        }
+        for (let y = h + 1; y <= SEA_LEVEL; y++) out[(y << 8) | col] = B.WATER;
+      }
+    }
+
+    this.placeTrees(x0, z0, out);
+  }
+
+  private placeTrees(x0: number, z0: number, out: Uint8Array): void {
+    const c0x = Math.floor((x0 - 3) / TREE_CELL);
+    const c1x = Math.floor((x0 + CS + 2) / TREE_CELL);
+    const c0z = Math.floor((z0 - 3) / TREE_CELL);
+    const c1z = Math.floor((z0 + CS + 2) / TREE_CELL);
+    const s = this.s;
+    for (let gz = c0z; gz <= c1z; gz++) {
+      for (let gx = c0x; gx <= c1x; gx++) {
+        const r = hash2(this.treeSeed, gx, gz);
+        const tx = gx * TREE_CELL + 1 + ((r & 15) % 3);
+        const tz = gz * TREE_CELL + 1 + (((r >>> 4) & 15) % 3);
+        if (tx * tx + tz * tz < HOME_CLEAR * HOME_CLEAR) continue;
+        const roll = ((r >>> 8) & 0xffff) / 65536;
+        this.sample(tx, tz, s);
+        let p = 0;
+        switch (s.biome) {
+          case BIOME_FOREST:
+            p = 0.72;
+            break;
+          case BIOME_MEADOW:
+            p = 0.12;
+            break;
+          case BIOME_HILLS:
+            p = 0.1;
+            break;
+          case BIOME_SNOW:
+            p = 0.05;
+            break;
+        }
+        if (roll >= p) continue;
+        const h = s.h;
+        if (h < SEA_LEVEL + 1) continue;
+        // no trees on steep spots
+        if (
+          Math.abs(this.heightAt(tx + 1, tz) - h) > 1 ||
+          Math.abs(this.heightAt(tx - 1, tz) - h) > 1 ||
+          Math.abs(this.heightAt(tx, tz + 1) - h) > 1 ||
+          Math.abs(this.heightAt(tx, tz - 1) - h) > 1
+        ) {
+          continue;
+        }
+        const trunk = 4 + ((r >>> 24) % 3);
+        this.writeTree(out, x0, z0, tx, tz, h, trunk, r);
+      }
+    }
+  }
+
+  private writeTree(
+    out: Uint8Array,
+    x0: number,
+    z0: number,
+    tx: number,
+    tz: number,
+    ground: number,
+    trunk: number,
+    r: number,
+  ): void {
+    const topLog = ground + trunk;
+    const set = (x: number, y: number, z: number, id: number, overwrite: boolean) => {
+      const lx = x - x0;
+      const lz = z - z0;
+      if (lx < 0 || lx >= CS || lz < 0 || lz >= CS || y < 1 || y >= WORLD_HEIGHT) return;
+      const i = (y << 8) | (lz << 4) | lx;
+      if (overwrite || out[i] === B.AIR) out[i] = id;
+    };
+    for (let y = ground + 1; y <= topLog; y++) set(tx, y, tz, B.LOG, true);
+    // ground under trunk becomes dirt
+    set(tx, ground, tz, B.DIRT, true);
+    let bit = 0;
+    for (let y = topLog - 1; y <= topLog + 2; y++) {
+      const rad = y <= topLog ? 2 : 1;
+      for (let dz = -rad; dz <= rad; dz++) {
+        for (let dx = -rad; dx <= rad; dx++) {
+          const corner = Math.abs(dx) === rad && Math.abs(dz) === rad;
+          if (corner) {
+            if (y === topLog + 2) continue; // plus shape on top
+            if ((r >>> (bit++ & 31)) & 1) continue; // ragged corners
+          }
+          set(tx + dx, y, tz + dz, B.LEAVES, false);
+        }
+      }
+    }
+  }
+}

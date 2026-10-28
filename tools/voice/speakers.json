@@ -1,0 +1,7 @@
+{
+  "narrator": { "voice": "uk-UA-OstapNeural", "rate": 0.95, "pitch": "0%" },
+  "lyosha": { "voice": "uk-UA-PolinaNeural", "rate": 1.08, "pitch": "+8%" },
+  "solomiia": { "voice": "uk-UA-PolinaNeural", "rate": 1.05, "pitch": "+18%" },
+  "pupsia": { "voice": "uk-UA-PolinaNeural", "rate": 0.88, "pitch": "-12%" },
+  "monster": { "voice": "uk-UA-OstapNeural", "rate": 0.9, "pitch": "-30%" }
+}
