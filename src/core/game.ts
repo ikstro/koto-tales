@@ -108,7 +108,7 @@ export class Game {
     const at = p.x !== null && p.z !== null ? new THREE.Vector3(p.x, 0, p.z) : doorstep;
     createHeroes(ctx, hero, at);
     ctx.playing = true;
-    ctx.hud.show(true);
+    ctx.hud.show(ctx.params.hud);
     ctx.hud.setBuildBlock(ctx.save.buildBlock);
     ctx.hud.onPickBlock = (id) => (ctx.save.buildBlock = id);
     this.cam.snap(ctx.player.pos);

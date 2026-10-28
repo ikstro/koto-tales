@@ -1,13 +1,12 @@
 /**
  * World debug page (debug-world.html): the world alone, with the game camera
- * or an overview. URL: ?skin=pixel&x=&z=&time=0..1&overview=1&hud=0&tier=0|1
+ * or an overview. URL: ?skin=pixel|toy|hybrid|diorama&x=&z=&time=0..1&overview=1&hud=0&tier=0|1
  * &demo=1 (a brick tower and a wall next to the focus)
  * Keys: WASD / arrows pan, O overview, N advance time by 0.1.
  * Sets `window.__ready = true` once the chunks around the focus are meshed.
  */
 import * as THREE from 'three';
-import type { SkinId } from '../contracts';
-import { createSkin } from '../render/skins';
+import { createSkin, type AnySkin } from '../render/skins';
 import { B } from '../world/blocks';
 import { World } from '../world/World';
 
@@ -40,7 +39,7 @@ renderer.setSize(window.innerWidth, window.innerHeight, false);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 220);
-const skin = createSkin((q.get('skin') as SkinId | null) ?? 'pixel');
+const skin = createSkin((q.get('skin') as AnySkin | null) ?? 'pixel');
 const qTier = num('tier');
 if (qTier === 0 || qTier === 1) skin.setTier(qTier);
 skin.setupScene(scene, renderer);
