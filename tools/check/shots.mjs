@@ -46,7 +46,7 @@ for (const scene of SCENES) {
     const target = `${url}/?skin=${skin}&fresh=1&${scene.q}`;
     execFileSync(
       shell,
-      [`--screenshot=${path.join(out, file)}`, '--window-size=1280,800', '--hide-scrollbars', '--virtual-time-budget=15000', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', target],
+      [`--screenshot=${path.join(out, file)}`, '--window-size=1280,800', '--hide-scrollbars', '--mute-audio', '--virtual-time-budget=15000', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', target],
       { stdio: 'ignore' },
     );
     console.log(`ok  ${file}`);
