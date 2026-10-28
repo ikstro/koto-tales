@@ -50,15 +50,15 @@
   "solomiia_hi": { "speaker": "solomiia", "text": "Я Соломія! Погнали!" },
   "solomiia_bolt": { "speaker": "solomiia", "text": "Блискавка!" },
   "solomiia_yay": { "speaker": "solomiia", "text": "Ура, вийшло!" },
-  "pupsia_hi": { "speaker": "pupsia", "text": "Мур. Я Пупся. Я все бачу і все знаю." },
+  "pupsia_hi": { "speaker": "pupsia", "text": "Мяу. Я Пупся. Я все бачу і все знаю." },
   "pupsia_bolt": { "speaker": "pupsia", "text": "Мяу-блискавка!" },
-  "pupsia_yay": { "speaker": "pupsia", "text": "Мур-р-р. Чудово." },
-  "pupsia_wisdom_1": { "speaker": "pupsia", "text": "Мур. Кожна велика пригода починається з маленького кроку." },
+  "pupsia_yay": { "speaker": "pupsia", "text": "Мяу-у! Чудово." },
+  "pupsia_wisdom_1": { "speaker": "pupsia", "text": "Мяу. Кожна велика пригода починається з маленького кроку." },
   "pupsia_wisdom_2": { "speaker": "pupsia", "text": "Хто збирає по кристалику — той збере цілий скарб." },
   "pupsia_wisdom_3": { "speaker": "pupsia", "text": "Вночі монстри сміливіші. Але ми — ще сміливіші." },
-  "pupsia_wisdom_4": { "speaker": "pupsia", "text": "Навіть найбільший монстр колись був маленьким. Мур." },
-  "pupsia_wisdom_5": { "speaker": "pupsia", "text": "Дім — це там, де на тебе чекають. І де стоїть миска. Мур." },
+  "pupsia_wisdom_4": { "speaker": "pupsia", "text": "Навіть найбільший монстр колись був маленьким. Мяу." },
+  "pupsia_wisdom_5": { "speaker": "pupsia", "text": "Дім — це там, де на тебе чекають. І де стоїть миска. Мяу." },
   "pupsia_wisdom_6": { "speaker": "pupsia", "text": "Спершу подумай, а потім стрибай. Так роблять мудрі коти." },
-  "pupsia_tip_night": { "speaker": "pupsia", "text": "Мур. Темніє. Ходімо ближче до вогнища." },
-  "pupsia_tip_hearts": { "speaker": "pupsia", "text": "Сердечок мало. Відпочиньмо біля дому, мур." }
+  "pupsia_tip_night": { "speaker": "pupsia", "text": "Мяу. Темніє. Ходімо ближче до вогнища." },
+  "pupsia_tip_hearts": { "speaker": "pupsia", "text": "Сердечок мало. Відпочиньмо біля дому, мяу." }
 }
