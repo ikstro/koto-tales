@@ -21,6 +21,7 @@ import { SKIN_NAMES, type AnySkin } from '../render/skins';
  *   scratch, so small values catch it mid-assembly — or, with ?titleTap=1, <s> s after the press)
  *   ?map=1  (test only: the big map opens after the start)  ?seen=<r>  (test only: seed explored chunks)
  *   ?boss=near  ?bossHp=<n>  ?lanterns=<n>  (test only: start by the boss, set its health / cracked armour)
+ *   ?guide=all|boss|move|…  (test only: the picture guide opens after the start — all cards over the pause menu, or one card)
  */
 export interface Params {
   /** ?mute=1 silences everything (automated checks). */
@@ -68,6 +69,8 @@ export interface Params {
   bossHp: number | null;
   /** Test only (?lanterns=<n>): this many lanterns already cracked its armour (3 = broken). */
   lanterns: number | null;
+  /** Test only (?guide=all|<card>): the picture guide opens after the start. */
+  guide: 'all' | 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'boss' | null;
 }
 
 export function readParams(): Params {
@@ -107,5 +110,6 @@ export function readParams(): Params {
     boss: one('boss', ['near'] as const),
     bossHp: num('bossHp'),
     lanterns: num('lanterns'),
+    guide: one('guide', ['all', 'move', 'bow', 'bolt', 'build', 'heal', 'map', 'boss'] as const),
   };
 }

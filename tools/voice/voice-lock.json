@@ -74,5 +74,12 @@
   "pupsia_boss_stomp": "487224f2a429",
   "item_eater_heart": "1182eec627c1",
   "item_heart": "8598684de69c",
-  "heal_apple": "98caa3ae9b48"
+  "heal_apple": "98caa3ae9b48",
+  "guide_move": "7eeddd33ff11",
+  "guide_bow": "75dc088951f6",
+  "guide_bolt": "78dfcb70dc0f",
+  "guide_build": "268f8f522d93",
+  "guide_heal": "6f02201cc5b0",
+  "guide_map": "3ed4995487ae",
+  "guide_boss": "6174e6463efc"
 }

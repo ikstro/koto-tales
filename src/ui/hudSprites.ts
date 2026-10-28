@@ -69,7 +69,8 @@ export const SPRITES = {
   'brick-9': {w: 200,h: 200,oy: 0.4,x: 60,y: 57,cw: 80,ch: 91},
   'brick-10': {w: 200,h: 200,oy: 0.4,x: 60,y: 57,cw: 80,ch: 91},
   'brick-11': {w: 200,h: 200,oy: 0.4,x: 60,y: 57,cw: 80,ch: 91},
-  'brick-24': {w: 200,h: 200,oy: 0.4,x: 60,y: 57,cw: 80,ch: 91},
+  'brick-24': {w: 200,h: 260,oy: 1.1,x: 68,y: 90,cw: 64,ch: 109},
+  'brick-24-sh': {w: 200,h: 260,oy: 1.1,x: 68,y: 144,cw: 132,ch: 108},
   'brick1-red': {w: 150,h: 150,oy: 0.4,x: 55,y: 48,cw: 40,ch: 59},
   'brick1-sh': {w: 150,h: 150,oy: 0.4,x: 54,y: 72,cw: 92,ch: 66},
   'brick1-yellow': {w: 150,h: 150,oy: 0.4,x: 55,y: 48,cw: 40,ch: 59},
@@ -98,15 +99,22 @@ export const SPRITES = {
   'boss-face': {w: 110,h: 110,oy: 0,x: 14,y: 14,cw: 82,ch: 74},
   'boss-stone': {w: 60,h: 70,oy: 0.3,x: 12,y: 18,cw: 36,ch: 42},
   'boss-stone-sh': {w: 60,h: 70,oy: 0.3,x: 12,y: 30,cw: 48,ch: 40},
-  'lamp-on': {w: 60,h: 70,oy: 0.3,x: 14,y: 20,cw: 32,ch: 40},
-  'lamp-sh': {w: 60,h: 70,oy: 0.3,x: 14,y: 32,cw: 46,ch: 38},
-  'lamp-off': {w: 60,h: 70,oy: 0.3,x: 14,y: 20,cw: 32,ch: 40},
+  'lamp-on': {w: 60,h: 100,oy: 0.6,x: 18,y: 42,cw: 24,ch: 42},
+  'lamp-sh': {w: 60,h: 100,oy: 0.6,x: 16,y: 60,cw: 44,ch: 40},
+  'lamp-off': {w: 60,h: 100,oy: 0.6,x: 18,y: 42,cw: 24,ch: 42},
   'map-arrow': {w: 48,h: 48,oy: 0,x: 6,y: 4,cw: 36,ch: 32},
   'cloud': {w: 120,h: 100,oy: 0.3,x: 16,y: 24,cw: 88,ch: 62},
   'cloud-sh': {w: 120,h: 100,oy: 0.3,x: 20,y: 42,cw: 100,ch: 58},
+  'help': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
+  'apple': {w: 100,h: 110,oy: 0.4,x: 24,y: 26,cw: 52,ch: 62},
+  'apple-sh': {w: 100,h: 110,oy: 0.4,x: 28,y: 48,cw: 72,ch: 62},
+  'boss-cracked': {w: 220,h: 210,oy: 0.75,x: 34,y: 52,cw: 154,ch: 144},
+  'boss-cracked-sh': {w: 220,h: 210,oy: 0.75,x: 36,y: 74,cw: 184,ch: 136},
+  'boss-open': {w: 220,h: 210,oy: 0.75,x: 34,y: 52,cw: 182,ch: 158},
+  'card9': {w: 180,h: 170,oy: 0,x: 30,y: 30,cw: 120,ch: 104},
 } satisfies Record<string, SpriteMeta>;
 
 export type SpriteName = keyof typeof SPRITES;
 
 /** Nine-slice insets in image px of the trimmed PNG (stud-cell lines). */
-export const NINE = {"plate9":{"top":50,"left":60,"right":60,"bottom":62}} as const;
+export const NINE = {"plate9":{"top":50,"left":60,"right":60,"bottom":62},"card9":{"top":48,"left":60,"right":60,"bottom":59}} as const;

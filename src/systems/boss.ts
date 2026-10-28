@@ -23,6 +23,7 @@ import { BOSS, BossBrain, bossMaxHp, bossScale, pickSite, shouldReturn, type Hit
 import { hurtHero } from './combat';
 import { dropCoins } from './pickups';
 import { freshBoss } from './save';
+import { BossHints } from './pacing';
 import { tuneOf } from './tune';
 
 // ─── the model's own measures (model units, before the level scale) ────────
@@ -48,6 +49,8 @@ const BITABLE = new Set<number>([B.GRASS, B.DIRT, B.SAND, B.SNOW, B.STONE, B.COB
 /** Blocks the wasteland leaves behind (and that grow back when it is beaten). */
 const EATEN = new Set<number>([B.AIR, B.STONE, B.COBBLE]);
 const STONE_COL = 0x50565f;
+/** Remembered in save.said once the boss card has popped up by itself. */
+const GUIDE_LINE = 'guide_boss';
 
 const tmp = new THREE.Vector3();
 const tmp2 = new THREE.Vector3();
@@ -172,7 +175,8 @@ export class Boss {
       ctx.effects.sparkle(at, 0xfff1a8);
       ctx.effects.poof(at, 0x9aa0a8, 4);
       sfx.play('clink', { pitch: 0.92 + Math.random() * 0.16 });
-      hint(ctx, this.brain.armored ? 'pupsia_boss_stone' : 'pupsia_boss_mouth', this.brain.armored ? 25 : 35);
+      // the first bounce of the fight explains the stone (once); a closed mouth says nothing more
+      if (this.brain.armored) armourHint(this);
     } else {
       this.flare = 1;
       // a flinch rather than the monsters' blink: a huge flickering beast would be too much
@@ -273,18 +277,25 @@ const session = {
   inZone: false,
   spotSaid: false,
   farSaid: false,
-  stompSaid: false,
-  hintAt: new Map<LineId, number>(),
+  /** Пупся's hints: few, and each at most once (systems/pacing.ts). */
+  hints: new BossHints(),
+  /** Game time when the boss card pops up (the first visit of this save), or null. */
+  guideAt: null as number | null,
   suggesting: false,
   dismissed: false,
   prevBlock: null as number | null,
 };
 
-function hint(ctx: Ctx, line: LineId, every = 25): void {
-  const now = ctx.clock.elapsed;
-  if (now - (session.hintAt.get(line) ?? -1e9) < every) return;
-  session.hintAt.set(line, now);
+function hint(line: LineId): void {
   voice.say(line, { priority: 5 });
+}
+
+/** The stone or the mouth hint, whichever fits the armour now, if it was not said yet. */
+function armourHint(b: Boss): void {
+  if (!b.alive) return;
+  if (b.brain.armored) {
+    if (session.hints.stone()) hint('pupsia_boss_stone');
+  } else if (session.hints.mouth()) hint('pupsia_boss_mouth');
 }
 
 // ─── the lair ───────────────────────────────────────────────────────────────
@@ -428,6 +439,7 @@ function spawn(ctx: Ctx, atStart: boolean): void {
   boss = new Boss(ctx, s.level, site, brain);
   ctx.boss = boss;
   session.spotSaid = false;
+  session.hints.newFight();
   setMapMarker('boss', { pos: boss.pos, icon: 'boss', pointer: true, zoneRadius: boss.zoneRadius });
 }
 
@@ -444,6 +456,7 @@ function onLantern(ctx: Ctx, x: number, y: number, z: number): void {
   const r = b.brain.addLantern(`${x},${y},${z}`);
   if (!r) return;
   ctx.save.boss.lanterns = b.brain.lanterns;
+  session.hints.lantern();
   b.flare = 1;
   const at = tmp.set(x + 0.5, y + 0.8, z + 0.5);
   ctx.effects.sparkle(at, 0xffe27a);
@@ -453,8 +466,7 @@ function onLantern(ctx: Ctx, x: number, y: number, z: number): void {
   if (r === 'crack') voice.say('pupsia_boss_lantern', { priority: 6, interrupt: true });
   else {
     voice.say('boss_weak', { priority: 8, interrupt: true });
-    setTimeout(() => voice.say('pupsia_boss_mouth', { priority: 6 }), 3200);
-    session.hintAt.set('pupsia_boss_mouth', ctx.clock.elapsed + 3);
+    if (session.hints.mouth()) setTimeout(() => voice.say('pupsia_boss_mouth', { priority: 6 }), 3200);
     ctx.effects.poof(b.toWorld(0, 4, 0, tmp2), STONE_COL, 30);
   }
 }
@@ -522,10 +534,7 @@ export function updateBoss(ctx: Ctx, dt: number): void {
       b.ringT = 0;
       b.ringY = ringHeight(ctx, b);
       sfx.play('rumble', { volume: 0.35, pitch: 1.4 });
-      if (!session.stompSaid) {
-        session.stompSaid = true;
-        voice.say('pupsia_boss_stomp', { priority: 7, interrupt: true });
-      }
+      if (session.hints.stomp()) voice.say('pupsia_boss_stomp', { priority: 7, interrupt: true });
     } else if (e === 'stomp') stomp(ctx, b);
   }
 
@@ -591,10 +600,20 @@ export function updateBoss(ctx: Ctx, dt: number): void {
     voice.say('boss_spot', { priority: 8, interrupt: true });
     b.flare = 1;
     sfx.play('rumble', { volume: 0.7 });
-    const line: LineId = brain.armored ? 'pupsia_boss_stone' : 'pupsia_boss_mouth';
-    setTimeout(() => hint(ctx, line, 0), 4200);
+    // the first visit of a save: once its roar is over, the game pauses on the boss card (ui/guide.ts)
+    if (!ctx.save.said.includes(GUIDE_LINE)) session.guideAt = ctx.clock.elapsed + 4.8;
+    else setTimeout(() => armourHint(b), 4200);
   }
   session.inZone = inZone;
+  if (session.guideAt !== null && ctx.clock.elapsed >= session.guideAt && active && inZone && !ctx.hud.isPaused && !ctx.map.isOpen && !ctx.album.isOpen) {
+    session.guideAt = null;
+    if (!ctx.save.said.includes(GUIDE_LINE)) {
+      ctx.save.said.push(GUIDE_LINE);
+      session.hints.told(brain.armored);
+      ctx.hud.openGuide('boss');
+    }
+  }
+  if (active && session.hints.tick(dt, inZone, brain.armored)) hint('pupsia_boss_stone');
   if (active && !session.farSaid && ctx.clock.elapsed > 60 && !inZone && Math.hypot(player.pos.x - b.site.x, player.pos.z - b.site.z) > b.zoneRadius + 25) {
     session.farSaid = true;
     voice.say('pupsia_boss_far', { priority: 3 });
@@ -923,6 +942,9 @@ function exposeForChecks(ctx: Ctx): void {
         hearts: ctx.save.inv.eater_heart ?? 0,
         crumbling: crumble ? +crumble.t.toFixed(2) : false,
         regrowing: !!regrow,
+        /** Game time the boss card is due to pop up (first visit of a save), and the time now. */
+        guideAt: session.guideAt,
+        elapsed: +ctx.clock.elapsed.toFixed(2),
         eatenAt: s.eatenAt ?? null,
         model: b
           ? {

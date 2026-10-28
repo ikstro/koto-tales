@@ -13,6 +13,8 @@ const lastSaid = new Map<string, number>();
 let gain: GainNode | null = null;
 let volume = 1;
 let current: { src: AudioBufferSourceNode; priority: number } | null = null;
+/** performance.now() when the last line ended (the quiet before Пупся's thoughts). */
+let lastEnd = -Infinity;
 /** Bumped on every say() so a slow fetch cannot start after a newer request. */
 let ticket = 0;
 
@@ -60,7 +62,7 @@ function out(): GainNode {
   return gain;
 }
 
-export const voice: IVoice & { preload(ids: string[]): void } = {
+export const voice: IVoice & { preload(ids: string[]): void; quietSeconds(): number } = {
   unlock() {
     unlockAudio();
     void loadIndex();
@@ -92,7 +94,10 @@ export const voice: IVoice & { preload(ids: string[]): void } = {
       const entry = { src, priority };
       current = entry;
       src.onended = () => {
-        if (current === entry) current = null;
+        if (current === entry) {
+          current = null;
+          lastEnd = performance.now();
+        }
       };
       src.start();
     });
@@ -100,6 +105,11 @@ export const voice: IVoice & { preload(ids: string[]): void } = {
 
   isSpeaking() {
     return current !== null;
+  },
+
+  /** Seconds since the last line ended; 0 while one plays. */
+  quietSeconds() {
+    return current ? 0 : (performance.now() - lastEnd) / 1000;
   },
 
   setVolume(v) {

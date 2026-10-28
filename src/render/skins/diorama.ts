@@ -28,7 +28,7 @@ import { brickFlags, roughnessOf, toyColor } from './toy';
 
 // --- palette ---------------------------------------------------------------------
 
-const K = { NONE: 0, GRASS: 1, GRASS_SIDE: 2, EARTH: 3, STONE: 4, SAND: 5, LEAVES: 6, WATER: 7, SNOW: 8 } as const;
+const K = { NONE: 0, GRASS: 1, GRASS_SIDE: 2, EARTH: 3, STONE: 4, SAND: 5, LEAVES: 6, WATER: 7, SNOW: 8, LANTERN: 9 } as const;
 
 const hex = (list: string[]) => list.map((h) => new THREE.Color(h));
 
@@ -70,7 +70,14 @@ const KIND_OF: Partial<Record<Surface, number>> = {
   leaves: K.LEAVES,
   water: K.WATER,
   snow: K.SNOW,
+  lantern: K.LANTERN,
 };
+
+/** The lantern block: a dark moulded frame, warm glass, a bright core (render/lanterns.ts adds the cap and glow). */
+const LANTERN_METAL = new THREE.Color('#3b302b');
+const LANTERN_GLASS = new THREE.Color('#e88a1c');
+const LANTERN_WARM = new THREE.Color('#ffc458');
+const LANTERN_CORE = new THREE.Color('#fff3c4');
 
 const fdiv = (a: number, b: number) => Math.floor(a / b);
 
@@ -114,6 +121,31 @@ ${glslArray('D_STONE', STONE)}
 ${glslArray('D_SAND', SAND)}
 const vec3 D_SHALLOW = ${glslColor(SHALLOW)};
 const vec3 D_FOAM = ${glslColor(FOAM)};
+const vec3 D_L_METAL = ${glslColor(LANTERN_METAL)};
+const vec3 D_L_GLASS = ${glslColor(LANTERN_GLASS)};
+const vec3 D_L_WARM = ${glslColor(LANTERN_WARM)};
+const vec3 D_L_CORE = ${glslColor(LANTERN_CORE)};
+/** Lantern faces: a frame on the edges (posts, bands; the top is the cap's rim), warm glass, a hot core. */
+vec3 dLantern(vec2 uv, vec3 n) {
+  vec2 e = min(uv, 1.0 - uv);
+  if (n.y < -0.5) return D_L_METAL;
+  if (n.y > 0.5) {
+    // from above: the cap's rim, a thin glowing gap, the cap itself (the roof piece sits on it)
+    float m = min(e.x, e.y);
+    float gap = smoothstep(0.1, 0.12, m) * (1.0 - smoothstep(0.19, 0.21, m));
+    return mix(D_L_METAL, D_L_WARM * 1.15, gap);
+  }
+  float post = 1.0 - smoothstep(0.12, 0.145, e.x);
+  float band = max(1.0 - smoothstep(0.11, 0.135, uv.y), smoothstep(0.8, 0.825, uv.y));
+  float frame = max(post, band);
+  vec2 q = (uv - vec2(0.5, 0.46)) * vec2(1.0, 0.8);
+  float r = length(q);
+  vec3 glass = mix(D_L_GLASS, D_L_WARM, 1.0 - smoothstep(0.08, 0.42, r));
+  glass = mix(glass, D_L_CORE * 1.35, pow(1.0 - smoothstep(0.0, 0.2, r), 1.5));
+  // a soft glint down the left of the pane
+  glass += vec3(0.25, 0.2, 0.1) * (1.0 - smoothstep(0.0, 0.025, abs(uv.x - 0.23))) * step(0.22, uv.y) * step(uv.y, 0.7);
+  return mix(glass * 0.8, D_L_METAL, frame);
+}
 const vec3 D_SUN = vec3(${SUN_DIR.x.toFixed(4)}, ${SUN_DIR.y.toFixed(4)}, ${SUN_DIR.z.toFixed(4)});
 int dDiv(int a, int b) { return int(floor(float(a) / float(b))); }
 int dGrass(ivec3 c) {
@@ -153,6 +185,10 @@ const COLOR_HOOK = /* glsl */ `
     else if (toyKind == ${K.LEAVES}) col = D_LEAF[dLeaf(toyCell)];
     else if (toyKind == ${K.STONE}) col = D_STONE[dStone(toyCell)];
     else if (toyKind == ${K.SAND}) col = D_SAND[dSand(toyCell)];
+    else if (toyKind == ${K.LANTERN}) {
+      col = dLantern(fuv, vFn);
+      calm = 0.3;
+    }
     else if (toyKind == ${K.WATER}) {
       // against the shore the water is light and foamy (AO = land right next to it)
       float shore = 1.0 - vAo;

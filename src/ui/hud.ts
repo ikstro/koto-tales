@@ -4,7 +4,8 @@ import { readParams } from '../core/params';
 import { goFullscreen } from './fullscreen';
 import type { Input } from '../core/input';
 import { sfx } from '../voice/sfx';
-import { BUILD_PALETTE } from '../world/blocks';
+import { B, BUILD_PALETTE } from '../world/blocks';
+import { Guide, type GuideCard } from './guide';
 import { NINE, SPRITES, type SpriteName } from './hudSprites';
 import type { Portraits } from './portraits';
 
@@ -289,13 +290,13 @@ class Counter {
 }
 
 /** A studded teal plate of any size: the baked 3×3 plate cut on its stud-cell lines. */
-export function ninePlate(parent: HTMLElement, w: number, h: number): HTMLDivElement {
-  const n = NINE.plate9;
+export function ninePlate(parent: HTMLElement, w: number, h: number, name: keyof typeof NINE = 'plate9'): HTMLDivElement {
+  const n = NINE[name];
   const k = 1 / 1.5; // the plate is baked at 1.5×
   const shadow = div('nine-sh', parent);
   const p = div('nine', parent);
   const bw = `${n.top * k}px ${n.right * k}px ${n.bottom * k}px ${n.left * k}px`;
-  p.style.cssText = `width:${w}px;height:${h}px;border-width:${bw};border-image:url(${SPRITE_URL}plate9.png) ${n.top} ${n.right} ${n.bottom} ${n.left} fill / ${bw} round`;
+  p.style.cssText = `width:${w}px;height:${h}px;border-width:${bw};border-image:url(${SPRITE_URL}${name}.png) ${n.top} ${n.right} ${n.bottom} ${n.left} fill / ${bw} round`;
   shadow.style.cssText = `width:${w - 12}px;height:${h - 14}px`;
   return p;
 }
@@ -357,8 +358,11 @@ export class Hud {
   private boltFull: HTMLImageElement;
   private boltGlow: HTMLDivElement;
   private brick: Piece;
+  private brickGlow: HTMLDivElement;
   private trayBricks = new Map<number, Piece>();
+  private guide: Guide;
   private soundPiece: Piece;
+  private helpPiece: Piece;
   private diffPieces = new Map<Difficulty, Piece>();
   private joyBase: HTMLDivElement;
   private joyIn: HTMLDivElement;
@@ -484,6 +488,8 @@ export class Hud {
       this.gAct.add(`brick1-${c}` as SpriteName, -296 + i * 30, -204 - [0, 18, 20][i], 'brick1-sh'),
     );
     this.brick = this.gAct.add(`brick-${BUILD_PALETTE[4]}` as SpriteName, -252, -166, 'brick-sh');
+    this.brickGlow = div('lamp-glow hidden');
+    this.brick.pr.insertBefore(this.brickGlow, this.brick.img);
     const pick = this.gAct.add('pick', -236, -60, 'tile6-sh');
     this.gAct.seal();
     this.press(
@@ -525,7 +531,12 @@ export class Hud {
       const cy = -th / 2 + 34 + cell * (Math.floor(i / cols) + 0.5) + 26;
       const holder = div('tb', this.gTray.inner);
       holder.style.cssText = `left:${cx}px;top:${cy}px`;
-      const p = new Piece(holder, `brick-${id}` as SpriteName, 0, 0, 'brick-sh');
+      const p = new Piece(holder, `brick-${id}` as SpriteName, 0, 0, brickShadow(id));
+      if (id === B.LANTERN) {
+        // taller than a brick: a little smaller, so it stays inside its cell
+        holder.style.transform = 'scale(0.7)';
+        p.pr.insertBefore(div('lamp-glow'), p.img);
+      }
       this.press(p, p.target(cell, cell, 34), () => this.pickBlock(id), { ui: true });
       this.trayBricks.set(id, p);
     });
@@ -536,24 +547,26 @@ export class Hud {
     this.gTray.h = th + 20;
     this.gTray.inner.style.transform = `translate(${tw / 2}px, ${th / 2}px)`;
 
-    // The pause menu: picture pieces on a plate. ▶ continue, sound, home; difficulty below.
+    // The pause menu: picture pieces on a plate. ▶ continue, sound, «?» guide, home; difficulty below.
     this.menu = div('pmenu hidden', r);
     this.menu.addEventListener('pointerdown', (e) => {
       if (e.target === this.menu) this.setPaused(false);
     });
     this.gMenu = new Group(this.menu, 'g-menu');
-    const mw = 470;
+    const mw = 590;
     const mh = 330;
     const mp = ninePlate(this.gMenu.inner, mw, mh);
     (mp.previousElementSibling as HTMLElement).style.cssText += ';left:14px;top:18px';
     const play = new Piece(this.gMenu.inner, 'play', 112, 118, 'big-sh');
     this.soundPiece = new Piece(this.gMenu.inner, 'sound-on', 250, 112, 'tile6-sh');
-    const home = new Piece(this.gMenu.inner, 'home', 368, 112, 'tile6-sh');
+    this.helpPiece = new Piece(this.gMenu.inner, 'help', 368, 112, 'tile6-sh');
+    const home = new Piece(this.gMenu.inner, 'home', 486, 112, 'tile6-sh');
     this.press(play, play.target(124), () => this.setPaused(false), { ui: true, paused: true });
     this.press(this.soundPiece, this.soundPiece.target(104), () => this.toggleSound(), { ui: true, paused: true });
+    this.press(this.helpPiece, this.helpPiece.target(104), () => this.openGuide(), { ui: true, paused: true });
     this.press(home, home.target(104), () => this.exit(), { ui: true, paused: true });
     LEVELS.forEach((lvl, i) => {
-      const p = new Piece(this.gMenu.inner, `diff-${i + 1}` as SpriteName, 120 + i * 116, 250, 'tile6-sh');
+      const p = new Piece(this.gMenu.inner, `diff-${i + 1}` as SpriteName, mw / 2 - 116 + i * 116, 250, 'tile6-sh');
       p.layer('rim6', 'sp rim');
       this.press(p, p.target(108), () => this.pickDifficulty(lvl), { ui: true, paused: true });
       this.diffPieces.set(lvl, p);
@@ -573,6 +586,8 @@ export class Hud {
 
     this.flyLayer = div('fly', r);
     parent.appendChild(r);
+    // The picture guide lives outside the HUD layer (its own touches), above the pause menu.
+    this.guide = new Guide(parent, () => this.k);
 
     // Flash and fade live outside the HUD: they work even when it is hidden.
     this.flashEl = div('hud-flash', parent);
@@ -800,8 +815,35 @@ export class Hud {
     this.onPause?.(on);
   }
 
+  /**
+   * The picture guide: every card (from the pause menu, which stays open under it), or one card by
+   * itself (the boss card the first time its wasteland is entered). The game stays paused while it
+   * is open; if it was running, it goes on when the guide shuts.
+   */
+  openGuide(only: GuideCard | null = null): void {
+    if (this.guide.isOpen) return;
+    const selfPause = !this.paused;
+    if (selfPause) {
+      this.paused = true;
+      this.toggleFan(false);
+      this.toggleTray(false);
+      this.input.fireHeld = false;
+      this.onPause?.(true);
+    }
+    this.guide.open(only, () => {
+      if (!selfPause || !this.paused) return;
+      this.paused = false;
+      this.onPause?.(false);
+    });
+  }
+
+  get guideOpen(): boolean {
+    return this.guide.isOpen;
+  }
+
   private *menuPieces(): Iterable<Piece> {
     yield this.soundPiece;
+    yield this.helpPiece;
     yield* this.diffPieces.values();
   }
 
@@ -835,6 +877,8 @@ export class Hud {
       if (q.album) setTimeout(() => this.input.press('album'), 300);
       if (q.palette) setTimeout(() => this.toggleTray(true), 300);
       if (q.pause) setTimeout(() => this.setPaused(true), 300);
+      if (q.guide === 'all') setTimeout(() => (this.setPaused(true), this.openGuide()), 300);
+      else if (q.guide) setTimeout(() => this.openGuide(q.guide as GuideCard), 300);
     }
   }
 
@@ -1001,7 +1045,11 @@ export class Hud {
 
   setBuildBlock(id: number): void {
     const name = `brick-${id}` as SpriteName;
-    if (name in SPRITES) setSprite(this.brick.img, name);
+    if (name in SPRITES) {
+      setSprite(this.brick.img, name);
+      if (this.brick.sh) setSprite(this.brick.sh, brickShadow(id));
+      this.brickGlow.classList.toggle('hidden', id !== B.LANTERN);
+    }
     for (const [bid, p] of this.trayBricks) p.el.classList.toggle('on', bid === id);
   }
 
@@ -1121,6 +1169,12 @@ export class Hud {
     this.faderEl.classList.toggle('on', on);
     return new Promise((res) => setTimeout(res, 950));
   }
+}
+
+/** A brick's contact shadow; the lantern piece is taller and has its own. */
+function brickShadow(id: number): SpriteName {
+  const own = `brick-${id}-sh`;
+  return own in SPRITES ? (own as SpriteName) : 'brick-sh';
 }
 
 /** Press / lift springs are CSS transitions; their easings go into custom properties once. */

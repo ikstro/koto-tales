@@ -11,6 +11,7 @@ import { updateMonsters } from '../systems/monsters';
 import { initNarration, updateNarration } from '../systems/narration';
 import { updatePickups } from '../systems/pickups';
 import { writeSave } from '../systems/save';
+import { updateLanterns } from '../render/lanterns';
 import { cutaway } from '../render/skins/cutaway';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
@@ -236,6 +237,7 @@ export class Game {
     updatePickups(ctx, dt);
     updateHouse(ctx, dt);
     updateDayNight(ctx, dt);
+    updateLanterns(ctx, dt);
 
     const focus = ctx.playing ? ctx.player.pos : ctx.house!.centre;
     ctx.world.update(focus);

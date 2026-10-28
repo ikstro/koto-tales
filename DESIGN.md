@@ -8,7 +8,7 @@ The source of the look is the game's own world, the «Діорама» skin: war
 - **Nothing needs reading**: icons are printed on tiles; the only text is numbers (coins, monsters defeated, album counts). Finds are announced by voice only — no pop-up cards over the game.
 - **One touch = one thing**, answered at once by motion and a click.
 - **Sized by the screen, not the mock-up**: one unit `--u: clamp(44px, 8.5vmin, 76px)`; the bow ≈ 1.35u, other actions 1u, top pieces ≈ 0.8u. Nothing overlaps at 1280×800, 1024×600, 844×390 or 390×844 (portrait phone uses a compact layout).
-- **Top right**: one hero piece (the current face; a tap fans out the three heroes), album, fullscreen, pause. Pause opens a plate of picture pieces: continue, sound, home (exit to the title); difficulty as three pieces with 1/2/3 skulls.
+- **Top right**: one hero piece (the current face; a tap fans out the three heroes), album, fullscreen, pause. Pause opens a plate of picture pieces: continue, sound, «?» (the guide), home (exit to the title); difficulty as three pieces with 1/2/3 skulls.
 
 ## Palette
 | Token | Value | Use |
@@ -24,7 +24,7 @@ The source of the look is the game's own world, the «Діорама» skin: war
 World colours come from `src/render/skins/diorama.ts`; building colours from `src/world/blocks.ts`.
 
 ## Pieces
-- Round printed tile (bow, lightning, pickaxe), heart tile, the game's coin, mustard number tile, round hero tile with the rendered face (active: lifted, gold rim; others keep full colour), book piece (album), round joystick plate with a stud knob, the current building colour as a real 2×2 brick.
+- Round printed tile (bow, lightning, pickaxe), heart tile, the game's coin, mustard number tile, round hero tile with the rendered face (active: lifted, gold rim; others keep full colour), book piece (album), round joystick plate with a stud knob, the current building colour as a real 2×2 brick — except the lantern, a real toy lantern piece (dark frame and cap, ring handle, warm glass, bright core, a soft glow behind it); the boss bar's lantern slots are small ones.
 - Lightning charge: 8 studs around the tile light one by one; when full the tile pops.
 - Sprites are baked from the game's models with the diorama materials: `tools/hud/` (re-bake after a skin or model change). Runtime cost: images + CSS transforms only.
 
@@ -52,3 +52,15 @@ Every press plays its sound (`src/voice/sfx.ts`).
 - **Explored = seen**: the chunk (16×16) the hero stands in and its neighbours; the 5×5 chunks around the house are known from the start. The rest is under soft cream cloud puffs, never a flat sheet. Saved as a short list of `"cx,cz"`.
 - **Tiles**: one block = a 3×3 px brick from above (lit upper-left edge, shaded lower-right, a stud highlight in the middle) in the «Діорама» colours: olive grass mosaic, dark-green / olive / golden crowns, golden sand, teal water, warm snow, sandstone; relief shading with the sun from the upper left.
 - **Marks are pieces**: the hero's face tile, helpers as small tiles in their colours, monsters as purple Зомбік tiles, the house as a little house piece. Marks set with `setMapMarker` (house, boss, quest places) with `pointer` sit on the minimap rim when far away, with a coral arrow on the plate edge pointing the way; `zoneRadius` draws a dashed coral danger ring, visible over the clouds.
+
+## Lanterns in the world
+- A placed lantern block is drawn by the skin as a lantern: dark moulded frame on its edges, warm glass, a hot core (diorama.ts, surface lantern); src/render/lanterns.ts adds a cap with a pyramid roof and ring handle on top and a soft additive halo plus a warm pool on the ground — two instanced draws for all lanterns, no light per lantern, on every quality level. Brighter at night; inside the boss's wasteland they pulse gently (they are cracking its armour).
+
+## Guide
+- «?» in the pause menu opens a plate of picture cards built from the HUD pieces and game renders: run (joystick), shoot (bow + monster), lightning (half-lit charge ring), build/break (brick + pickaxe), heal (apple + heart + house), map (minimap with the house and the boss arrow), and the boss as a 3-step strip: three lanterns → cracked armour → arrow into the open glowing mouth. A tap on a card plays its voiced line (guide_*) and the picture hops. Coral ✕ or a tap outside closes; the game stays paused.
+- Captions are short and for parents only; the pictures and the voice explain.
+- The first time a save enters the boss's wasteland, after its roar the game pauses on the boss card alone (with guide_boss) and a ▶; any tap continues. Remembered in save.said as guide_boss.
+
+## Voice frequency
+- Пупся talks little (src/systems/pacing.ts, tested): her thoughts every 5–6 minutes, never with a monster within ~12 blocks, inside the boss zone, or less than 20 s after another line; the night tip once per session.
+- Boss fight: the stone hint once per fight (once more only after 90 s in the zone with no new lantern); the mouth hint once, after the armour breaks; the stomp warning once per session; one line per lantern (max 3). A boss card that popped up counts as the hint it explained.

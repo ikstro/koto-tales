@@ -16,7 +16,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { createSkin } from '/src/render/skins/index.ts';
 import { Models } from '/src/assets/models.ts';
-import { BLOCKS, BUILD_PALETTE } from '/src/world/blocks.ts';
+import { B, BLOCKS, BUILD_PALETTE } from '/src/world/blocks.ts';
 
 const U = 40, DPR = 2, LO = 1.5, TILT = THREE.MathUtils.degToRad(34);
 const canvas = document.getElementById('c');
@@ -171,6 +171,14 @@ const printX = (col) => (x, s) => {
   x.strokeStyle = col; x.lineWidth = 64; x.lineCap = 'round';
   x.beginPath(); x.moveTo(s / 2 - 110, s / 2 - 110); x.lineTo(s / 2 + 110, s / 2 + 110); x.moveTo(s / 2 + 110, s / 2 - 110); x.lineTo(s / 2 - 110, s / 2 + 110); x.stroke();
 };
+/** «?» for the guide piece in the pause menu: a thick hook and a dot. */
+const printHelp = (col) => (x, s) => {
+  x.strokeStyle = col; x.fillStyle = col; x.lineWidth = 60; x.lineCap = 'round'; x.lineJoin = 'round';
+  const cx = s / 2, cy = s / 2 - 62;
+  x.beginPath(); x.arc(cx, cy, 86, Math.PI * 1.08, Math.PI * 2.28);
+  x.quadraticCurveTo(cx, cy + 70, cx, cy + 112); x.stroke();
+  x.beginPath(); x.arc(cx, s / 2 + 148, 40, 0, Math.PI * 2); x.fill();
+};
 /** 1, 2 or 3 small Зомбік faces (difficulty): the face print clipped into round stickers. */
 const printZombies = (n, drawFace) => (x, s) => {
   const r = n === 1 ? 165 : n === 2 ? 118 : 104;
@@ -212,17 +220,82 @@ function brick(color, cols = 2, rows = 2, opts) {
   for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) g.add(stud(m, i + 0.5 - cols / 2, BRICK_H - 0.01, j + 0.5 - rows / 2));
   return g;
 }
-function coin() {
-  const o = models.item('coin'); const holder = new THREE.Group(); holder.add(o);
+function coin() { return itemPiece('coin', 1.7, true); }
+/** A game item, sized to `size` studs across, standing on the ground (`flat`: laid down like the coin). */
+function itemPiece(id, size, flat = false) {
+  const o = models.item(id); const holder = new THREE.Group(); holder.add(o);
   const b = new THREE.Box3().setFromObject(o), sz = b.getSize(new THREE.Vector3());
-  if (sz.z < sz.x && sz.z < sz.y) o.rotation.x = -Math.PI / 2; else if (sz.x < sz.y) o.rotation.z = Math.PI / 2;
+  if (flat) { if (sz.z < sz.x && sz.z < sz.y) o.rotation.x = -Math.PI / 2; else if (sz.x < sz.y) o.rotation.z = Math.PI / 2; }
   holder.updateMatrixWorld(true);
   const b2 = new THREE.Box3().setFromObject(holder), s2 = b2.getSize(new THREE.Vector3());
-  const k = 1.7 / Math.max(s2.x, s2.z); holder.scale.setScalar(k);
+  const k = size / (flat ? Math.max(s2.x, s2.z) : Math.max(s2.x, s2.y, s2.z)); holder.scale.setScalar(k);
   holder.updateMatrixWorld(true);
   const b3 = new THREE.Box3().setFromObject(holder), c3 = b3.getCenter(new THREE.Vector3());
   o.parent.position.set(-c3.x, -b3.min.y + 0.02, -c3.z);
   const g = new THREE.Group(); g.add(holder); return g;
+}
+/**
+ * A toy lantern: dark metal base, corner posts, cap and a little pyramid roof with a ring handle;
+ * warm glass panes with a bright core printed on them (they glow). `lit` false: dull glass (an empty slot).
+ */
+const METAL = '#3b302b';
+function lanternGlass() {
+  const tex = canvasTex(256, (x, s) => {
+    const g = x.createRadialGradient(s * 0.5, s * 0.54, 0, s * 0.5, s * 0.54, s * 0.62);
+    g.addColorStop(0, '#fff8d2'); g.addColorStop(0.22, '#ffe58a'); g.addColorStop(0.55, '#ffb43a'); g.addColorStop(1, '#e9781e');
+    x.fillStyle = g; x.fillRect(0, 0, s, s);
+    // a soft glint down the left of each pane
+    x.fillStyle = 'rgba(255,250,225,0.35)'; x.beginPath(); x.roundRect(s * 0.14, s * 0.12, s * 0.09, s * 0.62, s * 0.04); x.fill();
+  });
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshStandardMaterial({ color: 0xffffff, map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.8, roughness: 0.18 });
+}
+function lanternModel(lit = true) {
+  const g = new THREE.Group();
+  // dark moulded plastic, a little rougher than the bricks so the sun does not turn it grey
+  const metal = new THREE.MeshStandardMaterial({ color: METAL, roughness: 0.62, metalness: 0.1 });
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
+  const GH = 1.75, BASE = 0.2, CAP = 0.18;
+  add(new RoundedBoxGeometry(1.5, BASE, 1.5, 4, 0.07), metal, 0, BASE / 2, 0);
+  add(new RoundedBoxGeometry(1.26, GH, 1.26, 3, 0.05), lit ? lanternGlass() : M('#6b5631'), 0, BASE + GH / 2, 0);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) add(new RoundedBoxGeometry(0.2, GH + 0.02, 0.2, 3, 0.06), metal, sx * 0.6, BASE + GH / 2, sz * 0.6);
+  const top = BASE + GH;
+  add(new RoundedBoxGeometry(1.5, CAP, 1.5, 4, 0.07), metal, 0, top + CAP / 2, 0);
+  const roofGeo = new THREE.CylinderGeometry(0.2, 0.95, 0.42, 4, 1).toNonIndexed(); roofGeo.rotateY(Math.PI / 4); roofGeo.computeVertexNormals();
+  add(roofGeo, metal, 0, top + CAP + 0.21, 0);
+  add(roundDisc(0.2, 0.12, 0.04), metal, 0, top + CAP + 0.4, 0);
+  const ring = add(new THREE.TorusGeometry(0.3, 0.085, 12, 40), metal, 0, top + CAP + 0.5 + 0.3, 0);
+  ring.rotation.x = -0.45;
+  return g;
+}
+function lanternPiece(scale = 1, lit = true) { const g = new THREE.Group(); const l = lanternModel(lit); l.scale.setScalar(scale); g.add(l); return g; }
+/** A flat cream card for the guide (nine-sliced like plate9): rounded, no studs. */
+function cardTile() { const g = new THREE.Group(); const t = new THREE.Mesh(new RoundedBoxGeometry(3, 0.3, 3, 4, 0.16), M('#dcb878')); t.position.y = 0.15; g.add(t); return g; }
+/** «Пожирач земель» as the game shows it, small: armour cracked (`open` false) or the mouth open with an arrow flying in. */
+function bossPose(open) {
+  const m = models.character({ kind: 'parts', id: 'landEater' }); m.update(0, 0);
+  const root = m.root;
+  for (const i of [1, 2, 3]) { const c = root.getObjectByName('crack' + i); if (c) c.visible = true; }
+  if (open) {
+    const jaw = root.getObjectByName('jaw'); if (jaw) jaw.rotation.x = 1.2;
+    const ember = root.getObjectByName('ember'); if (ember) ember.visible = true;
+    const eyes = root.getObjectByName('bossEyes'); if (eyes) eyes.scale.setScalar(1.25);
+  }
+  const g = new THREE.Group();
+  root.scale.setScalar(0.3); root.rotation.y = 0.5; g.add(root);
+  if (open) {
+    g.updateMatrixWorld(true);
+    const mouth = root.localToWorld(new THREE.Vector3(0, 2.2, 4.7));
+    const arrow = new THREE.Group();
+    const wood = M('#8a5a2b'), tip = M('#4a5562'), feather = M('#ffe3a3');
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.3, 10), wood); shaft.rotation.x = Math.PI / 2; arrow.add(shaft);
+    const head = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.32, 12), tip); head.rotation.x = Math.PI / 2; head.position.z = 0.8; arrow.add(head);
+    for (const a of [0, Math.PI / 2]) { const f = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.26, 0.34), feather); f.position.z = -0.55; f.rotation.z = a; arrow.add(f); }
+    arrow.scale.setScalar(1.4); arrow.position.copy(mouth).add(new THREE.Vector3(1.2, 0.7, 1.3));
+    arrow.lookAt(mouth);
+    g.add(arrow);
+  }
+  return g;
 }
 function numTile() { const g = new THREE.Group(); const t = new THREE.Mesh(new RoundedBoxGeometry(2, 0.4, 2, 4, 0.1), M(C.num)); t.position.y = 0.2; g.add(t); return g; }
 function squareTile(color, size = 2.6) { const g = new THREE.Group(); const t = new THREE.Mesh(new RoundedBoxGeometry(size, 0.4, size, 4, 0.14), M(color)); t.position.y = 0.2; g.add(t); return g; }
@@ -409,6 +482,8 @@ shoot('close', roundTile(1, C.coral, printX(CREAM), 0.6), 130, 130, { shadow: 't
 shoot('bow', roundTile(1.35, C.coral, printBow, 0.6), 160, 160, { shadow: 'big-sh' });
 shoot('play', roundTile(1.35, C.green, printPlay(CREAM), 0.6), 160, 160, { shadow: 'big-sh' });
 for (const id of BUILD_PALETTE) {
+  // the lantern is a real toy lantern, not a yellow brick (its own, taller frame and shadow)
+  if (id === B.LANTERN) { shoot('brick-' + id, lanternPiece(1.05), 200, 260, { oy: 1.1, shadow: 'brick-' + id + '-sh' }); continue; }
   const b = BLOCKS[id], look = b.side;
   const opts = look.surface === 'glass' ? { transparent: true } : b.glow ? { emissive: true } : undefined;
   shoot('brick-' + id, brick(look.color, 2, 2, opts), 200, 200, { oy: 0.4, shadow: 'brick-sh' });
@@ -483,21 +558,8 @@ function bossStone() {
   g.add(stud(M('#5b616a'), 0, 0.61, 0));
   return g;
 }
-/** A lantern slot on the boss bar: a lit lantern block, or the dark socket waiting for it. */
-function lampPiece(on) {
-  const g = new THREE.Group();
-  if (on) {
-    const m = M('#ffd54f', { emissive: true });
-    const b = new THREE.Mesh(new RoundedBoxGeometry(0.78, 0.6, 0.78, 3, 0.12), m); b.position.y = 0.3; g.add(b);
-    g.add(stud(m, 0, 0.59, 0));
-  } else {
-    // an unlit lantern: the same block, dark and dull, waiting to be lit
-    const m = M('#5a4a2a');
-    const b = new THREE.Mesh(new RoundedBoxGeometry(0.78, 0.6, 0.78, 3, 0.12), m); b.position.y = 0.3; g.add(b);
-    g.add(stud(m, 0, 0.59, 0));
-  }
-  return g;
-}
+/** A lantern slot on the boss bar: a small lit lantern, or a dull one waiting to be lit. */
+function lampPiece(on) { return lanternPiece(0.4, on); }
 /** The rim arrow: a flat coral wedge pointing up (shot from above; the HUD tilts and turns it). */
 function arrowPiece() {
   const s = new THREE.Shape(); s.moveTo(0, 0.42); s.lineTo(0.36, -0.22); s.quadraticCurveTo(0, -0.08, -0.36, -0.22); s.closePath();
@@ -524,10 +586,24 @@ shoot('boss', roundTile(0.8, SLATE, printBoss, 0.4), 96, 96, { dpr: LO });
 shoot('plate-boss', rectPlate(12, 2, C.plate), 540, 150, { dpr: LO });
 shoot('boss-face', roundTile(1, SLATE, printBoss), 110, 110, { shadow: 'tile-sh', dpr: LO });
 shoot('boss-stone', bossStone(), 60, 70, { oy: 0.3, dpr: LO });
-shoot('lamp-on', lampPiece(true), 60, 70, { oy: 0.3, shadow: 'lamp-sh', dpr: LO });
-shoot('lamp-off', lampPiece(false), 60, 70, { oy: 0.3, shadow: 'lamp-sh', dpr: LO });
+shoot('lamp-on', lampPiece(true), 60, 100, { oy: 0.6, shadow: 'lamp-sh', dpr: LO });
+shoot('lamp-off', lampPiece(false), 60, 100, { oy: 0.6, shadow: 'lamp-sh', dpr: LO });
 shoot('map-arrow', arrowPiece(), 48, 48, { shadow: null, top: true, dpr: LO });
 shoot('cloud', cloudPiece(), 120, 100, { oy: 0.3, dpr: LO });
+
+// --- the guide (ui/guide.ts): the «?» piece, cards, and pictures the HUD does not have yet
+shoot('help', roundTile(1, C.mint, printHelp(INK), 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('apple', itemPiece('apple', 1.5), 100, 110, { oy: 0.4, dpr: LO });
+shoot('boss-cracked', bossPose(false), 220, 210, { oy: 0.75, dpr: LO });
+shoot('boss-open', bossPose(true), 220, 210, { oy: 0.75, shadow: 'boss-cracked-sh', dpr: LO });
+{
+  const w = 180, h = 170;
+  const sp = shoot('card9', cardTile(), w, h, { shadow: null, dpr: LO });
+  const [xa] = toFrame(new THREE.Vector3(-0.5, 0.3, 0), w, h), [xb] = toFrame(new THREE.Vector3(0.5, 0.3, 0), w, h);
+  const [, ya] = toFrame(new THREE.Vector3(0, 0.3, -0.5), w, h), [, yb] = toFrame(new THREE.Vector3(0, 0.3, 0.5), w, h);
+  const r = (v) => Math.round(v * LO);
+  nine.card9 = { top: r(ya - sp.y), left: r(xa - sp.x), right: r(sp.x + sp.cw - xb), bottom: r(sp.y + sp.ch - yb) };
+}
 
 document.getElementById('out').textContent = JSON.stringify({ sprites: out, nine });
 document.title = 'done';
