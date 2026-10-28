@@ -60,5 +60,19 @@
   "pupsia_tip_hearts": "69438912063a",
   "diff_easy": "9fc4c82c9ae3",
   "diff_normal": "31d55116fcff",
-  "diff_hard": "2dc9261b96e3"
+  "diff_hard": "2dc9261b96e3",
+  "map_open": "591c3fa13cb9",
+  "boss_spot": "221bd1ef6fcf",
+  "boss_roar": "7f16e60f4324",
+  "boss_return": "bd51c79d5dee",
+  "boss_weak": "5933c9712381",
+  "boss_defeated": "71fbdb1c0b9e",
+  "pupsia_boss_far": "ad944a59cd77",
+  "pupsia_boss_stone": "a78f1fff17b0",
+  "pupsia_boss_lantern": "2878db7464d7",
+  "pupsia_boss_mouth": "f456f18dfcbd",
+  "pupsia_boss_stomp": "487224f2a429",
+  "item_eater_heart": "1182eec627c1",
+  "item_heart": "8598684de69c",
+  "heal_apple": "98caa3ae9b48"
 }

@@ -33,10 +33,15 @@ export class FollowCamera {
 
   static readonly LOOK_UP = 0.8;
 
+  /** How far the camera pulls back (1 = normal; bigger near something huge, like the boss). */
+  zoomTarget = 1;
+  private zoom = 1;
+
   follow(focus: THREE.Vector3, dt: number): void {
     this.target.lerp(focus, 1 - Math.exp(-dt * 6));
+    this.zoom += (this.zoomTarget - this.zoom) * (1 - Math.exp(-dt * 2.5));
     const cam = this.camera;
-    cam.position.copy(this.target).add(this.offset);
+    cam.position.copy(this.target).addScaledVector(this.offset, this.zoom);
     if (this.shakeT > 0) {
       this.shakeT = Math.max(0, this.shakeT - dt);
       const s = this.shakeT * 0.6;

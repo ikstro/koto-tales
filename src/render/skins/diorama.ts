@@ -661,7 +661,6 @@ export function createDioramaSkin(): Skin {
     fog: { near: 30, far: 95 },
     post: { blur: 0.0095, band: [0.08, 0.46], grade: GRADE },
     chunksCast: true,
-    castMinSize: 0.6,
     tightCull: { shadowReach: 10 },
     decorate: dresser.decorate,
     disposeDecor: dresser.dispose,

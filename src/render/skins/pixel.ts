@@ -171,10 +171,10 @@ export function createPixelSkin(): Skin {
 
     partMaterial(color, opts) {
       const c = new THREE.Color(color);
-      const k = `${c.getHexString()}|${opts?.emissive ? 1 : 0}|${opts?.transparent ? 1 : 0}|${opts?.map?.uuid ?? ''}`;
+      const k = `${c.getHexString()}|${opts?.emissive ? 1 : 0}|${opts?.transparent ? 1 : 0}|${opts?.map?.uuid ?? ''}|${opts?.vertexColors ? 1 : 0}`;
       let m = parts.get(k);
       if (!m) {
-        m = new THREE.MeshLambertMaterial({ color: c });
+        m = new THREE.MeshLambertMaterial({ color: c, vertexColors: !!opts?.vertexColors });
         if (opts?.emissive) m.emissive.copy(c).multiplyScalar(0.85);
         if (opts?.map) m.map = opts.map;
         if (opts?.transparent) {

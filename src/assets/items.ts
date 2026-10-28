@@ -145,6 +145,43 @@ const ITEM_BUILDERS: Record<ItemId, Builder> = {
       .box([0.07, 0.04, 0.05], [0.055, 0.11, 0], GOLD_DARK),
   flower_yellow: flower('#ffe23b', '#ff8f00'),
   flower_blue: flower('#64b5f6', '#fff8e1'),
+  // «Серце Пожирача»: a chunky slate stone heart with glowing amber cracks and a hot core
+  eater_heart: (p) => {
+    const stone = '#4f555e';
+    const dark = '#3b4048';
+    const amber = { c: '#ffa526', glow: true };
+    const hot = { c: '#ffe27a', glow: true };
+    p.box([0.3, 0.05, 0.26], [0, 0.025, 0], '#6c727b')
+      // the heart: two lobes on top, tapering to a point below
+      .box([0.2, 0.18, 0.2], [-0.1, 0.42, 0], stone)
+      .box([0.2, 0.18, 0.2], [0.1, 0.42, 0], stone)
+      .box([0.4, 0.14, 0.2], [0, 0.32, 0], stone)
+      .box([0.3, 0.1, 0.2], [0, 0.22, 0], dark)
+      .box([0.18, 0.08, 0.18], [0, 0.13, 0], dark)
+      .box([0.08, 0.06, 0.14], [0, 0.08, 0], dark)
+      // glowing cracks on the front and a hot core showing through
+      .box([0.12, 0.12, 0.012], [0.02, 0.32, 0.104], hot)
+      .box([0.03, 0.14, 0.012], [-0.08, 0.38, 0.104], amber, [0, 0, 0.5])
+      .box([0.03, 0.12, 0.012], [0.1, 0.24, 0.104], amber, [0, 0, -0.6])
+      .box([0.03, 0.1, 0.012], [0.12, 0.44, 0.104], amber, [0, 0, 0.3])
+      .box([0.03, 0.1, 0.012], [-0.04, 0.17, 0.094], amber, [0, 0, -0.3])
+      .box([0.012, 0.1, 0.03], [0.205, 0.36, 0.02], amber)
+      .box([0.012, 0.1, 0.03], [-0.205, 0.32, -0.02], amber)
+      .box([0.045, 0.045, 0.045], [0.2, 0.52, 0.06], hot, [0.6, 0.6, 0])
+      .box([0.035, 0.035, 0.035], [-0.22, 0.2, 0.08], hot, [0.6, 0.6, 0]);
+  },
+  // A heart that gives a heart back: bright toy-red, softly glowing so it is easy to spot.
+  heart: (p) => {
+    const red = { c: '#ff4d6d', glow: true };
+    const deep = { c: '#e0304f', glow: true };
+    p.box([0.18, 0.16, 0.16], [-0.09, 0.44, 0], red)
+      .box([0.18, 0.16, 0.16], [0.09, 0.44, 0], red)
+      .box([0.36, 0.12, 0.16], [0, 0.34, 0], red)
+      .box([0.26, 0.1, 0.16], [0, 0.24, 0], deep)
+      .box([0.14, 0.08, 0.16], [0, 0.155, 0], deep)
+      .box([0.06, 0.06, 0.14], [0, 0.1, 0], deep)
+      .box([0.06, 0.06, 0.012], [-0.1, 0.47, 0.085], { c: '#ffd1da', glow: true });
+  },
 };
 
 export const ITEM_IDS = Object.keys(ITEM_BUILDERS) as ItemId[];

@@ -199,6 +199,20 @@ const recipes: Record<SfxName, (k: K) => void> = {
     tone(k, 120, 0.6, 0.16, 0.22, 'sine', 75);
     hiss(k, 0.6, 0.05, 0.06, 'lowpass', 700);
   },
+  clink(k) {
+    // «дзинь»: a bright little bell, two partials that ring off
+    tone(k, 1760, 0, 0.32, 0.16, 'triangle', 1700);
+    tone(k, 2640, 0, 0.2, 0.06, 'sine');
+    tone(k, 3960, 0.01, 0.1, 0.03, 'sine');
+    hiss(k, 0, 0.03, 0.08, 'highpass', 3000);
+  },
+  rumble(k) {
+    // a soft deep thud with gravel: big, but never harsh
+    tone(k, 70, 0, 0.7, 0.55, 'sine', 38, 0.02);
+    tone(k, 110, 0, 0.35, 0.2, 'triangle', 55);
+    hiss(k, 0, 0.8, 0.3, 'lowpass', 600, 120, 0.6, 0.03);
+    for (let i = 0; i < 5; i++) hiss(k, 0.05 + i * 0.07 + Math.random() * 0.03, 0.08, 0.1, 'bandpass', 400 + Math.random() * 900, undefined, 1.2);
+  },
 };
 
 // ─── ambience ───────────────────────────────────────────────────────────────

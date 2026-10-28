@@ -11,11 +11,13 @@ import { Quality } from './core/quality';
 import { applyWaitingUpdate, bootStarted, bootSucceeded, registerPWA } from './pwa';
 import { Effects } from './render/effects';
 import { createSkin } from './render/skins';
+import { bossStartSpot, initBoss } from './systems/boss';
 import { buildHouse } from './systems/house';
 import { initPickups } from './systems/pickups';
 import { freshSave, loadSave, persistStorage, reconcileTerrain } from './systems/save';
 import { Album } from './ui/album';
 import { Hud } from './ui/hud';
+import { GameMap } from './ui/map';
 import { makePortraits } from './ui/portraits';
 import { showTitle, startLoader } from './ui/title';
 import { wakeHeroes } from './ui/wake';
@@ -52,7 +54,7 @@ async function boot(): Promise<void> {
   const loading = startLoader(ui);
 
   const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game') as HTMLCanvasElement, antialias: true, powerPreference: 'high-performance' });
-  const quality = new Quality(renderer, params.tier);
+  const quality = new Quality(renderer, params.tier, params.fps);
   const skin = createSkin(params.skin);
   skin.setTier(quality.tier);
   const scene = new THREE.Scene();
@@ -66,11 +68,13 @@ async function boot(): Promise<void> {
   save = reconcileTerrain(save, (id) => !NATURAL_SURFACES.has(blockDef(id).side.surface));
   const world = new World(scene, { seed: save.seed, renderDistance: quality.renderDistance }, skin);
   world.importEdits(save.edits);
+  quality.attach(skin, world);
 
   const portraits = makePortraits(renderer, models);
   const input = new Input();
   const hud = new Hud(ui, input, portraits);
   const album = new Album(ui, portraits);
+  const map = new GameMap(ui, hud);
 
   const ctx: Ctx = {
     renderer,
@@ -83,12 +87,14 @@ async function boot(): Promise<void> {
     input,
     hud,
     album,
+    map,
     portraits,
     params,
     save,
     heroes: new Map(),
     player: null as unknown as Ctx['player'],
     monsters: [],
+    boss: null,
     arrows: [],
     pickups: new Map(),
     house: null,
@@ -99,6 +105,10 @@ async function boot(): Promise<void> {
   initPickups(ctx);
   ctx.house = buildHouse(ctx);
   if (params.demo) placeDemo(ctx);
+  initBoss(ctx);
+  // ?boss=near: the party starts in front of the boss's mouth
+  const near = params.boss === 'near' ? bossStartSpot(ctx) : null;
+  if (near) [params.x, params.z] = [near.x, near.z];
 
   const game = new Game(ctx, quality);
   game.onFirstFrame = bootSucceeded;

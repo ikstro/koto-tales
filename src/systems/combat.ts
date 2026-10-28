@@ -6,7 +6,7 @@ import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
-import { dropCoins } from './pickups';
+import { dropCoins, dropHeart } from './pickups';
 import { sendHome } from './heroes';
 import { tuneOf } from './tune';
 
@@ -38,13 +38,31 @@ export function nearestMonster(ctx: Ctx, from: THREE.Vector3, range: number, yaw
 
 const centreOf = (m: Monster, out: THREE.Vector3) => out.copy(m.pos).setY(m.pos.y + m.body.height * 0.5);
 
+/**
+ * Auto-aim also knows the boss: its mouth is the target when it is in reach
+ * (it is big, so a little further than a monster) and no monster is closer.
+ */
+function aimsAtBoss(ctx: Ctx, from: THREE.Vector3, range: number, monster: Monster | null): boolean {
+  const b = ctx.boss;
+  if (!b?.alive) return false;
+  const d = b.aimDistance(from);
+  if (d > range + 3 * b.scale) return false;
+  return !monster || d < Math.hypot(monster.pos.x - from.x, monster.pos.z - from.z);
+}
+
 export function fireArrow(ctx: Ctx, hero: Hero): void {
   if (hero.fireCd > 0) return;
   hero.fireCd = HERO_STATS.arrowCooldown;
   const from = hero.chest(new THREE.Vector3());
   const target = nearestMonster(ctx, hero.pos, HERO_STATS.arrowRange, hero.yaw);
   const dir = new THREE.Vector3();
-  if (target) dir.subVectors(centreOf(target, tmp), from).normalize();
+  if (aimsAtBoss(ctx, hero.pos, HERO_STATS.arrowRange, target)) {
+    // into the mouth, lifted a little against the arrow's drop over the distance
+    const m = ctx.boss!.mouthPoint(tmp);
+    const t = Math.hypot(m.x - from.x, m.z - from.z) / HERO_STATS.arrowSpeed;
+    m.y += Math.max(0, 3 * t * t - 1.2 * t);
+    dir.subVectors(m, from).normalize();
+  } else if (target) dir.subVectors(centreOf(target, tmp), from).normalize();
   else dir.set(Math.sin(hero.yaw), 0.05, Math.cos(hero.yaw)).normalize();
   hero.yaw = yawOf(dir.x, dir.z);
 
@@ -73,8 +91,18 @@ export function castBolt(ctx: Ctx, hero: Hero): void {
   const scale = hero.isPlayer ? 1 : tune.helperDamage;
   hero.model.play('cast');
   const hit = new Set<Monster>();
+  let bossHit = 0;
   let first = nearestMonster(ctx, hero.pos, HERO_STATS.boltRange);
-  if (!first) {
+  if (aimsAtBoss(ctx, hero.pos, HERO_STATS.boltRange, first)) {
+    // The bolt comes down in front of the boss: into the open mouth, or onto the stone with a «дзинь».
+    const b = ctx.boss!;
+    const open = b.brain.mouthOpen && !b.brain.armored;
+    const to = open ? b.mouthPoint(new THREE.Vector3()) : b.toWorld(0, 4.6, 3.2, new THREE.Vector3());
+    hero.yaw = yawOf(to.x - hero.pos.x, to.z - hero.pos.z);
+    ctx.effects.lightning(b.toWorld(0, 12, 9, tmp2), to);
+    b.strike(ctx, open ? 'mouth' : 'body', HERO_STATS.boltDamage * scale, to);
+    bossHit = 1;
+  } else if (!first) {
     // No monster around: the bolt still strikes in front, it's fun anyway.
     const p = tmp.set(hero.pos.x + Math.sin(hero.yaw) * 4, 0, hero.pos.z + Math.cos(hero.yaw) * 4);
     p.y = ctx.world.groundHeight(Math.floor(p.x), Math.floor(p.z));
@@ -100,7 +128,7 @@ export function castBolt(ctx: Ctx, hero: Hero): void {
     ctx.hud.flash(0.55);
     voice.say(hero.card.lines.bolt, { priority: 3 });
   }
-  events.emit('attack:bolt', { hero: hero.id, hits: hit.size });
+  events.emit('attack:bolt', { hero: hero.id, hits: hit.size + bossHit });
 }
 
 export function damageMonster(ctx: Ctx, m: Monster, damage: number, dir: THREE.Vector3, by: Hero): void {
@@ -123,6 +151,8 @@ function defeatMonster(ctx: Ctx, m: Monster, by: Hero): void {
   ctx.effects.coinBurst(c);
   const [lo, hi] = m.card.coins;
   dropCoins(ctx, c, lo + Math.floor(Math.random() * (hi - lo + 1)));
+  // Sometimes a heart for a hero who has lost some (difficulty sets how often).
+  if (ctx.player.hearts < HERO_STATS.maxHearts && Math.random() < tuneOf(ctx).heartDrop) dropHeart(ctx, c);
   sfx.play('poof');
   ctx.scene.remove(m.model.root);
   m.model.dispose();
@@ -242,6 +272,13 @@ export function updateCombat(ctx: Ctx, dt: number): void {
           damageMonster(ctx, m, a.damage, tmp.copy(a.vel).setY(0).normalize(), a.by ?? player);
           a.dead = true;
           break;
+        }
+      }
+      if (!a.dead && ctx.boss) {
+        const where = ctx.boss.hitTest(a.pos);
+        if (where) {
+          ctx.boss.strike(ctx, where, a.damage, a.pos);
+          a.dead = true;
         }
       }
       if (!a.dead && ctx.world.isSolid(Math.floor(a.pos.x), Math.floor(a.pos.y), Math.floor(a.pos.z))) {

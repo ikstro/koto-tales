@@ -301,6 +301,15 @@ export function ninePlate(parent: HTMLElement, w: number, h: number): HTMLDivEle
 }
 
 const LEVELS: Difficulty[] = ['easy', 'normal', 'hard'];
+/** Stone studs on the boss bar = its health in tenths. */
+const BOSS_STONES = 10;
+
+/** What the boss bar shows: health 0..1, whether the stone armour holds, lanterns lit (0–3). */
+export interface BossBar {
+  hp: number;
+  armored: boolean;
+  lanterns: number;
+}
 
 export class Hud {
   readonly root = div('hud hidden');
@@ -311,14 +320,27 @@ export class Hud {
   onDifficulty: ((level: Difficulty) => void) | null = null;
   onSound: ((on: boolean) => void) | null = null;
   onExit: (() => void) | null = null;
+  /** A tap on the minimap plate (ui/map.ts opens the big map). */
+  onMapTap: (() => void) | null = null;
 
   private gHearts: Group;
+  private gMap: Group;
   private gCoins: Group;
   private gKills: Group;
   private gTop: Group;
   private gAct: Group;
   private gTray: Group;
   private gMenu: Group;
+  private gBoss: Group;
+  private bossFace: Piece;
+  private bossStones: { p: Piece; anim: Animation | null }[] = [];
+  private bossLamps: { off: Piece; on: Piece }[] = [];
+  private bossShown = false;
+  private bossLit = -1;
+  private bossLampsLit = -1;
+  private bossArmored: boolean | null = null;
+  private suggested: number | null = null;
+  private suggestAnim: Animation | null = null;
 
   private hearts: { tile: Piece; lost: boolean; anim: Animation | null }[] = [];
   private coinPiece: Piece;
@@ -417,6 +439,25 @@ export class Hud {
     this.press(pause, pause.target(94), () => this.setPaused(true), { ui: true });
     if (!document.fullscreenEnabled) this.fullPiece.el.style.display = 'none';
     document.addEventListener('fullscreenchange', () => setSprite(this.fullPiece.img, document.fullscreenElement ? 'full-out' : 'full-in'));
+
+    // The minimap: a round studded plate under the top row; ui/map.ts prints the map on it.
+    this.gMap = new Group(r, 'g-map');
+    const mapPlate = this.gMap.add('map-plate', 0, 0);
+    this.gMap.seal();
+    this.press(mapPlate, mapPlate.target(160, 130, TOP), () => this.onMapTap?.(), { ui: true });
+
+    // The boss bar (top centre, only near «Пожирач земель»): its face, a row of stone studs that
+    // chip off as it loses health, and in front three lantern slots while its armour holds.
+    this.gBoss = new Group(r, 'g-boss hidden');
+    this.gBoss.add('plate-boss', 0, 0);
+    this.bossFace = this.gBoss.add('boss-face', -200, -TOP, 'tile-sh');
+    const row = 0.5 * Math.cos((34 * Math.PI) / 180) * STUD;
+    for (let i = 0; i < BOSS_STONES; i++) this.bossStones.push({ p: this.gBoss.add('boss-stone', -140 + i * STUD, -TOP - row), anim: null });
+    for (let i = 0; i < 3; i++) {
+      const x = -100 + i * 3 * STUD;
+      this.bossLamps.push({ off: this.gBoss.add('lamp-off', x, -TOP + row, 'lamp-sh'), on: this.gBoss.add('lamp-on', x, -TOP + row, null) });
+    }
+    this.gBoss.seal();
 
     // The hero fan: three tiles under the plate, opened by the hero piece.
     this.fan = div('fan hidden', this.gTop.inner);
@@ -600,8 +641,43 @@ export class Hud {
     root.setProperty('--hud-kb', kb.toFixed(4));
     this.zone.style.top = `${Math.round(topBottom)}px`;
 
+    // Minimap: under the top-right row (the plate ≈ 1.6u at the top pieces' scale); if the action
+    // pieces leave no room there (short landscape), it moves left of the top row instead.
+    const GM = this.gMap;
+    const ms = Math.max(ts, 0.72 * k) * 1.12;
+    let mx = W - g - GM.w * ms;
+    let my = GT.bottom + gap * 0.3;
+    if (my + GM.h * ms + gap > GA.y && W >= H) {
+      mx = GT.x - gap - GM.w * ms;
+      my = g;
+    }
+    GM.place(mx, my, ms);
+    this.placeBoss(g, gap, ts, topBottom);
+
     if (this.trayOpen) this.placeTray();
     this.placeMenu();
+  }
+
+  /**
+   * The boss bar sits top centre between the left and right pieces; when the gap is too
+   * narrow for it (portrait phones), it gets its own row under them, left of the minimap.
+   */
+  private placeBoss(g: number, gap: number, ts: number, topBottom: number): void {
+    const W = window.innerWidth;
+    const { gBoss: BG, gHearts: GH, gCoins: GC, gKills: GK, gTop: GT, gMap: GM } = this;
+    const left = Math.max(GH.right, GC.right, GK.right) + gap;
+    const tall = BG.h * ts;
+    const right = Math.min(GT.x, GM.y < g + tall ? GM.x : Infinity) - gap;
+    const s = Math.min(ts * 1.05, (right - left) / BG.w);
+    if (s >= ts * 0.7) {
+      const x = Math.min(right - BG.w * s, Math.max(left, (W - BG.w * s) / 2));
+      BG.place(x, g, s);
+      return;
+    }
+    const y2 = topBottom + gap * 0.5;
+    const right2 = GM.y < y2 + tall && GM.bottom > y2 ? GM.x - gap : W - g;
+    const s2 = Math.min(ts, (right2 - g) / BG.w);
+    BG.place(Math.max(g, (g + right2) / 2 - (BG.w * s2) / 2), y2, s2);
   }
 
   private placeTray(): void {
@@ -694,6 +770,7 @@ export class Hud {
   }
 
   private pickBlock(id: number): void {
+    this.suggestBlock(null);
     this.setBuildBlock(id);
     this.onPickBlock?.(id);
     this.toggleTray(false);
@@ -769,6 +846,7 @@ export class Hud {
     at(this.gCoins, 220, 90);
     at(this.gKills, 300, 90);
     at(this.gTop, 320, 70);
+    at(this.gMap, 460);
     this.joyPieces.forEach((p, i) => p.drop(500 + i * 160, 60));
     at(this.gAct, 620, 50);
   }
@@ -927,6 +1005,83 @@ export class Hud {
     for (const [bid, p] of this.trayBricks) p.el.classList.toggle('on', bid === id);
   }
 
+  /**
+   * Points the build button at a block (the lantern inside the boss's wasteland): the brick
+   * switches to it and keeps pulsing. null stops the pulse (the caller sets the block back).
+   */
+  suggestBlock(id: number | null): void {
+    if (id === this.suggested) return;
+    this.suggested = id;
+    this.suggestAnim?.cancel();
+    this.suggestAnim = null;
+    if (id === null) return;
+    this.setBuildBlock(id);
+    this.brick.drop(0, 40);
+    this.suggestAnim = this.brick.lf.animate(
+      [
+        { transform: 'none' },
+        { transform: 'translateY(-14px) scale(1.16)', offset: 0.3 },
+        { transform: 'none', offset: 0.62 },
+        { transform: 'none' },
+      ],
+      { duration: 1100, delay: 450, iterations: Infinity, easing: 'ease-in-out' },
+    );
+  }
+
+  /** The boss bar near «Пожирач земель»; null hides it. Stones chip off as its health drops. */
+  setBoss(b: BossBar | null): void {
+    const on = !!b;
+    if (on !== this.bossShown) {
+      this.bossShown = on;
+      this.gBoss.el.classList.toggle('hidden', !on);
+      if (on) {
+        this.bossLit = -1;
+        this.bossLampsLit = -1;
+        this.bossArmored = null;
+        this.gBoss.pieces.forEach((p, i) => p.drop(i * 30, 40));
+      }
+    }
+    if (!b) return;
+    const lit = b.hp <= 0 ? 0 : Math.max(1, Math.ceil(b.hp * BOSS_STONES - 1e-6));
+    if (lit !== this.bossLit) {
+      const first = this.bossLit < 0;
+      this.bossStones.forEach((s, i) => {
+        if (i < lit) {
+          s.anim?.cancel();
+          s.anim = null;
+          s.p.el.style.visibility = '';
+        } else if (first) s.p.el.style.visibility = 'hidden';
+        else if (!s.anim) {
+          // the stone chips off and tumbles away
+          s.anim = s.p.el.animate(
+            [
+              { transform: 'none', opacity: 1 },
+              { transform: 'translate(14px, -46px) rotate(80deg) scale(0.7)', opacity: 0 },
+            ],
+            { duration: 450, easing: 'cubic-bezier(.3,.6,.6,1)', fill: 'forwards' },
+          );
+        }
+      });
+      if (!first && lit < this.bossLit) this.bossFace.bump('translateY(-10px) scale(1.08) rotate(-8deg)');
+      this.bossLit = lit;
+    }
+    if (b.armored !== this.bossArmored || b.lanterns !== this.bossLampsLit) {
+      const prev = this.bossArmored === b.armored ? this.bossLampsLit : -1;
+      this.bossLamps.forEach((l, i) => {
+        l.off.el.style.display = b.armored ? '' : 'none';
+        const lamp = b.armored && i < b.lanterns;
+        l.on.el.style.display = lamp ? '' : 'none';
+        if (lamp && prev >= 0 && i >= prev) {
+          l.on.drop(0, 50);
+          l.on.bump('translateY(-12px) scale(1.2)');
+        }
+      });
+      if (this.bossArmored === true && !b.armored) this.bossFace.bump('translateY(-14px) scale(1.15) rotate(10deg)');
+      this.bossArmored = b.armored;
+      this.bossLampsLit = b.lanterns;
+    }
+  }
+
   setDifficulty(level: Difficulty): void {
     this.difficulty = level;
     for (const [l, p] of this.diffPieces) p.el.classList.toggle('on', l === level);
@@ -939,6 +1094,20 @@ export class Hud {
 
   get isPaused(): boolean {
     return this.paused;
+  }
+
+  /** The minimap plate's layer (design px, the plate's foot at 0,0) and its scale on screen. */
+  get mapLayer(): HTMLElement {
+    return this.gMap.inner;
+  }
+
+  get mapScale(): number {
+    return this.gMap.s;
+  }
+
+  /** Scale of the top pieces (k = u / 80 is the action pieces'). */
+  get pieceScale(): number {
+    return this.k;
   }
 
   /** Kept for compatibility: finds are announced by voice only (owner's choice). */

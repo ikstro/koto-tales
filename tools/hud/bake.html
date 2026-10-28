@@ -329,18 +329,20 @@ function shadowOf(cv, w, h, dpr) {
   const ox = one.getContext('2d'); ox.imageSmoothingQuality = 'high'; ox.drawImage(blur, 0, 0, w / 2, h / 2);
   return one;
 }
-function frameCam(w, h, oy) {
+function frameCam(w, h, oy, top = false) {
   const hw = w / 2 / U, hh = h / 2 / U;
   Object.assign(cam, { left: -hw, right: hw, top: hh + oy, bottom: -hh + oy }); cam.updateProjectionMatrix();
-  cam.position.set(0, Math.cos(TILT), Math.sin(TILT)).multiplyScalar(30); cam.lookAt(0, 0, 0); cam.updateMatrixWorld(true);
+  // `top`: straight down (flat prints that the HUD lays onto a tilted plate with CSS, e.g. the map arrow)
+  if (top) { cam.up.set(0, 0, -1); cam.position.set(0, 30, 0); } else { cam.up.set(0, 1, 0); cam.position.set(0, Math.cos(TILT), Math.sin(TILT)).multiplyScalar(30); }
+  cam.lookAt(0, 0, 0); cam.updateMatrixWorld(true);
 }
 /** Project a world point to css px inside the frame. */
 function toFrame(v, w, h) { const p = v.clone().project(cam); return [(p.x + 1) / 2 * w, (1 - p.y) / 2 * h]; }
 
-function shoot(name, obj, w, h, { shadow = name + '-sh', oy = 0, dpr = DPR } = {}) {
+function shoot(name, obj, w, h, { shadow = name + '-sh', oy = 0, dpr = DPR, top = false } = {}) {
   obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   scene.add(obj); obj.updateMatrixWorld(true);
-  frameCam(w, h, oy);
+  frameCam(w, h, oy, top);
   renderer.setSize(Math.round(w * dpr), Math.round(h * dpr));
   renderer.clear(); renderer.render(scene, cam);
   const t = trimmed(grab(), dpr);
@@ -414,6 +416,118 @@ for (const id of BUILD_PALETTE) {
 for (const [n, c] of [['red', '#e33a2f'], ['yellow', '#f6c420'], ['green', '#3fa142']]) shoot('brick1-' + n, brick(c, 1, 1), 150, 150, { oy: 0.4, shadow: 'brick1-sh' });
 shoot('sticker-on', squareTile(C.sky), 130, 130, { shadow: 'sticker-sh', dpr: LO });
 shoot('sticker-off', squareTile(C.socket), 130, 130, { shadow: null, dpr: LO });
+
+// --- map pieces (ui/map.ts) ----------------------------------------------------------
+/** The minimap plate: a round teal plate with a ring of studs; the map is printed inside the ring. */
+function mapPlate() {
+  const g = new THREE.Group(); const m = M(C.plate);
+  g.add(new THREE.Mesh(roundDisc(2.05, PLATE_H, 0.1), m));
+  for (let i = 0; i < 14; i++) { const a = (i + 0.5) / 14 * Math.PI * 2; g.add(stud(m, Math.cos(a) * 1.7, PLATE_H - 0.01, Math.sin(a) * 1.7)); }
+  return g;
+}
+/** Home: a cream house with a coral roof and a door, on a small mustard tile. */
+function housePiece() {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(roundDisc(0.85, 0.24, 0.07), M(C.mustard)));
+  const walls = new THREE.Mesh(new RoundedBoxGeometry(1.1, 0.85, 0.9, 4, 0.07), M('#f6e2b0')); walls.position.y = 0.24 + 0.425; g.add(walls);
+  const s = new THREE.Shape(); s.moveTo(-0.72, 0); s.lineTo(0, 0.48); s.lineTo(0.72, 0); s.closePath();
+  const rg = new THREE.ExtrudeGeometry(s, { depth: 1.0, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 3 });
+  rg.translate(0, 0, -0.5);
+  const roof = new THREE.Mesh(rg, M(C.coral)); roof.position.y = 0.24 + 0.85; g.add(roof);
+  const door = new THREE.Mesh(new RoundedBoxGeometry(0.3, 0.44, 0.08, 2, 0.03), M('#7a4a24')); door.position.set(-0.18, 0.24 + 0.22, 0.46); g.add(door);
+  const win = new THREE.Mesh(new RoundedBoxGeometry(0.2, 0.2, 0.06, 2, 0.02), M('#ffd23a', { emissive: true })); win.position.set(0.28, 0.24 + 0.5, 0.455); g.add(win);
+  return g;
+}
+/** A helper hero: a small tile in the hero's colour with one stud. */
+function dotTile(color) { const g = roundTile(0.42, color, null, 0.3); g.add(stud(M(color), 0, 0.29, 0)); return g; }
+/**
+ * «Пожирач земель»'s face, printed on a slate tile: the stone dome with its spiky ridge,
+ * the black arched cave mouth with pale fangs, two amber eyes glowing inside.
+ */
+const SLATE = '#4b515b';
+const printBoss = (x, s) => {
+  const k = s / 512; x.save(); x.scale(k, k); x.lineJoin = 'round';
+  // spikes along the top of the dome
+  x.fillStyle = '#2c3036';
+  for (const [cx, h, w] of [[256, 118, 46], [186, 92, 38], [326, 92, 38], [126, 64, 30], [386, 64, 30]]) {
+    const base = 150 + Math.abs(cx - 256) * 0.55;
+    x.beginPath(); x.moveTo(cx - w, base + 10); x.lineTo(cx + 6, base - h); x.lineTo(cx + w, base + 10); x.closePath(); x.fill();
+  }
+  // the stone dome
+  x.fillStyle = '#9aa0a8'; x.strokeStyle = '#2c3036'; x.lineWidth = 14;
+  x.beginPath(); x.moveTo(88, 412); x.lineTo(88, 300); x.bezierCurveTo(88, 150, 424, 150, 424, 300); x.lineTo(424, 412); x.closePath(); x.fill(); x.stroke();
+  // a few brick seams
+  x.strokeStyle = '#7d838c'; x.lineWidth = 9; x.lineCap = 'round';
+  for (const [a, b, c, d] of [[110, 300, 160, 300], [360, 300, 404, 300], [120, 360, 150, 360], [372, 362, 400, 362], [200, 196, 236, 186], [290, 186, 320, 196]]) { x.beginPath(); x.moveTo(a, b); x.lineTo(c, d); x.stroke(); }
+  // the cave mouth
+  x.fillStyle = '#14100d';
+  x.beginPath(); x.moveTo(168, 418); x.lineTo(168, 318); x.bezierCurveTo(168, 222, 344, 222, 344, 318); x.lineTo(344, 418); x.closePath(); x.fill();
+  // pale fangs hanging at the sides and a row of lower teeth
+  x.fillStyle = CREAM;
+  for (const [cx, top, h] of [[192, 300, 46], [320, 300, 46]]) { x.beginPath(); x.moveTo(cx - 16, top); x.lineTo(cx, top + h); x.lineTo(cx + 16, top); x.closePath(); x.fill(); }
+  for (let i = 0; i < 5; i++) { const cx = 190 + i * 33; x.beginPath(); x.moveTo(cx - 14, 418); x.lineTo(cx, 386); x.lineTo(cx + 14, 418); x.closePath(); x.fill(); }
+  // amber eyes, slanted, with dark slits
+  for (const d of [-1, 1]) {
+    x.save(); x.translate(256 + d * 40, 318); x.rotate(d * 0.2);
+    x.fillStyle = '#ffb12e'; x.beginPath(); x.ellipse(0, 0, 30, 21, 0, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#ffe27a'; x.beginPath(); x.ellipse(-d * 8, -5, 11, 7, 0, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#14100d'; x.fillRect(-4, -16, 8, 32);
+    x.restore();
+  }
+  x.restore();
+};
+/** One boss "health" stone: a chunky slate block with a stud, standing on the bar plate. */
+function bossStone() {
+  const g = new THREE.Group(); const m = M('#646a73');
+  const b = new THREE.Mesh(new RoundedBoxGeometry(0.82, 0.62, 0.82, 3, 0.14), m); b.position.y = 0.31; g.add(b);
+  g.add(stud(M('#5b616a'), 0, 0.61, 0));
+  return g;
+}
+/** A lantern slot on the boss bar: a lit lantern block, or the dark socket waiting for it. */
+function lampPiece(on) {
+  const g = new THREE.Group();
+  if (on) {
+    const m = M('#ffd54f', { emissive: true });
+    const b = new THREE.Mesh(new RoundedBoxGeometry(0.78, 0.6, 0.78, 3, 0.12), m); b.position.y = 0.3; g.add(b);
+    g.add(stud(m, 0, 0.59, 0));
+  } else {
+    // an unlit lantern: the same block, dark and dull, waiting to be lit
+    const m = M('#5a4a2a');
+    const b = new THREE.Mesh(new RoundedBoxGeometry(0.78, 0.6, 0.78, 3, 0.12), m); b.position.y = 0.3; g.add(b);
+    g.add(stud(m, 0, 0.59, 0));
+  }
+  return g;
+}
+/** The rim arrow: a flat coral wedge pointing up (shot from above; the HUD tilts and turns it). */
+function arrowPiece() {
+  const s = new THREE.Shape(); s.moveTo(0, 0.42); s.lineTo(0.36, -0.22); s.quadraticCurveTo(0, -0.08, -0.36, -0.22); s.closePath();
+  const geo = new THREE.ExtrudeGeometry(s, { depth: 0.14, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 3 });
+  geo.rotateX(-Math.PI / 2);
+  const g = new THREE.Group(); g.add(new THREE.Mesh(geo, M(C.coral))); return g;
+}
+/** A cloud puff over the unexplored world: soft cream balls. */
+function cloudPiece() {
+  const g = new THREE.Group(); const m = M('#fbf1dc');
+  for (const [x, y, z, r] of [[0, 0.45, 0, 0.62], [-0.62, 0.3, 0.12, 0.44], [0.62, 0.32, 0.08, 0.48], [-0.25, 0.32, 0.42, 0.42], [0.3, 0.3, 0.4, 0.4], [0.15, 0.62, -0.25, 0.42]]) {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(r, 32, 20), m); b.position.set(x, y, z); b.scale.y = 0.82; g.add(b);
+  }
+  return g;
+}
+const zombieOnPurple = face('zombie', 0.3, '#8e3fb0');
+shoot('map-plate', mapPlate(), 200, 190, { dpr: LO });
+shoot('map-house', housePiece(), 100, 110, { oy: 0.35, dpr: LO });
+for (const id of Object.keys(HC)) shoot('mark-' + id, roundTile(0.62, HC[id], faces[id], 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
+for (const id of Object.keys(HC)) shoot('dot-' + id, dotTile(HC[id]), 56, 56, { shadow: 'dot-sh', dpr: LO });
+shoot('mark-monster', roundTile(0.52, '#8e3fb0', zombieOnPurple, 0.3), 66, 66, { dpr: LO });
+shoot('boss', roundTile(0.8, SLATE, printBoss, 0.4), 96, 96, { dpr: LO });
+// --- the boss bar (ui/hud.ts setBoss): a plate with the face, 10 health stones, 3 lantern slots
+shoot('plate-boss', rectPlate(12, 2, C.plate), 540, 150, { dpr: LO });
+shoot('boss-face', roundTile(1, SLATE, printBoss), 110, 110, { shadow: 'tile-sh', dpr: LO });
+shoot('boss-stone', bossStone(), 60, 70, { oy: 0.3, dpr: LO });
+shoot('lamp-on', lampPiece(true), 60, 70, { oy: 0.3, shadow: 'lamp-sh', dpr: LO });
+shoot('lamp-off', lampPiece(false), 60, 70, { oy: 0.3, shadow: 'lamp-sh', dpr: LO });
+shoot('map-arrow', arrowPiece(), 48, 48, { shadow: null, top: true, dpr: LO });
+shoot('cloud', cloudPiece(), 120, 100, { oy: 0.3, dpr: LO });
 
 document.getElementById('out').textContent = JSON.stringify({ sprites: out, nine });
 document.title = 'done';

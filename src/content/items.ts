@@ -31,6 +31,10 @@ export const ITEMS = {
   key_gold: { id: 'key_gold', name: 'Золотий ключ', line: 'item_key_gold', biomes: 'any', weight: 0.25, color: 0xffca28 },
   flower_yellow: { id: 'flower_yellow', name: 'Жовта квітка', line: 'item_flower_yellow', biomes: ['meadow'], weight: 4, color: 0xffeb3b },
   flower_blue: { id: 'flower_blue', name: 'Синя квітка', line: 'item_flower_blue', biomes: ['meadow', 'snow'], weight: 3, color: 0x64b5f6 },
+  // The Land Eater's trophy: only dropped by the boss (weight 0 — never lies around).
+  eater_heart: { id: 'eater_heart', name: 'Серце Пожирача', line: 'item_eater_heart', biomes: 'any', weight: 0, color: 0xffa526 },
+  /** Dropped by monsters (never lies around by itself); picking it up gives a heart back. Not an album sticker. */
+  heart: { id: 'heart', name: 'Сердечко', line: 'item_heart', biomes: 'any', weight: 0, color: 0xff4d6d },
 } satisfies Record<string, ItemCard>;
 
 export type ItemId = keyof typeof ITEMS;
@@ -51,6 +55,7 @@ export const ITEM_ORDER: ItemId[] = [
   'crystal_purple',
   'earth_seed',
   'key_gold',
+  'eater_heart',
 ];
 
 export const PICKUPS = {

@@ -13,6 +13,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { CharacterModel, IModels, ItemId, ModelRef, Rig, RigType, Skin } from '../contracts';
 import { animate } from './animate';
 import { buildItem } from './items';
+import { build as landEater } from './parts/landEater';
 import { build as lyosha } from './parts/lyosha';
 import { build as pupsia } from './parts/pupsia';
 import { build as skeleton } from './parts/skeleton';
@@ -27,6 +28,7 @@ export const PART_BUILDERS: Record<string, (skin: Skin) => Rig> = {
   zombie,
   skeleton,
   spider,
+  landEater,
 };
 
 const RIG_PARTS: Record<RigType, string[]> = {

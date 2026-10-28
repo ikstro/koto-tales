@@ -53,6 +53,7 @@ export function buildHouse(ctx: Ctx): HouseState {
     });
     m.material = Array.isArray(m.material) ? own : own[0];
   });
+  roof.userData.casts = true;
   scene.add(roof);
 
   const chestModel = createChest(skin);

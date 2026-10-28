@@ -13,14 +13,15 @@ export class TestSkin implements Skin {
     return this.chunk;
   }
 
-  partMaterial(color: string | number, opts: { emissive?: boolean; map?: THREE.Texture; transparent?: boolean } = {}): THREE.Material {
-    const key = `${new THREE.Color(color).getHexString()}|${opts.emissive ? 1 : 0}|${opts.map?.uuid ?? ''}|${opts.transparent ? 1 : 0}`;
+  partMaterial(color: string | number, opts: { emissive?: boolean; map?: THREE.Texture; transparent?: boolean; vertexColors?: boolean } = {}): THREE.Material {
+    const key = `${new THREE.Color(color).getHexString()}|${opts.emissive ? 1 : 0}|${opts.map?.uuid ?? ''}|${opts.transparent ? 1 : 0}|${opts.vertexColors ? 1 : 0}`;
     let m = this.mats.get(key);
     if (!m) {
       const c = new THREE.Color(color);
       m = new THREE.MeshLambertMaterial({
         color: c,
         map: opts.map ?? null,
+        vertexColors: !!opts.vertexColors,
         emissive: opts.emissive ? c.clone().multiplyScalar(0.75) : new THREE.Color(0),
         transparent: !!opts.transparent,
       });

@@ -27,6 +27,39 @@ describe('save', () => {
     expect(s.soundOn).toBe(true);
   });
 
+  it('migrates v3 → v4: the 5×5 chunks around the house are explored', () => {
+    const v3 = { ...freshSave(), v: 3, house: [40, 12, -20] } as Record<string, unknown>;
+    delete v3.explored;
+    const s = migrate(v3);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.explored).toHaveLength(25);
+    // house corner + 4 → block (44, -16) → chunk (2, -1)
+    expect(s.explored).toContain('2,-1');
+    expect(s.explored).toContain('0,-3');
+    expect(s.explored).toContain('4,1');
+    expect(s.explored).not.toContain('5,1');
+  });
+
+  it('migrates v4 → v5: day 0 and a level-1 boss not placed yet, nothing else lost', () => {
+    const v4 = { ...freshSave(), v: 4, coins: 77, explored: ['0,0'], edits: { '1,2,3': 24 } } as Record<string, unknown>;
+    delete v4.day;
+    delete v4.boss;
+    const s = migrate(v4);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.day).toBe(0);
+    expect(s.boss).toEqual({ level: 1, site: null, hp: null, lanterns: [], defeatedDay: null, eatenAt: null, bites: 0 });
+    expect(s.coins).toBe(77);
+    expect(s.explored).toEqual(['0,0']);
+    expect(s.edits['1,2,3']).toBe(24);
+  });
+
+  it('keeps the boss as it was left (health, lanterns, beaten day)', () => {
+    const boss = { level: 2, site: [150, -20] as [number, number], hp: 12, lanterns: ['1,2,3', '4,5,6'], defeatedDay: null, eatenAt: [150, -20] as [number, number], bites: 5 };
+    const s = migrate({ ...freshSave(), day: 7, boss } as unknown as Record<string, unknown>);
+    expect(s.day).toBe(7);
+    expect(s.boss).toEqual(boss);
+  });
+
   it('a fresh save is already current', () => {
     expect(migrate(freshSave() as unknown as Record<string, unknown>)).toEqual(freshSave());
   });

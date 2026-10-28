@@ -53,6 +53,8 @@ function trySpawn(ctx: Ctx): void {
     const y = ctx.world.groundHeight(bx, bz);
     if (y <= SEA_LEVEL || ctx.world.isWater(bx, y, bz)) continue;
     if (homeDistance(ctx, new THREE.Vector3(x, y, z)) < SPAWN.houseSafeRadius + 4) continue;
+    // the boss's wasteland is its own: no regular monsters spawn there
+    if (ctx.boss?.inZone(x, z, 2)) continue;
     const m = new Monster(kind, ctx.models.character(MONSTERS[kind].model));
     m.hp = Math.max(1, Math.ceil(m.card.hp * tune.monsterHp * (night ? tune.night : 1)));
     m.throwCd = 1 + Math.random() * 1.5;

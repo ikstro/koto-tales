@@ -43,7 +43,11 @@ export function createHeroes(ctx: Ctx, playerId: HeroId, at: THREE.Vector3, hand
 }
 
 function setPlayer(ctx: Ctx, id: HeroId): void {
-  for (const h of ctx.heroes.values()) h.isPlayer = h.id === id;
+  for (const h of ctx.heroes.values()) {
+    h.isPlayer = h.id === id;
+    // only the hero being played casts a shadow (the skin reads this flag)
+    h.model.root.userData.casts = h.isPlayer;
+  }
   ctx.player = ctx.heroes.get(id)!;
   ctx.save.hero = id;
   ctx.hud.setPlayer(id);
@@ -183,6 +187,11 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
           bot.botBoltCd = 7 + Math.random() * 5;
           castBolt(ctx, bot);
         }
+      } else if (bot.botFireCd <= 0 && ctx.boss?.isTarget(bot.pos, 13)) {
+        // helpers join in only when the boss's mouth is open (no pointless «дзинь» spam)
+        const [lo, hi] = tuneOf(ctx).helperFireEvery;
+        bot.botFireCd = lo + Math.random() * (hi - lo);
+        fireArrow(ctx, bot);
       }
     }
   });

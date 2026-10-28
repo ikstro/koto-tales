@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { HeroId } from '../contracts';
 import { HERO_STATS } from '../content/heroes';
+import { updateBoss } from '../systems/boss';
 import { updateBuilding } from '../systems/building';
 import { updateCombat } from '../systems/combat';
 import { updateDayNight } from '../systems/daynight';
@@ -17,6 +18,7 @@ import { tuneOf } from '../systems/tune';
 import { FollowCamera } from './camera';
 import type { Ctx } from './ctx';
 import { events } from './events';
+import { probeDrawCalls } from './perfProbe';
 import type { Quality } from './quality';
 
 const AUTOSAVE_EVERY = 15;
@@ -46,11 +48,14 @@ export interface Intro {
 export class Game {
   readonly cam: FollowCamera;
   intro: Intro | null = null;
-  private last = performance.now();
   private saveTimer = AUTOSAVE_EVERY;
   private paused = false;
   private stats: HTMLElement | null = null;
   private fps = 0;
+  /** Frames drawn so far (the frame cap skips some display refreshes). */
+  private rendered = 0;
+  /** Smoothed CPU time of one drawn frame (simulation + draw submission), ms. */
+  private workMs = 0;
   onFirstFrame: (() => void) | null = null;
 
   constructor(
@@ -98,6 +103,12 @@ export class Game {
           time: +ctx.clock.t.toFixed(3),
         };
       },
+      get perf() {
+        const info = ctx.renderer.info.render;
+        return { level: quality.level, fps: quality.fps, adaptive: quality.adaptive, rendered: game.rendered, workMs: +game.workMs.toFixed(2), calls: info.calls, tris: info.triangles, pixelRatio: ctx.renderer.getPixelRatio() };
+      },
+      /** Draw calls of the next drawn frame, by pass and by what is drawn. */
+      probe: () => probeDrawCalls(ctx.renderer, ctx.scene, () => game.rendered),
     };
   }
 
@@ -110,16 +121,20 @@ export class Game {
   }
 
   start(): void {
-    const loop = () => {
-      const now = performance.now();
-      const dt = Math.min(0.05, (now - this.last) / 1000);
-      this.last = now;
-      this.frame(dt);
+    // Draw only when the frame cap says the next frame is due (30 or 60 fps,
+    // evenly paced); the simulation steps by the time since the last drawn frame.
+    const loop = (now: number) => {
+      requestAnimationFrame(loop);
+      const ms = this.quality.cap.tick(now);
+      if (ms === null) return;
+      this.rendered++;
+      const t0 = performance.now();
+      this.frame(Math.min(0.05, ms / 1000), ms);
+      this.workMs += (performance.now() - t0 - this.workMs) * 0.05;
       if (this.onFirstFrame) {
         this.onFirstFrame();
         this.onFirstFrame = null;
       }
-      requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
   }
@@ -164,6 +179,9 @@ export class Game {
       ctx.input.clearPresses();
       if (paused) this.persist();
     };
+    // The big map pauses the game the same way the pause menu does.
+    ctx.map.onPause = ctx.hud.onPause;
+    ctx.map.start(ctx);
     ctx.hud.onDifficulty = (level) => {
       ctx.save.difficulty = level;
       ctx.hud.setDifficulty(level);
@@ -187,7 +205,7 @@ export class Game {
     sfx.setVolume(v);
   }
 
-  private frame(dt: number): void {
+  private frame(dt: number, ms: number): void {
     const ctx = this.ctx;
     ctx.input.update();
     if (this.paused) {
@@ -200,7 +218,7 @@ export class Game {
     }
     if (ctx.playing) {
       ctx.clock.elapsed += dt;
-      this.quality.sample(dt, ctx.skin);
+      if (!ctx.album.isOpen) this.quality.sample(ms);
 
       if (ctx.input.take('album') && !ctx.album.isOpen) {
         ctx.album.open(ctx.save);
@@ -211,6 +229,7 @@ export class Game {
       updateHeroes(ctx, dt);
       updateCombat(ctx, dt);
       updateMonsters(ctx, dt);
+      updateBoss(ctx, dt);
       updateBuilding(ctx);
       updateNarration(ctx, dt);
     }
@@ -220,7 +239,13 @@ export class Game {
 
     const focus = ctx.playing ? ctx.player.pos : ctx.house!.centre;
     ctx.world.update(focus);
-    if (ctx.playing) this.cam.follow(ctx.player.pos, dt);
+    if (ctx.playing) {
+      // Near the Land Eater the camera pulls back so the whole beast fits on screen.
+      const b = ctx.boss;
+      const near = !!b && b.alive && Math.hypot(b.pos.x - ctx.player.pos.x, b.pos.z - ctx.player.pos.z) < 28;
+      this.cam.zoomTarget = near ? 1.5 : 1;
+      this.cam.follow(ctx.player.pos, dt);
+    }
     else if (this.intro) this.intro.update(dt);
     else this.cam.idle(ctx.house!.centre, dt);
     ctx.effects.update(dt);
@@ -229,6 +254,7 @@ export class Game {
       ctx.hud.setHearts(ctx.player.hearts, HERO_STATS.maxHearts);
       ctx.hud.setCoins(ctx.save.coins);
       ctx.hud.setBoltCooldown(ctx.player.boltCd / tuneOf(ctx).boltCooldown);
+      ctx.map.update(dt);
       this.saveTimer -= dt;
       if (this.saveTimer <= 0) {
         this.saveTimer = AUTOSAVE_EVERY;
@@ -251,7 +277,7 @@ export class Game {
     if (this.stats) {
       this.fps += ((dt > 0 ? 1 / dt : 60) - this.fps) * 0.05;
       const info = ctx.renderer.info.render;
-      this.stats.textContent = `${this.fps.toFixed(0)} fps · ${info.calls} calls · ${(info.triangles / 1000).toFixed(0)}k tris · tier ${this.quality.tier}`;
+      this.stats.textContent = `${this.fps.toFixed(0)} fps · ${info.calls} calls · ${(info.triangles / 1000).toFixed(0)}k tris · L${this.quality.level} @${this.quality.fps}`;
     }
   }
 

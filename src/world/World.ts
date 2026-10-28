@@ -96,11 +96,19 @@ export class World implements IWorld {
   constructor(scene: THREE.Scene, opts: WorldOptions, skin: Skin) {
     this.scene = scene;
     this.seed = opts.seed | 0;
-    this.renderDistance = Math.max(1, Math.floor(opts.renderDistance));
     this.skin = skin;
     this.terrain = new Terrain(this.seed);
+    this.renderDistance = 0;
+    this.offsets = new Int16Array(0);
+    this.setRenderDistance(opts.renderDistance);
+  }
+
+  /** Changes the radius kept meshed; chunks beyond it unload on the next update. */
+  setRenderDistance(chunks: number): void {
+    const R = Math.max(1, Math.floor(chunks));
+    if (R === this.renderDistance) return;
+    this.renderDistance = R;
     // spiral of chunk offsets inside the render circle, nearest first
-    const R = this.renderDistance;
     const list: [number, number, number][] = [];
     for (let dz = -R; dz <= R; dz++)
       for (let dx = -R; dx <= R; dx++) {
@@ -113,6 +121,9 @@ export class World implements IWorld {
       this.offsets[i * 2] = o[0];
       this.offsets[i * 2 + 1] = o[1];
     });
+    // the next update re-runs the focus change: unload far, load near
+    this.focusCx = Number.NaN;
+    this.focusCz = Number.NaN;
   }
 
   // ─── streaming ──────────────────────────────────────────────────────────
@@ -616,6 +627,32 @@ export class World implements IWorld {
 
   exportEdits(): Record<string, number> {
     return Object.fromEntries(this.edits);
+  }
+
+  /** Generated (unedited) chunk data, kept for one chunk at a time while reverting. */
+  private natural: { k: number; d: Uint8Array } | null = null;
+
+  /** Forgets the edit at this block and puts back what the generator made there. */
+  revertBlock(x: number, y: number, z: number): void {
+    x = Math.floor(x);
+    y = Math.floor(y);
+    z = Math.floor(z);
+    if (y < 0 || y >= H || !this.edits.delete(`${x},${y},${z}`)) return;
+    const cx = Math.floor(x / CS);
+    const cz = Math.floor(z / CS);
+    const k = ckey(cx, cz);
+    if (this.natural?.k !== k) {
+      const d = this.natural?.d ?? new Uint8Array(CHUNK_VOL);
+      this.terrain.generate(cx, cz, d);
+      this.natural = { k, d };
+    }
+    const li = lidx(x - cx * CS, y, z - cz * CS);
+    const ed = this.chunkEdits.get(k);
+    ed?.delete(li);
+    if (ed && ed.size === 0) this.chunkEdits.delete(k);
+    const data = this.data.get(k);
+    if (data) data[li] = this.natural.d[li];
+    this.markAround(x, z);
   }
 
   importEdits(edits: Record<string, number>): void {

@@ -475,3 +475,83 @@ body {
     transform: scale(1.07);
   }
 }
+
+/* ─── map (ui/map.ts): printed on a round plate in the HUD; the big map on a studded plate ─── */
+
+.g-map .mm-map {
+  position: absolute;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(20, 60, 60, 0.35);
+}
+
+.mm-marks,
+.mk,
+.bm-marks {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+
+.mk {
+  transform-origin: 0 0;
+}
+
+.bigmap {
+  position: absolute;
+  inset: 0;
+  z-index: 24;
+  background: rgba(36, 22, 10, 0.5);
+}
+
+.bm-panel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+}
+
+.bm-panel .pc,
+.bm-panel .bd,
+.bm-panel .lf,
+.bm-panel .pr {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+
+.bm-view {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 22px;
+  touch-action: none;
+  cursor: grab;
+}
+
+.bm-view::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  pointer-events: none;
+  z-index: 3000;
+  box-shadow: inset 3px 5px 10px rgba(30, 20, 8, 0.5);
+}
+
+.bm-view canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 22px;
+}
+
+.bm-view .bm-marks,
+.bm-view .mk,
+.bm-view .sp {
+  pointer-events: none;
+}

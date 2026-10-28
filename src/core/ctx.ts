@@ -3,9 +3,11 @@ import type { HeroId, IModels, IWorld, Skin } from '../contracts';
 import type { Arrow, Hero, Monster, Pickup } from '../actors/entities';
 import type { Bed, Door } from '../assets/props';
 import type { Effects } from '../render/effects';
+import type { Boss } from '../systems/boss';
 import type { SaveData } from '../systems/save';
 import type { Album } from '../ui/album';
 import type { Hud } from '../ui/hud';
+import type { GameMap } from '../ui/map';
 import type { Portraits } from '../ui/portraits';
 import type { Input } from './input';
 import type { Params } from './params';
@@ -43,12 +45,15 @@ export interface Ctx {
   input: Input;
   hud: Hud;
   album: Album;
+  map: GameMap;
   portraits: Portraits;
   params: Params;
   save: SaveData;
   heroes: Map<HeroId, Hero>;
   player: Hero;
   monsters: Monster[];
+  /** «Пожирач земель» while it lives (one entity, not in `monsters`); null when beaten. */
+  boss: Boss | null;
   arrows: Arrow[];
   pickups: Map<string, Pickup>;
   house: HouseState | null;

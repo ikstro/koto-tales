@@ -1,5 +1,6 @@
 /** Arrow, campfire, treasure chest and the house furniture (bed, cushion, door). Materials from the skin. */
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Skin } from '../contracts';
 import { Kit } from './parts/kit';
 
@@ -173,6 +174,7 @@ export interface Bed {
 }
 
 const mixN = (a: number, b: number, k: number) => a + (b - a) * k;
+const PILLOW = '#fff1d0';
 
 /**
  * A child's bed, 1×2 blocks, origin at the floor centre, head end towards -Z:
@@ -199,12 +201,14 @@ export function createBed(skin: Skin, blanketColor: string, height = 0.75): Bed 
       .box([0.12, 0.1, 0.12], [-0.46, H + 0.63, -0.97], '#eab02b')
       .box([1.04, H + 0.18, 0.12], [0, (H + 0.18) / 2, 0.97], WOOD)
       .box([1.1, 0.06, 0.16], [0, H + 0.21, 0.97], DARK)
+      // the pillow never moves: one mesh with the frame
+      .box([0.78, 0.16, 0.48], [0, H + 0.08, -0.66], PILLOW)
       .done();
   }
   const bedding = new THREE.Group();
   bedding.position.y = H;
   root.add(bedding);
-  kit.part('pillow', bedding).box([0.78, 0.16, 0.48], [0, 0.08, -0.66], '#fff1d0').done();
+  if (H <= 0) kit.part('pillow', bedding).box([0.78, 0.16, 0.48], [0, 0.08, -0.66], PILLOW).done();
 
   const band = new THREE.Color(blanketColor).lerp(new THREE.Color('#ffffff'), 0.3).getStyle();
   const blanket = new THREE.Group();
@@ -228,10 +232,23 @@ export function createBed(skin: Skin, blanketColor: string, height = 0.75): Bed 
   return { root, fold };
 }
 
-const cushionGeo = {
-  base: new THREE.CylinderGeometry(0.66, 0.68, 0.12, 20).translate(0, 0.06, 0),
-  top: new THREE.CylinderGeometry(0.54, 0.62, 0.06, 20).translate(0, 0.14, 0),
-};
+/** Base and top of the cushion as one geometry, coloured per vertex (one draw call). */
+const cushionGeo = (() => {
+  const paint = (g: THREE.BufferGeometry, hex: string) => {
+    const c = new THREE.Color(hex);
+    const n = g.getAttribute('position').count;
+    const a = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3);
+    g.setAttribute('color', new THREE.BufferAttribute(a, 3));
+    return g;
+  };
+  const base = paint(new THREE.CylinderGeometry(0.66, 0.68, 0.12, 20).translate(0, 0.06, 0), '#2f918b');
+  const top = paint(new THREE.CylinderGeometry(0.54, 0.62, 0.06, 20).translate(0, 0.14, 0), '#59b3ab');
+  const g = mergeGeometries([base, top], false)!;
+  base.dispose();
+  top.dispose();
+  return g;
+})();
 /** Height of the cushion's top, where Пупся lies. */
 export const CUSHION_TOP = 0.17;
 
@@ -239,10 +256,9 @@ export const CUSHION_TOP = 0.17;
 export function createCushion(skin: Skin): THREE.Group {
   const g = new THREE.Group();
   g.name = 'cushion';
-  const base = new THREE.Mesh(cushionGeo.base, skin.partMaterial('#2f918b'));
-  const top = new THREE.Mesh(cushionGeo.top, skin.partMaterial('#59b3ab'));
-  base.receiveShadow = top.receiveShadow = true;
-  g.add(base, top);
+  const mesh = new THREE.Mesh(cushionGeo, skin.partMaterial(0xffffff, { vertexColors: true }));
+  mesh.receiveShadow = true;
+  g.add(mesh);
   return g;
 }
 

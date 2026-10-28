@@ -1,5 +1,6 @@
 import { TERRAIN_VERSION, type HeroId, type ItemId, type MonsterKind } from '../contracts';
 import type { Difficulty } from '../content/difficulty';
+import { homeChunks } from './explore';
 
 /**
  * Everything a tablet remembers between sessions. Each device keeps its own
@@ -33,9 +34,34 @@ export interface SaveData {
   /** Monsters defeated, per kind (the HUD counter shows the total). */
   defeated: Partial<Record<MonsterKind, number>>;
   soundOn: boolean;
+  /** Map chunks the child has seen, as "cx,cz" (16×16 blocks each); the rest of the map is under clouds. */
+  explored: string[];
+  /** In-game days lived (+1 every morning while playing). */
+  day: number;
+  /** «Пожирач земель»: where it lives, how hurt it is, when it was beaten. */
+  boss: BossSave;
 }
 
-export const SAVE_VERSION = 3;
+export interface BossSave {
+  /** 1 at first; +1 each time it comes back (bigger and tougher). */
+  level: number;
+  /** Centre of its lair; null until it is first placed. */
+  site: [number, number] | null;
+  /** Health left; null = full. */
+  hp: number | null;
+  /** Lantern blocks ("x,y,z") that cracked its armour. */
+  lanterns: string[];
+  /** `day` it was beaten; null while it lives. It comes back 3 days later. */
+  defeatedDay: number | null;
+  /** The lair whose ground is eaten (stone and pits), until it grows back. */
+  eatenAt?: [number, number] | null;
+  /** Ground bites taken on this visit (capped per level). */
+  bites?: number;
+}
+
+export const freshBoss = (): BossSave => ({ level: 1, site: null, hp: null, lanterns: [], defeatedDay: null, eatenAt: null, bites: 0 });
+
+export const SAVE_VERSION = 5;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -59,6 +85,9 @@ export function freshSave(): SaveData {
     difficulty: 'normal',
     defeated: {},
     soundOn: true,
+    explored: [],
+    day: 0,
+    boss: freshBoss(),
   };
 }
 
@@ -82,6 +111,10 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
     for (const f of (d.found as string[]) ?? []) if (f.startsWith('m:')) defeated[f.slice(2)] = 1;
     return { ...d, v: 3, difficulty: 'normal', defeated, soundOn: true };
   },
+  // v4: the map. The 5×5 chunks around the house are known from the start.
+  3: (d) => ({ ...d, v: 4, explored: homeChunks((d.house as [number, number, number] | null) ?? null) }),
+  // v5: the day counter and the first boss, waiting at level 1 (its lair is placed on the next start).
+  4: (d) => ({ ...d, v: 5, day: 0, boss: freshBoss() }),
 };
 
 export function migrate(raw: Raw): SaveData {

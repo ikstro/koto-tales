@@ -1,9 +1,16 @@
-import type { HeroId, QualityTier } from '../contracts';
+import type { HeroId } from '../contracts';
+import type { Level } from './quality';
 import { SKIN_NAMES, type AnySkin } from '../render/skins';
 
 /**
  * URL switches for testing (and for screenshots by an agent):
- *   ?skin=pixel|toy|hybrid|diorama  ?tier=0|1  ?hero=lyosha  ?autostart=1
+ *   ?skin=pixel|toy|hybrid|diorama  ?hero=lyosha  ?autostart=1
+ *   ?tier=2|1|0|-1  fixes the quality level and turns the adaptive controller off (src/core/quality.ts):
+ *     2 = full: shadows, dressing, studs, tilt-shift post, pixel ratio ≤ 1.5, render distance 5, 60 fps
+ *     1 = the same at pixel ratio 1 with a cheaper post pass (6 blur taps, 2× MSAA), 60 fps
+ *     0 = light: no shadows / post / dressing / studs, pixel ratio 1, render distance 4, 60 fps
+ *    -1 = 0 at 0.75 render scale, render distance 3, 30 fps
+ *   ?fps=30|60  fixes the frame cap (also turns adaptation off)
  *   ?x=..&z=..  (start position)  ?time=0..1  ?freeze=1  ?stats=1  ?fresh=1 (ignore the save)  ?demo=1
  *   ?wakeTap=lyosha|solomiia|pupsia  (test only: the start ritual taps that hero by itself
  *   ~1.2 s after it begins; no audio unlock or fullscreen, those need a real touch)
@@ -12,6 +19,8 @@ import { SKIN_NAMES, type AnySkin } from '../render/skins';
  *   ?titleTap=1  (test only: the title presses ▶ by itself ~2 s after it begins; no audio unlock or fullscreen)
  *   ?titleHold=<s>  (test only: the title freezes <s> s after it begins — the logo then assembles from
  *   scratch, so small values catch it mid-assembly — or, with ?titleTap=1, <s> s after the press)
+ *   ?map=1  (test only: the big map opens after the start)  ?seen=<r>  (test only: seed explored chunks)
+ *   ?boss=near  ?bossHp=<n>  ?lanterns=<n>  (test only: start by the boss, set its health / cracked armour)
  */
 export interface Params {
   /** ?mute=1 silences everything (automated checks). */
@@ -19,7 +28,10 @@ export interface Params {
   /** ?difficulty=easy|normal|hard overrides the saved level (checks). */
   difficulty: 'easy' | 'normal' | 'hard' | null;
   skin: AnySkin | null;
-  tier: QualityTier | null;
+  /** Forced quality level (see above); null = adaptive. */
+  tier: Level | null;
+  /** Forced frame cap; null = the level's. */
+  fps: 30 | 60 | null;
   hero: HeroId | null;
   autostart: boolean;
   x: number | null;
@@ -46,6 +58,16 @@ export interface Params {
   album: boolean;
   palette: boolean;
   pause: boolean;
+  /** Test only (?map=1): the big map opens after the start. */
+  map: boolean;
+  /** Test only (?seen=<r>): chunks within r of the house, and a trail to the start spot, count as explored. */
+  seen: number | null;
+  /** Test only (?boss=near): the party starts in front of the boss («Пожирач земель»). */
+  boss: 'near' | null;
+  /** Test only (?bossHp=<n>): the boss starts with this much health. */
+  bossHp: number | null;
+  /** Test only (?lanterns=<n>): this many lanterns already cracked its armour (3 = broken). */
+  lanterns: number | null;
 }
 
 export function readParams(): Params {
@@ -60,7 +82,8 @@ export function readParams(): Params {
     mute: q.get('mute') === '1',
     difficulty: one('difficulty', ['easy', 'normal', 'hard'] as const),
     skin: one('skin', SKIN_NAMES),
-    tier: tier === 0 || tier === 1 ? tier : null,
+    tier: tier === 2 || tier === 1 || tier === 0 || tier === -1 ? tier : null,
+    fps: num('fps') === 30 ? 30 : num('fps') === 60 ? 60 : null,
     hero: one('hero', ['lyosha', 'solomiia', 'pupsia'] as const),
     autostart: q.get('autostart') === '1',
     x: num('x'),
@@ -79,5 +102,10 @@ export function readParams(): Params {
     album: q.get('album') === '1',
     palette: q.get('palette') === '1',
     pause: q.get('pause') === '1',
+    map: q.get('map') === '1',
+    seen: num('seen'),
+    boss: one('boss', ['near'] as const),
+    bossHp: num('bossHp'),
+    lanterns: num('lanterns'),
   };
 }

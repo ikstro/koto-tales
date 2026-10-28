@@ -2,13 +2,106 @@ import * as THREE from 'three';
 import type { ChunkInfo } from '../contracts';
 import type { Pickup } from '../actors/entities';
 import { ITEMS, ITEM_ORDER, PICKUPS, type ItemId } from '../content/items';
+import { HERO_STATS } from '../content/heroes';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
 import { sfx } from '../voice/sfx';
+import { voice } from '../voice/voice';
 
 const tmp = new THREE.Vector3();
 let showTimer = 0;
 let dropSeq = 0;
+/** Pickups within the show radius, refreshed twice a second; only these move and draw. */
+let shown: Pickup[] = [];
+
+/**
+ * Every item type is drawn as instances: one InstancedMesh per mesh of the
+ * item's model (one per material, usually 1–3), however many lie around.
+ * `models.item(id)` stays the single source of the look (portraits use it too).
+ */
+class ItemBatch {
+  meshes: THREE.InstancedMesh[] = [];
+  private cap = 0;
+  private parts: { geo: THREE.BufferGeometry; mat: THREE.Material | THREE.Material[]; local: THREE.Matrix4 | null }[] = [];
+
+  constructor(
+    private id: ItemId,
+    template: THREE.Object3D,
+    private root: THREE.Group,
+  ) {
+    template.updateMatrixWorld(true);
+    template.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const local = m.matrixWorld.clone();
+      this.parts.push({ geo: m.geometry, mat: m.material, local: local.equals(IDENTITY) ? null : local });
+    });
+  }
+
+  /** Room for n instances (grows by doubling; the matrices are rewritten every frame anyway). */
+  reserve(n: number): void {
+    if (n <= this.cap) return;
+    let cap = Math.max(8, this.cap);
+    while (cap < n) cap *= 2;
+    for (const m of this.meshes) {
+      m.removeFromParent();
+      m.dispose();
+    }
+    this.meshes = this.parts.map((p) => {
+      const im = new THREE.InstancedMesh(p.geo, p.mat, cap);
+      im.name = `pickups:${this.id}`;
+      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      // instances move every frame and spread over the show radius: no sphere to cull by
+      im.frustumCulled = false;
+      im.matrixAutoUpdate = false;
+      im.castShadow = false;
+      im.receiveShadow = true;
+      im.count = 0;
+      this.root.add(im);
+      return im;
+    });
+    this.cap = cap;
+  }
+
+  set(i: number, m: THREE.Matrix4): void {
+    for (let k = 0; k < this.meshes.length; k++) {
+      const local = this.parts[k].local;
+      this.meshes[k].setMatrixAt(i, local ? m4b.multiplyMatrices(m, local) : m);
+    }
+  }
+
+  finish(n: number): void {
+    for (const im of this.meshes) {
+      im.count = n;
+      if (n > 0) im.instanceMatrix.needsUpdate = true;
+    }
+  }
+}
+
+const IDENTITY = new THREE.Matrix4();
+const m4 = new THREE.Matrix4();
+const m4b = new THREE.Matrix4();
+const q = new THREE.Quaternion();
+const UP = new THREE.Vector3(0, 1, 0);
+const ONE = new THREE.Vector3(1, 1, 1);
+const batches = new Map<ItemId, ItemBatch>();
+const counts = new Map<ItemId, number>();
+const fill = new Map<ItemId, number>();
+let batchRoot: THREE.Group | null = null;
+
+function batchOf(ctx: Ctx, id: ItemId): ItemBatch {
+  if (!batchRoot) {
+    batchRoot = new THREE.Group();
+    batchRoot.name = 'pickups';
+    ctx.scene.add(batchRoot);
+  }
+  let b = batches.get(id);
+  if (!b) {
+    b = new ItemBatch(id, ctx.models.item(id), batchRoot);
+    batches.set(id, b);
+  }
+  return b;
+}
 
 function pickItem(rand: () => number, biome: string): ItemId | null {
   const pool = ITEM_ORDER.filter((id) => {
@@ -31,7 +124,7 @@ export function initPickups(ctx: Ctx): void {
   const add = (item: ItemId, x: number, y: number, z: number, chunk: string) => {
     const key = `${Math.floor(x)},${Math.floor(z)}:${item}`;
     if (picked.has(key) || ctx.pickups.has(key)) return;
-    ctx.pickups.set(key, { key, item, pos: new THREE.Vector3(x, y, z), chunk, obj: null, vel: null, phase: Math.random() * 6, magnet: false });
+    ctx.pickups.set(key, { key, item, pos: new THREE.Vector3(x, y, z), chunk, shown: false, vel: null, phase: Math.random() * 6, magnet: false });
   };
 
   ctx.world.onChunkGenerated = (info: ChunkInfo) => {
@@ -70,7 +163,7 @@ export function dropCoins(ctx: Ctx, at: THREE.Vector3, count: number): void {
       item: 'coin',
       pos: at.clone(),
       chunk: '',
-      obj: null,
+      shown: false,
       vel: new THREE.Vector3(Math.sin(a) * 2.5, 6 + Math.random() * 2, Math.cos(a) * 2.5),
       phase: Math.random() * 6,
       magnet: false,
@@ -79,7 +172,7 @@ export function dropCoins(ctx: Ctx, at: THREE.Vector3, count: number): void {
 }
 
 function collect(ctx: Ctx, p: Pickup): void {
-  if (p.obj) ctx.scene.remove(p.obj);
+  p.shown = false;
   ctx.pickups.delete(p.key);
   if (p.chunk) ctx.save.picked.push(p.key);
   const s = ctx.save;
@@ -92,13 +185,44 @@ function collect(ctx: Ctx, p: Pickup): void {
     total = ++s.coins;
     sfx.play('coin', { pitch: 1 + Math.random() * 0.1 });
     events.emit('coins:changed', { coins: s.coins });
+  } else if (p.item === 'heart') {
+    // A heart from a defeated monster: one heart back, never kept or stickered.
+    heal(ctx, 'item_heart');
+    return;
   } else {
     total = s.inv[p.item] = (s.inv[p.item] ?? 0) + 1;
     sfx.play('pickup');
+    // Apples are food: a hungry hero gets a heart back.
+    if (p.item === 'apple' && ctx.player.hearts < HERO_STATS.maxHearts) heal(ctx, 'heal_apple');
   }
   const first = !s.found.includes(p.item);
   if (first) s.found.push(p.item);
   events.emit('item:picked', { item: p.item, first, total });
+}
+
+/** One heart back for the player, with a warm sparkle and a word from the narrator. */
+function heal(ctx: Ctx, line: 'item_heart' | 'heal_apple'): void {
+  const h = ctx.player;
+  if (h.hearts >= HERO_STATS.maxHearts) return;
+  h.hearts += 1;
+  ctx.effects.sparkle(tmp.copy(h.pos).setY(h.pos.y + 1.2), 0xff4d6d);
+  sfx.play('sticker', { volume: 0.7 });
+  voice.say(line, { priority: 3 });
+}
+
+/** A heart that pops out of a defeated monster and waits to be picked up. Not saved. */
+export function dropHeart(ctx: Ctx, at: THREE.Vector3): void {
+  const key = `drop:${dropSeq++}`;
+  ctx.pickups.set(key, {
+    key,
+    item: 'heart',
+    pos: at.clone(),
+    chunk: '',
+    shown: false,
+    vel: new THREE.Vector3((Math.random() - 0.5) * 2, 7, (Math.random() - 0.5) * 2),
+    phase: Math.random() * 6,
+    magnet: false,
+  });
 }
 
 export function updatePickups(ctx: Ctx, dt: number): void {
@@ -107,27 +231,24 @@ export function updatePickups(ctx: Ctx, dt: number): void {
   const focus = ppos ?? ctx.house?.centre;
   if (!focus) return;
 
-  // Create / drop the 3D objects by distance, twice a second.
+  // Show / hide by distance, twice a second.
   showTimer -= dt;
   if (showTimer <= 0) {
     showTimer = 0.5;
     const r2 = PICKUPS.showRadius * PICKUPS.showRadius;
+    shown = [];
     for (const p of ctx.pickups.values()) {
       const d2 = (p.pos.x - focus.x) ** 2 + (p.pos.z - focus.z) ** 2;
-      if (d2 < r2 && !p.obj) {
-        p.obj = ctx.models.item(p.item);
-        p.obj.position.copy(p.pos);
-        ctx.scene.add(p.obj);
-      } else if (d2 > r2 * 1.3 && p.obj) {
-        ctx.scene.remove(p.obj);
-        p.obj = null;
-      }
+      if (d2 < r2) p.shown = true;
+      else if (d2 > r2 * 1.3) p.shown = false;
+      if (p.shown) shown.push(p);
     }
   }
 
   const canPick = ctx.playing && !ctx.sleeping && ppos;
-  for (const p of [...ctx.pickups.values()]) {
-    if (!p.obj) continue;
+  let picked = false;
+  for (const p of shown) {
+    if (!p.shown) continue;
     p.phase += dt;
 
     if (p.vel) {
@@ -151,11 +272,24 @@ export function updatePickups(ctx: Ctx, dt: number): void {
       }
       if (d < PICKUPS.pickRadius) {
         collect(ctx, p);
-        continue;
+        picked = true;
       }
     }
-
-    p.obj.position.set(p.pos.x, p.pos.y + 0.15 + Math.sin(p.phase * 2.5) * 0.08, p.pos.z);
-    p.obj.rotation.y = p.phase * 1.6;
   }
+  if (picked) shown = shown.filter((p) => p.shown);
+
+  // Draw: bob and spin as instance matrices, item type by item type.
+  counts.clear();
+  for (const p of shown) counts.set(p.item, (counts.get(p.item) ?? 0) + 1);
+  for (const [id, n] of counts) batchOf(ctx, id).reserve(n);
+  for (const id of batches.keys()) if (!counts.has(id)) counts.set(id, 0);
+  fill.clear();
+  for (const p of shown) {
+    const i = fill.get(p.item) ?? 0;
+    fill.set(p.item, i + 1);
+    tmp.set(p.pos.x, p.pos.y + 0.15 + Math.sin(p.phase * 2.5) * 0.08, p.pos.z);
+    q.setFromAxisAngle(UP, p.phase * 1.6);
+    batches.get(p.item)!.set(i, m4.compose(tmp, q, ONE));
+  }
+  for (const [id, b] of batches) b.finish(counts.get(id) ?? 0);
 }

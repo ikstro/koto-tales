@@ -123,7 +123,8 @@ export interface Pickup {
   pos: THREE.Vector3;
   /** Chunk it belongs to; transient coins dropped by monsters use ''. */
   chunk: string;
-  obj: THREE.Object3D | null;
+  /** Drawn (within PICKUPS.showRadius of the focus); systems/pickups.ts draws each item type instanced. */
+  shown: boolean;
   /** Coins dropped by monsters fly out first, then rest. */
   vel: THREE.Vector3 | null;
   phase: number;

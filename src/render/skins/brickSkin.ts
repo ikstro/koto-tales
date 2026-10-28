@@ -302,17 +302,22 @@ export function makeBrickMaterial(
 
 // --- post ------------------------------------------------------------------------
 
+/** Blur taps of the full post pass and of the cheap one (weak GPUs). */
 const TAPS = 12;
-const tapConsts = (() => {
+const TAPS_CHEAP = 6;
+/** MSAA samples of the scene target, full / cheap. */
+const SAMPLES = 4;
+const SAMPLES_CHEAP = 2;
+const tapConsts = (n: number) => {
   const out: string[] = [];
-  for (let i = 0; i < TAPS; i++) {
+  for (let i = 0; i < n; i++) {
     const f = i + 0.5;
-    const r = Math.sqrt(f / TAPS);
+    const r = Math.sqrt(f / n);
     const a = f * 2.39996323;
     out.push(`vec2(${(Math.cos(a) * r).toFixed(4)}, ${(Math.sin(a) * r).toFixed(4)})`);
   }
   return out.join(',\n    ');
-})();
+};
 
 const POST_VERT = /* glsl */ `
 varying vec2 vUv;
@@ -339,14 +344,14 @@ export interface PostStyle {
   grade: string;
 }
 
-const postFrag = (p: PostStyle) => /* glsl */ `
+const postFrag = (p: PostStyle, taps: number) => /* glsl */ `
 uniform sampler2D tDiffuse;
 uniform vec2 uTexel;
 uniform float uBlur;
 uniform float uAspect;
 varying vec2 vUv;
-const vec2 TAPS[${TAPS}] = vec2[${TAPS}](
-    ${tapConsts}
+const vec2 TAPS[${taps}] = vec2[${taps}](
+    ${tapConsts(taps)}
 );
 void main() {
   // tilt-shift: a sharp band through the middle, blur growing to top and bottom
@@ -356,8 +361,8 @@ void main() {
   if (r > 0.6) {
     vec3 acc = c;
     vec2 s = uTexel * r;
-    for (int i = 0; i < ${TAPS}; i++) acc += texture2D(tDiffuse, vUv + TAPS[i] * s).rgb;
-    c = acc / ${(TAPS + 1).toFixed(1)};
+    for (int i = 0; i < ${taps}; i++) acc += texture2D(tDiffuse, vUv + TAPS[i] * s).rgb;
+    c = acc / ${(taps + 1).toFixed(1)};
   }
   vec2 q = (vUv - 0.5) * vec2(uAspect, 1.0);
   ${p.grade}
@@ -429,8 +434,6 @@ export interface BrickSkinStyle {
   disposeDecor?(): void;
   onTier?(tier: QualityTier): void;
   onUpdate?(daylight: number, focus: THREE.Vector3): void;
-  /** Objects whose largest side is below this do not cast shadows (pickups). 0 = everything casts. */
-  castMinSize?: number;
   /**
    * Per-frame culling of chunk meshes and decorations by their bounding box
    * (tighter than three's sphere test). Chunks just off screen towards the sun
@@ -476,23 +479,27 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
   const target = new THREE.WebGLRenderTarget(1, 1, {
     type: THREE.UnsignedByteType,
     colorSpace: THREE.SRGBColorSpace,
-    samples: 4,
+    samples: SAMPLES,
     depthBuffer: true,
   });
   target.texture.generateMipmaps = false;
-  const postMat = new THREE.ShaderMaterial({
-    uniforms: {
-      tDiffuse: { value: target.texture },
-      uTexel: { value: new THREE.Vector2(1, 1) },
-      uBlur: { value: 6 },
-      uAspect: { value: 1 },
-    },
-    vertexShader: POST_VERT,
-    fragmentShader: postFrag(style.post),
-    depthTest: false,
-    depthWrite: false,
-  });
-  const postQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMat);
+  const postUniforms = {
+    tDiffuse: { value: target.texture },
+    uTexel: { value: new THREE.Vector2(1, 1) },
+    uBlur: { value: 6 },
+    uAspect: { value: 1 },
+  };
+  const makePost = (taps: number) =>
+    new THREE.ShaderMaterial({
+      uniforms: postUniforms,
+      vertexShader: POST_VERT,
+      fragmentShader: postFrag(style.post, taps),
+      depthTest: false,
+      depthWrite: false,
+    });
+  const postFull = makePost(TAPS);
+  let postCheap: THREE.ShaderMaterial | null = null;
+  const postQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postFull);
   postQuad.frustumCulled = false;
   const postScene = new THREE.Scene();
   postScene.add(postQuad);
@@ -518,41 +525,45 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
     for (const d of decor) d.visible = full;
   };
 
-  /** Characters and props cast, chunks receive, decorations and see-through things neither. */
+  /**
+   * Who casts: chunk terrain (the house walls are blocks too) and the meshes of
+   * top-level objects the game marks with `userData.casts` (the player's hero,
+   * the roof). Everything else — helpers, monsters, pickups, props — only
+   * receives, which keeps the shadow pass to a handful of draw calls.
+   * Decorations and see-through things do neither.
+   */
+  const flagMesh = (o: THREE.Object3D, casts: boolean) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    o.userData.toyShadow = true;
+    if (o.userData.toyNoShadow) return;
+    const mat = mesh.material;
+    if (mat === opaque || mat === transparent) {
+      mesh.receiveShadow = true;
+      mesh.castShadow = style.chunksCast && mat === opaque;
+      return;
+    }
+    const m = Array.isArray(mat) ? mat[0] : mat;
+    if (!m || (o as THREE.Points).isPoints || (o as THREE.Sprite).isSprite) return;
+    mesh.castShadow = casts;
+    if (!m.transparent) mesh.receiveShadow = true;
+  };
   const flagShadows = (deep: boolean) => {
     if (!scene) return;
-    const visit = (o: THREE.Object3D) => {
-      const mesh = o as THREE.Mesh;
-      if (!mesh.isMesh || o.userData.toyShadow) return;
-      if (style.castMinSize && !o.userData.toyNoShadow && mesh.material !== opaque && mesh.material !== transparent) {
-        let root = o;
-        while (root.parent && root.parent !== scene) root = root.parent;
-        if (root.userData.toySize === undefined) {
-          const sz = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3());
-          root.userData.toySize = Math.max(sz.x, sz.y, sz.z);
-        }
-        if (root.userData.toySize < style.castMinSize) {
-          o.userData.toyShadow = true;
-          mesh.castShadow = false;
-          mesh.receiveShadow = true;
-          return;
-        }
-      }
-      o.userData.toyShadow = true;
-      if (o.userData.toyNoShadow) return;
-      const mat = mesh.material;
-      if (mat === opaque || mat === transparent) {
-        mesh.receiveShadow = true;
-        mesh.castShadow = style.chunksCast && mat === opaque;
-        return;
-      }
-      const m = Array.isArray(mat) ? mat[0] : mat;
-      if (!m || m.transparent || (o as THREE.Points).isPoints || (o as THREE.Sprite).isSprite) return;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-    };
-    if (deep) scene.traverse(visit);
-    else for (const c of scene.children) visit(c);
+    for (const c of scene.children) {
+      const casts = c.userData.casts === true;
+      if (c.userData.toyCasts === casts) continue;
+      c.userData.toyCasts = casts;
+      c.traverse((o) => flagMesh(o, casts));
+    }
+    if (!deep) return;
+    // meshes added later inside an object already seen
+    for (const c of scene.children) {
+      const casts = c.userData.casts === true;
+      c.traverse((o) => {
+        if (!o.userData.toyShadow) flagMesh(o, casts);
+      });
+    }
   };
 
   const frustum = new THREE.Frustum();
@@ -620,7 +631,7 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
     partMaterial(color, o) {
       const c = new THREE.Color(color);
       const make = () => {
-        const m = new THREE.MeshStandardMaterial({ color: c, roughness: 0.3, metalness: 0 });
+        const m = new THREE.MeshStandardMaterial({ color: c, roughness: 0.3, metalness: 0, vertexColors: !!o?.vertexColors });
         if (o?.emissive) m.emissive.copy(c).multiplyScalar(0.85);
         if (o?.map) {
           const t = o.map;
@@ -642,7 +653,7 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
         looseParts.add(m);
         return m;
       }
-      const k = `${c.getHexString()}|${o?.emissive ? 1 : 0}|${o?.map?.uuid ?? ''}`;
+      const k = `${c.getHexString()}|${o?.emissive ? 1 : 0}|${o?.map?.uuid ?? ''}|${o?.vertexColors ? 1 : 0}`;
       let m = parts.get(k);
       if (!m) {
         m = make();
@@ -701,9 +712,9 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
       const w = Math.max(1, bufSize.x);
       const h = Math.max(1, bufSize.y);
       if (target.width !== w || target.height !== h) target.setSize(w, h);
-      postMat.uniforms.uTexel.value.set(1 / w, 1 / h);
-      postMat.uniforms.uBlur.value = h * style.post.blur;
-      postMat.uniforms.uAspect.value = w / h;
+      postUniforms.uTexel.value.set(1 / w, 1 / h);
+      postUniforms.uBlur.value = h * style.post.blur;
+      postUniforms.uAspect.value = w / h;
       // count both passes in renderer.info (the debug HUD and the game stats read it)
       const auto = r.info.autoReset;
       r.info.autoReset = false;
@@ -724,6 +735,18 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
       style.onTier?.(t);
     },
 
+    setPostQuality(q) {
+      const cheap = q === 'cheap';
+      if (cheap && !postCheap) postCheap = makePost(TAPS_CHEAP);
+      postQuad.material = cheap ? postCheap! : postFull;
+      const samples = cheap ? SAMPLES_CHEAP : SAMPLES;
+      if (target.samples !== samples) {
+        // the multisampled buffers are made again on the next frame
+        target.dispose();
+        target.samples = samples;
+      }
+    },
+
     dispose() {
       if (scene) {
         scene.remove(hemi, sun, sun.target);
@@ -738,7 +761,8 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
       sun.shadow.dispose();
       envTex?.dispose();
       target.dispose();
-      postMat.dispose();
+      postFull.dispose();
+      postCheap?.dispose();
       postQuad.geometry.dispose();
       opaque.dispose();
       transparent.dispose();

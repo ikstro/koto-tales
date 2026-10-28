@@ -134,12 +134,16 @@ export interface IWorld {
   flattenArea(x0: number, z0: number, x1: number, z1: number, y: number, clearHeight: number): void;
   exportEdits(): Record<string, number>;
   importEdits(edits: Record<string, number>): void;
+  /** Forgets the edit at this block: the generated block comes back (land growing back). */
+  revertBlock?(x: number, y: number, z: number): void;
   /** Called once per chunk per session, the first time it is meshed. */
   onChunkGenerated: ((info: ChunkInfo) => void) | null;
   /** Called when a chunk leaves the render distance. */
   onChunkUnloaded: ((cx: number, cz: number) => void) | null;
   /** 0 = night, 1 = full day. */
   setDaylight(k: number): void;
+  /** Changes the radius kept meshed (quality levels); far chunks unload on the next update. */
+  setRenderDistance?(chunks: number): void;
 }
 
 // ─── look ───────────────────────────────────────────────────────────────────
@@ -156,7 +160,8 @@ export interface Skin {
   /** Extra per-chunk objects (e.g. studs), only near the camera. Null when nothing to add. */
   decorate?(g: ChunkGeometry, distChunks: number): THREE.Object3D | null;
   /** Material for a part of a character or item. Same colour, different look per skin. */
-  partMaterial(color: string | number, opts?: { emissive?: boolean; map?: THREE.Texture; transparent?: boolean }): THREE.Material;
+  /** `vertexColors`: the mesh carries its colours per vertex (merged parts); `color` is then white. */
+  partMaterial(color: string | number, opts?: { emissive?: boolean; map?: THREE.Texture; transparent?: boolean; vertexColors?: boolean }): THREE.Material;
   /** Adds the skin's lights / sky / fog to the scene once. */
   setupScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer): void;
   /** Called every frame: daylight 0..1, the point the camera follows. */
@@ -164,6 +169,8 @@ export interface Skin {
   /** Renders the frame (lets a skin add post effects). */
   render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera): void;
   setTier(tier: QualityTier): void;
+  /** Tier 1 only: 'cheap' = a lighter post pass for weak GPUs (same look, fewer samples). */
+  setPostQuality?(q: 'full' | 'cheap'): void;
   dispose(): void;
 }
 
@@ -271,7 +278,11 @@ export type SfxName =
   | 'switch'
   | 'step'
   | 'click'
-  | 'door';
+  | 'door'
+  /** «Дзинь»: an arrow or a bolt bouncing off stone. */
+  | 'clink'
+  /** A deep rumble: the boss's stomp and roar. */
+  | 'rumble';
 
 export interface IVoice {
   /** Must be called from a user gesture once (mobile audio unlock). */

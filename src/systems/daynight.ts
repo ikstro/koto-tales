@@ -41,7 +41,11 @@ export function updateDayNight(ctx: Ctx, dt: number): void {
   const phase = phaseOf(c.t);
   if (phase !== lastPhase) {
     // The first phase of a session is not announced; the start line covers it.
-    if (lastPhase !== null && ctx.playing) events.emit('time:phase', { phase });
+    if (lastPhase !== null && ctx.playing) {
+      // A new day begins each morning lived through (the boss counts days to come back).
+      if (phase === 'morning') ctx.save.day = (ctx.save.day ?? 0) + 1;
+      events.emit('time:phase', { phase });
+    }
     lastPhase = phase;
   }
   const amb = c.daylight > 0.4 ? 'day' : 'night';

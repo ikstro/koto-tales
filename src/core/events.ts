@@ -20,6 +20,8 @@ export interface GameEvents {
   'coins:changed': { coins: number };
   'block:placed': { x: number; y: number; z: number; id: number };
   'block:broken': { x: number; y: number; z: number; id: number };
+  /** Natural ground changed by itself (the boss's wasteland, its bites, the land growing back); one per chunk. */
+  'ground:changed': { x: number; z: number };
   'time:phase': { phase: 'morning' | 'evening' | 'night' };
   'album:open': Record<string, never>;
 }

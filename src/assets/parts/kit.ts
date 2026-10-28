@@ -1,10 +1,11 @@
 /**
  * Tiny box-modelling kit for the code-built rigs, items and props.
  *
- * Boxes are collected per part and merged by paint: every colour of a part is
- * one mesh (one draw call), and every face-atlas box of a part (head, hair,
- * ears…) is one more. Geometry is cached by `kitId/part/paint`, so rebuilding
- * for another skin reuses it; materials always come from the skin.
+ * Boxes are collected per part and merged: all plain colours of a part are one
+ * mesh with vertex colours (one draw call), every glowing or see-through
+ * colour is one more, and every face-atlas box of a part (head, hair, ears…)
+ * is one more. Geometry is cached by `kitId/part/paints`, so rebuilding for
+ * another skin reuses it; materials always come from the skin.
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -39,6 +40,17 @@ function isAtlas(p: Paint): p is { s: number; face?: boolean } {
   return typeof p === 'object' && 's' in p;
 }
 
+/**
+ * Colours that can share one vertex-coloured mesh per part: 'vc' for plain
+ * ones, 'vct' for see-through ones; null for glowing (the glow is a material
+ * colour) and atlas paints.
+ */
+function vertexGroup(p: Paint): 'vc' | 'vct' | null {
+  if (typeof p === 'string' || typeof p === 'number') return 'vc';
+  if ('s' in p || p.glow) return null;
+  return p.clear ? 'vct' : 'vc';
+}
+
 function colourOf(p: Paint): string {
   if (typeof p === 'string' || typeof p === 'number') return new THREE.Color(p).getHexString();
   if ('c' in p) return new THREE.Color(p.c).getHexString();
@@ -68,6 +80,20 @@ function boxGeometry(b: BoxSpec): THREE.BufferGeometry {
   return g;
 }
 
+/** Bakes the paint's colour into a `color` attribute (linear, as the material colour would be). */
+function vertexColoured(g: THREE.BufferGeometry, p: Paint): THREE.BufferGeometry {
+  const c = new THREE.Color(typeof p === 'object' && 'c' in p ? p.c : (p as string | number));
+  const n = g.getAttribute('position').count;
+  const a = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    a[i * 3] = c.r;
+    a[i * 3 + 1] = c.g;
+    a[i * 3 + 2] = c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(a, 3));
+  return g;
+}
+
 export class Kit {
   private mats = new Map<string, THREE.Material>();
   eyes?: { mesh: THREE.Mesh; open: THREE.Material; closed: THREE.Material };
@@ -77,6 +103,17 @@ export class Kit {
     readonly skin: Skin,
     readonly atlas?: FaceAtlas,
   ) {}
+
+  /** The part material for vertex-coloured meshes (all plain colours of the kit). */
+  vertexColourMaterial(clear: boolean): THREE.Material {
+    const key = clear ? 'vct' : 'vc';
+    let m = this.mats.get(key);
+    if (!m) {
+      m = this.skin.partMaterial(0xffffff, { vertexColors: true, transparent: clear });
+      this.mats.set(key, m);
+    }
+    return m;
+  }
 
   material(p: Paint): THREE.Material {
     const key = paintKey(p);
@@ -170,23 +207,24 @@ export class PartBuilder {
   done(): THREE.Mesh[] {
     const groups = new Map<string, BoxSpec[]>();
     for (const b of this.boxes) {
-      const k = paintKey(b.paint);
+      const k = vertexGroup(b.paint) ?? paintKey(b.paint);
       let list = groups.get(k);
       if (!list) groups.set(k, (list = []));
       list.push(b);
     }
     const meshes: THREE.Mesh[] = [];
     for (const [k, list] of groups) {
-      const cacheKey = `${this.kit.id}/${this.name}/${k}`;
+      const vc = k === 'vc' || k === 'vct';
+      const cacheKey = `${this.kit.id}/${this.name}/${vc ? 'vc:' + list.map((b) => paintKey(b.paint)).join(',') : k}`;
       let geo = geoCache.get(cacheKey);
       if (!geo) {
-        const parts = list.map(boxGeometry);
+        const parts = list.map((b) => (vc ? vertexColoured(boxGeometry(b), b.paint) : boxGeometry(b)));
         geo = parts.length === 1 ? parts[0] : mergeGeometries(parts, false)!;
         if (parts.length > 1) parts.forEach((p) => p.dispose());
         geo.computeBoundingSphere();
         geoCache.set(cacheKey, geo);
       }
-      const mesh = new THREE.Mesh(geo, this.kit.material(list[0].paint));
+      const mesh = new THREE.Mesh(geo, vc ? this.kit.vertexColourMaterial(k === 'vct') : this.kit.material(list[0].paint));
       mesh.name = `${this.name}_${k}`;
       mesh.castShadow = true;
       this.obj.add(mesh);

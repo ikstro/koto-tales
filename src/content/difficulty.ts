@@ -30,6 +30,12 @@ export interface DifficultyTune {
   boltCooldown: number;
   /** Seconds per heart coming back when not at home. */
   regenEvery: number;
+  /** Chance that a defeated monster drops a heart (only while the hero is missing hearts). */
+  heartDrop: number;
+  /** The boss («Пожирач земель»): multiplies its health… */
+  bossHp: number;
+  /** …and its pace: above 1 it opens its mouth and stomps more often, with shorter openings. */
+  bossTempo: number;
 }
 
 export const DIFFICULTY: Record<Difficulty, DifficultyTune> = {
@@ -48,22 +54,28 @@ export const DIFFICULTY: Record<Difficulty, DifficultyTune> = {
     helperFireEvery: [1, 1.6],
     boltCooldown: 3.5,
     regenEvery: 8,
+    heartDrop: 0.5,
+    bossHp: 0.7,
+    bossTempo: 0.8,
   },
   normal: {
-    monsterHp: 1,
-    monsterSpeed: 1.1,
-    night: 1.25,
-    capDay: 6,
-    capNight: 10,
-    spawnEvery: 1.8,
-    pack: [2, 3],
+    monsterHp: 0.8,
+    monsterSpeed: 1.05,
+    night: 1.2,
+    capDay: 5,
+    capNight: 8,
+    spawnEvery: 2.2,
+    pack: [1, 3],
     ranged: true,
-    sight: 1.6,
+    sight: 1.4,
     hunt: true,
-    helperDamage: 0.5,
+    helperDamage: 0.6,
     helperFireEvery: [1.8, 2.6],
-    boltCooldown: 6,
-    regenEvery: 12,
+    boltCooldown: 5,
+    regenEvery: 10,
+    heartDrop: 0.35,
+    bossHp: 1,
+    bossTempo: 1,
   },
   hard: {
     monsterHp: 1.4,
@@ -80,6 +92,9 @@ export const DIFFICULTY: Record<Difficulty, DifficultyTune> = {
     helperFireEvery: [2.2, 3],
     boltCooldown: 7,
     regenEvery: 15,
+    heartDrop: 0.2,
+    bossHp: 1.3,
+    bossTempo: 1.15,
   },
 };
 
