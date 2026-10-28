@@ -55,9 +55,9 @@ export interface Params {
   titleTap: boolean;
   /** Test only: freeze the title this many seconds after it begins (after the press with titleTap). */
   titleHold: number | null;
-  /** Test only (?album=1 ?palette=1 ?pause=1): the HUD opens the album / brick tray / pause menu after the start. */
+  /** Test only (?album=1 ?kit=1 ?pause=1): the HUD opens the album / kit plate / pause menu after the start. */
   album: boolean;
-  palette: boolean;
+  kit: boolean;
   pause: boolean;
   /** Test only (?map=1): the big map opens after the start. */
   map: boolean;
@@ -103,7 +103,7 @@ export function readParams(): Params {
     titleTap: q.get('titleTap') === '1',
     titleHold: num('titleHold'),
     album: q.get('album') === '1',
-    palette: q.get('palette') === '1',
+    kit: q.get('kit') === '1',
     pause: q.get('pause') === '1',
     map: q.get('map') === '1',
     seen: num('seen'),

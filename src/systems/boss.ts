@@ -21,6 +21,7 @@ import { B } from '../world/blocks';
 import { hash2 } from '../world/rng';
 import { BOSS, BossBrain, bossMaxHp, bossScale, pickSite, shouldReturn, type HitResult } from './bossLogic';
 import { hurtHero } from './combat';
+import { pick, pickedByBoss, selectedBuilding } from './kit';
 import { dropCoins } from './pickups';
 import { freshBoss } from './save';
 import { BossHints } from './pacing';
@@ -283,7 +284,6 @@ const session = {
   guideAt: null as number | null,
   suggesting: false,
   dismissed: false,
-  prevBlock: null as number | null,
 };
 
 function hint(line: LineId): void {
@@ -708,31 +708,22 @@ function pushHeroes(ctx: Ctx, b: Boss): void {
   }
 }
 
-// ─── the build button suggests the lantern inside the wasteland ─────────────
+// ─── the kit suggests the lantern inside the wasteland ──────────────────────
 
 function suggest(ctx: Ctx, want: boolean, inZone: boolean): void {
-  const s = ctx.save;
   if (!inZone) session.dismissed = false;
-  if (session.suggesting && s.buildBlock !== B.LANTERN) {
-    // the child picked another colour: respect it until the next visit
+  if (session.suggesting && (selectedBuilding() !== 'lantern' || !pickedByBoss())) {
+    // the child put the lantern away or picked another building: respect it until the next visit
     session.suggesting = false;
     session.dismissed = true;
-    ctx.hud.suggestBlock(null);
+    ctx.hud.suggestKit(false);
   }
-  if (want && !session.suggesting && !session.dismissed) {
+  if (want && !session.suggesting && !session.dismissed && !selectedBuilding()) {
     session.suggesting = true;
-    session.prevBlock = s.buildBlock;
-    s.buildBlock = B.LANTERN;
-    ctx.hud.setBuildBlock(B.LANTERN);
-    ctx.hud.suggestBlock(B.LANTERN);
+    pick(ctx, 'lantern', true);
   } else if (!want && session.suggesting) {
     session.suggesting = false;
-    ctx.hud.suggestBlock(null);
-    const prev = session.prevBlock;
-    if (prev !== null && prev !== B.LANTERN) {
-      s.buildBlock = prev;
-      ctx.hud.setBuildBlock(prev);
-    }
+    if (selectedBuilding() === 'lantern' && pickedByBoss()) pick(ctx, null);
   }
 }
 

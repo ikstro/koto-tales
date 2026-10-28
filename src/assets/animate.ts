@@ -2,7 +2,7 @@
  * One procedural animator per rig type. It turns any Rig (code-built, .glb or
  * drawn) into a CharacterModel: walk cycle scaled by speed, idle breathing,
  * one-shot actions (attack, cast, hurt, happy, wake, cheer) that fall back to
- * idle by themselves, and a held 'sleep'.
+ * idle by themselves, and a held 'sleep' or 'dance'.
  *
  * Every animated part keeps its rest transform; each frame a target pose is
  * written as offsets from rest, then the joints ease towards it (dt = 0 snaps).
@@ -95,11 +95,18 @@ interface Ctx {
 const stretchOf = (a: number) => ramp(STRETCH[0], STRETCH[1], a) * (1 - ramp(STRETCH[2], STRETCH[3], a));
 /** The two hops of 'cheer', 0..1 each. */
 const cheerHop = (a: number) => arc(0.05, 0.45, a) + arc(0.5, 0.9, a);
+/** 'dance': the beat phase (two beats a second, the music's 120 a minute) and its bounce 0..1. */
+const beatOf = (t: number) => t * TAU * 2;
+const bounceOf = (t: number) => Math.abs(Math.sin(beatOf(t) / 2));
 
 /** Common root-level reactions shared by every rig type. */
 function rootReactions(s: State, c: Ctx, lean: number): void {
   const a = s.at;
-  if (s.action === 'cheer') {
+  if (s.action === 'dance') {
+    // a hop on every beat and a sway from side to side, every two beats
+    add(c.root, 4, 0.08 * bounceOf(s.t));
+    s.spin = Math.sin(beatOf(s.t) / 4) * 0.45;
+  } else if (s.action === 'cheer') {
     add(c.root, 4, 0.28 * cheerHop(a));
   } else if (s.action === 'hurt') {
     const k = a < 0.08 ? a / 0.08 : 1 - ramp(0.08, ACTION_TIME.hurt, a);
@@ -239,6 +246,20 @@ function biped(s: State, c: Ctx): void {
       add(c.root, 5, c.rig.height * 0.45);
       break;
     }
+    case 'dance': {
+      // disco: one arm up to the sky, then the other, hips and head swaying on the beat
+      const side = Math.sin(beatOf(t) / 2);
+      mixRot(j.armL, 0, -2.75 * Math.max(0, side) + 0.3 * Math.min(0, side), 1);
+      mixRot(j.armR, 0, 2.75 * Math.min(0, side) - 0.3 * Math.max(0, side), 1);
+      mixRot(j.armL, 2, 0.35, 1);
+      mixRot(j.armR, 2, -0.35, 1);
+      add(j.body, 1, 0.3 * side);
+      add(j.head, 2, 0.2 * side);
+      add(j.legL, 0, -0.4 * Math.max(0, side));
+      add(j.legR, 0, 0.4 * Math.min(0, side));
+      bob += 0.05 * bounceOf(t);
+      break;
+    }
   }
   add(j.body, 4, bob);
   carry(c, ['head', 'armL', 'armR', 'tool', 'hair'], bob);
@@ -349,6 +370,18 @@ function quadruped(s: State, c: Ctx): void {
       }
       break;
     }
+    case 'dance': {
+      // front paws up on the beat, the tail a metronome, the head bobbing
+      const beat = beatOf(t);
+      const up = bounceOf(t);
+      drop += 0.04 * up;
+      mixOff(j.legFL, 0, -0.7 * up, 1);
+      mixOff(j.legFR, 0, -0.7 * (1 - up), 1);
+      add(j.body, 2, 0.12 * Math.sin(beat / 2));
+      add(j.head, 0, 0.18 * Math.sin(beat));
+      add(j.tail, 1, 0.8 * Math.sin(beat));
+      break;
+    }
   }
   add(j.body, 4, drop);
   if (s.action === 'sleep') carry(c, ['head', 'legFL', 'legFR', 'legBL', 'legBR', 'tail', 'tail2'], drop);
@@ -409,6 +442,12 @@ function spider(s: State, c: Ctx): void {
       }
       if (j.head) j.head.tgt.fill(0);
       add(j.head, 0, 0.12);
+      break;
+    }
+    case 'dance': {
+      // all eight legs wave in turn and the body bobs on the beat
+      drop += 0.04 * bounceOf(t);
+      for (const { j: leg, side, k } of c.legs) add(leg, 2, side * (0.35 + Math.sin(beatOf(t) + k * 1.2) * 0.35));
       break;
     }
   }
@@ -488,7 +527,7 @@ export function animate(rig: Rig): CharacterModel {
     play(action: ModelAction) {
       if (s.action === 'sleep' && action !== 'sleep') slow = 0.8;
       if (action === 'sleep' && s.action !== 'sleep') slow = 0.8;
-      if (action === 'sleep' && s.action === 'sleep') return;
+      if ((action === 'sleep' || action === 'dance') && s.action === action) return;
       s.action = action;
       s.at = 0;
     },
@@ -497,7 +536,7 @@ export function animate(rig: Rig): CharacterModel {
       first = false;
       dt = snap ? 0 : Math.min(dt, 0.1);
       s.t += dt;
-      if (s.action !== 'idle' && s.action !== 'sleep') {
+      if (s.action !== 'idle' && s.action !== 'sleep' && s.action !== 'dance') {
         s.at += dt;
         if (s.at >= ACTION_TIME[s.action]) {
           s.action = 'idle';

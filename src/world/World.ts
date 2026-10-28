@@ -30,6 +30,8 @@ const H = WORLD_HEIGHT;
 const CHUNK_VOL = CS * CS * H;
 const SOLID = new Uint8Array(256);
 for (const k of Object.keys(BLOCKS)) SOLID[Number(k)] = BLOCKS[Number(k)].solid ? 1 : 0;
+/** One number per cell (x, z within ±2^20, y within 0..63). */
+const barrierKey = (x: number, y: number, z: number) => ((Math.floor(x) + 1048576) * 2097152 + (Math.floor(z) + 1048576)) * 64 + Math.floor(y);
 
 /** Chunks meshed per update (new ones) and the time budget for them. */
 const MESH_PER_UPDATE = 2;
@@ -92,6 +94,8 @@ export class World implements IWorld {
   private daylight = 1;
   private lastKey = -1;
   private lastData: Uint8Array | null = null;
+  /** Invisible solid cells of standing buildings (setBarrier), with how many buildings share each. */
+  private barriers = new Map<number, number>();
 
   constructor(scene: THREE.Scene, opts: WorldOptions, skin: Skin) {
     this.scene = scene;
@@ -466,7 +470,15 @@ export class World implements IWorld {
   }
 
   isSolid(x: number, y: number, z: number): boolean {
+    if (this.barriers.size && this.barriers.has(barrierKey(x, y, z))) return true;
     return SOLID[this.getBlock(x, y, z)] === 1;
+  }
+
+  setBarrier(x: number, y: number, z: number, on: boolean): void {
+    const k = barrierKey(x, y, z);
+    const n = (this.barriers.get(k) ?? 0) + (on ? 1 : -1);
+    if (n > 0) this.barriers.set(k, n);
+    else this.barriers.delete(k);
   }
 
   isWater(x: number, y: number, z: number): boolean {

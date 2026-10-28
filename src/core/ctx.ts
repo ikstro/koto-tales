@@ -62,4 +62,6 @@ export interface Ctx {
   playing: boolean;
   /** Player is asleep (fading home); input is ignored. */
   sleeping: boolean;
+  /** The heroes lie in their beds (or tent) for the night: the sleep scene places them, physics waits. */
+  napping: boolean;
 }

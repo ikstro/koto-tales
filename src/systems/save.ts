@@ -1,5 +1,7 @@
 import { TERRAIN_VERSION, type HeroId, type ItemId, type MonsterKind } from '../contracts';
+import { BUILDINGS, KIT_ORDER, type BuildingId } from '../content/buildings';
 import type { Difficulty } from '../content/difficulty';
+import type { TaskKind } from '../content/progress';
 import { homeChunks } from './explore';
 
 /**
@@ -28,7 +30,6 @@ export interface SaveData {
   house: [number, number, number] | null;
   /** One-off lines already spoken (tutorial tips, milestones). */
   said: string[];
-  buildBlock: number;
   /** Chosen in the pause menu. */
   difficulty: Difficulty;
   /** Monsters defeated, per kind (the HUD counter shows the total). */
@@ -40,6 +41,35 @@ export interface SaveData {
   day: number;
   /** «Пожирач земель»: where it lives, how hurt it is, when it was beaten. */
   boss: BossSave;
+  /** Buildings left in the kit box (the lantern never runs out and is not counted). */
+  kit: Partial<Record<BuildingId, number>>;
+  /** Buildings standing in the world. */
+  placed: PlacedBuilding[];
+  /** The kit box's endless goal. */
+  progress: ProgressSave;
+  /** The field end of the home portal (where it stands, the way it faces); null until the first jump home. */
+  portal: { x: number; y: number; z: number; yaw: number } | null;
+  /** Totals that only grow; tasks count from them. */
+  stats: { coins: number; slept: number };
+}
+
+/** A building put up from the kit: footprint min corner, the height its floor stands on, quarter turns. */
+export interface PlacedBuilding {
+  id: BuildingId;
+  x: number;
+  y: number;
+  z: number;
+  rot: number;
+}
+
+export interface ProgressSave {
+  /** Rewards already given = levels done. */
+  level: number;
+  /** The task being worked on and the counter's value when it began (null: take it on the next frame). */
+  kind: TaskKind;
+  start: number | null;
+  /** Reward ids given, in order (content/progress.ts). */
+  got: string[];
 }
 
 export interface BossSave {
@@ -61,7 +91,10 @@ export interface BossSave {
 
 export const freshBoss = (): BossSave => ({ level: 1, site: null, hp: null, lanterns: [], defeatedDay: null, eatenAt: null, bites: 0 });
 
-export const SAVE_VERSION = 5;
+export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
+export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
+
+export const SAVE_VERSION = 6;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -81,13 +114,17 @@ export function freshSave(): SaveData {
     time: 0.03,
     house: null,
     said: [],
-    buildBlock: 14,
     difficulty: 'normal',
     defeated: {},
     soundOn: true,
     explored: [],
     day: 0,
     boss: freshBoss(),
+    kit: freshKit(),
+    placed: [],
+    progress: freshProgress(),
+    portal: null,
+    stats: { coins: 0, slept: 0 },
   };
 }
 
@@ -115,6 +152,13 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
   3: (d) => ({ ...d, v: 4, explored: homeChunks((d.house as [number, number, number] | null) ?? null) }),
   // v5: the day counter and the first boss, waiting at level 1 (its lair is placed on the next start).
   4: (d) => ({ ...d, v: 5, day: 0, boss: freshBoss() }),
+  // v6: the kit of buildings replaces the bricks and the pickaxe (bricks already built stay in
+  // the world). The first task counts from where the save is now; coins so far are the total.
+  5: (d) => {
+    const rest = { ...d };
+    delete rest.buildBlock;
+    return { ...rest, v: 6, kit: freshKit(), placed: [], progress: freshProgress(), portal: null, stats: { coins: (d.coins as number) ?? 0, slept: 0 } };
+  },
 };
 
 export function migrate(raw: Raw): SaveData {

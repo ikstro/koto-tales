@@ -14,6 +14,7 @@ import { initLanterns } from './render/lanterns';
 import { createSkin } from './render/skins';
 import { bossStartSpot, initBoss } from './systems/boss';
 import { buildHouse } from './systems/house';
+import { initKit } from './systems/kit';
 import { initPickups } from './systems/pickups';
 import { freshSave, loadSave, persistStorage, reconcileTerrain } from './systems/save';
 import { Album } from './ui/album';
@@ -102,9 +103,11 @@ async function boot(): Promise<void> {
     clock: { t: params.time ?? save.time, daylight: 1, frozen: params.freeze, elapsed: 0 },
     playing: false,
     sleeping: false,
+    napping: false,
   };
   initPickups(ctx);
   ctx.house = buildHouse(ctx);
+  initKit(ctx);
   if (params.demo) placeDemo(ctx);
   initBoss(ctx);
   initLanterns(ctx);

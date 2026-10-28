@@ -1,0 +1,413 @@
+import * as THREE from 'three';
+import type { IWorld } from '../contracts';
+import { overlapsBlock } from '../actors/physics';
+import { breatheGhost, createBuilding, createGhost, type BuildingModel } from '../assets/buildings';
+import { BUILDINGS, KIT_ORDER, MUSIC, type BuildingCard, type BuildingId } from '../content/buildings';
+import type { Ctx } from '../core/ctx';
+import { events } from '../core/events';
+import { music } from '../voice/music';
+import { sfx } from '../voice/sfx';
+import { voice } from '../voice/voice';
+import { B } from '../world/blocks';
+import type { PlacedBuilding } from './save';
+
+/**
+ * The kit of ready-made buildings (DESIGN.md «Kit»). The child picks a building in the
+ * kit plate; a see-through ghost of it walks along in front of the hero, always on a
+ * free spot nearby; ✓ puts it up. Standing next to one of their buildings, a «fold»
+ * piece breathes: a tap packs it back into the box. The ground is never changed: a
+ * building stands on its own plinth where the ground is uneven, and its solid parts
+ * are invisible barrier cells (World.setBarrier). Buildings face the camera, like toys
+ * set out on a table.
+ */
+
+/** A spot for a building: footprint min corner, the floor height, quarter turns, the lowest ground under it. */
+export interface Spot {
+  x: number;
+  z: number;
+  y: number;
+  rot: number;
+  low: number;
+}
+
+type GroundView = Pick<IWorld, 'groundHeight' | 'getBlock' | 'isWater' | 'isSolid'>;
+
+/** Ground a building may stand on: not water, not a tree crown or trunk. */
+const SOFT = new Set<number>([B.WATER, B.LEAVES, B.LOG]);
+
+/**
+ * The nearest free spot for a `w × d` footprint around the point in front of the hero at
+ * (fx, fz, feet fy) along `yaw`. Uneven ground is fine by one block (a plinth fills it); the
+ * floor stays within two blocks of the hero's feet (not down a cliff, not up on a hill).
+ */
+export function findSpot(world: GroundView, size: [number, number], fx: number, fz: number, fy: number, yaw: number, blocked: (x: number, z: number) => boolean): Spot | null {
+  const [w, d] = size;
+  const fwdX = Math.sin(yaw);
+  const fwdZ = Math.cos(yaw);
+  const ahead = (Math.abs(fwdX) * w + Math.abs(fwdZ) * d) / 2 + 1;
+  const cx = fx + fwdX * ahead;
+  const cz = fz + fwdZ * ahead;
+  const bx = Math.round(cx - w / 2);
+  const bz = Math.round(cz - d / 2);
+  const tries: [number, number, number][] = [];
+  for (let oz = -5; oz <= 5; oz++) for (let ox = -5; ox <= 5; ox++) tries.push([bx + ox, bz + oz, Math.hypot(bx + ox + w / 2 - cx, bz + oz + d / 2 - cz)]);
+  tries.sort((a, b) => a[2] - b[2]);
+  for (const [x0, z0] of tries) {
+    let lo = Infinity;
+    let hi = -Infinity;
+    let ok = true;
+    for (let x = x0; x < x0 + w && ok; x++) {
+      for (let z = z0; z < z0 + d && ok; z++) {
+        const g = world.groundHeight(x, z);
+        if (g <= 0 || blocked(x, z) || SOFT.has(world.getBlock(x, g - 1, z)) || world.isWater(x, g, z)) ok = false;
+        lo = Math.min(lo, g);
+        hi = Math.max(hi, g);
+      }
+    }
+    if (ok && hi - lo <= 1 && Math.abs(hi - fy) <= 2) return { x: x0, z: z0, y: hi, rot: 0, low: lo };
+  }
+  return null;
+}
+
+/** The cell right in front of the hero for a lantern: at the feet, stacking up a wall to two high. */
+function lanternSpot(ctx: Ctx): Spot | null {
+  const p = ctx.player.pos;
+  const dx = Math.sin(ctx.player.yaw);
+  const dz = Math.cos(ctx.player.yaw);
+  const sx = Math.abs(dx) > Math.abs(dz) ? Math.sign(dx) : 0;
+  const sz = sx === 0 ? Math.sign(dz) : 0;
+  const x = Math.floor(p.x) + sx;
+  const z = Math.floor(p.z) + sz;
+  const feet = Math.floor(p.y + 0.01);
+  let y = feet;
+  while (ctx.world.isSolid(x, y, z) && y < feet + 3) y++;
+  if (y > feet + 2 || occupied(ctx, x, y, z) || blockedCell(ctx, x, z)) return null;
+  return { x, z, y, rot: 0, low: y };
+}
+
+function occupied(ctx: Ctx, x: number, y: number, z: number): boolean {
+  for (const h of ctx.heroes.values()) if (overlapsBlock(h.body, x, y, z)) return true;
+  for (const m of ctx.monsters) if (m.alive && overlapsBlock(m.body, x, y, z)) return true;
+  return false;
+}
+
+// ─── buildings standing in the world ────────────────────────────────────────
+
+interface Standing {
+  rec: PlacedBuilding;
+  card: BuildingCard;
+  model: BuildingModel | null;
+  /** Feet-level centre of the footprint. */
+  centre: THREE.Vector3;
+  /** Seconds since it went up (the drop-in), or since folding began (negative). */
+  age: number;
+  folding: boolean;
+}
+
+const standing: Standing[] = [];
+/** Cells kept free for the portal arch next to the house (systems/travel.ts sets them). */
+const reserved = new Set<string>();
+let selected: BuildingId | null = null;
+let auto = false;
+let ghost: THREE.Group | null = null;
+let ghostId: BuildingId | null = null;
+let spot: Spot | null = null;
+let spotTimer = 0;
+let lastNoSpace = -1e9;
+let t = 0;
+
+const dims = (card: BuildingCard, rot: number): [number, number] => (rot % 2 ? [card.size[1], card.size[0]] : card.size);
+
+function footprint(s: Standing): [number, number, number, number] {
+  const [w, d] = dims(s.card, s.rec.rot);
+  return [s.rec.x, s.rec.z, s.rec.x + w, s.rec.z + d];
+}
+
+export function reserveCells(cells: [number, number][]): void {
+  for (const [x, z] of cells) reserved.add(`${x},${z}`);
+}
+
+/** The house, other buildings and the portal keep their ground. */
+function blockedCell(ctx: Ctx, x: number, z: number): boolean {
+  const f = ctx.house?.footprint;
+  if (f && x >= f.x0 - 1 && x < f.x1 + 1 && z >= f.z0 - 1 && z < f.z1 + 1) return true;
+  if (reserved.has(`${x},${z}`)) return true;
+  for (const s of standing) {
+    if (s.folding) continue;
+    const [x0, z0, x1, z1] = footprint(s);
+    if (x >= x0 && x < x1 && z >= z0 && z < z1) return true;
+  }
+  return false;
+}
+
+function barrierCells(s: Standing): [number, number, number][] {
+  const out: [number, number, number][] = [];
+  for (const c of s.card.solid) for (let k = 0; k < c.h; k++) out.push([s.rec.x + c.dx, s.rec.y + k, s.rec.z + c.dz]);
+  return out;
+}
+
+function raise(ctx: Ctx, rec: PlacedBuilding, fresh: boolean): Standing {
+  const card = BUILDINGS[rec.id];
+  const [w, d] = dims(card, rec.rot);
+  const centre = new THREE.Vector3(rec.x + w / 2, rec.y, rec.z + d / 2);
+  if (card.block !== undefined) centre.set(rec.x + 0.5, rec.y, rec.z + 0.5);
+  const s: Standing = { rec, card, model: null, centre, age: fresh ? 0 : 99, folding: false };
+  if (card.block === undefined) {
+    const model = createBuilding(ctx.skin, rec.id);
+    model.root.position.copy(centre);
+    model.root.rotation.y = (rec.rot * Math.PI) / 2;
+    model.root.userData.casts = true;
+    // uneven ground: a plinth of teal plates under the whole footprint
+    let lowest = rec.y;
+    for (let x = rec.x; x < rec.x + w; x++) for (let z = rec.z; z < rec.z + d; z++) lowest = Math.min(lowest, ctx.world.groundHeight(x, z));
+    if (lowest < rec.y) {
+      const h = rec.y - lowest;
+      const plinth = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), ctx.skin.partMaterial('#2f918b'));
+      plinth.position.y = -h / 2;
+      plinth.receiveShadow = true;
+      plinth.castShadow = true;
+      model.root.add(plinth);
+    }
+    ctx.scene.add(model.root);
+    s.model = model;
+    for (const [x, y, z] of barrierCells(s)) ctx.world.setBarrier?.(x, y, z, true);
+  }
+  standing.push(s);
+  return s;
+}
+
+/** Puts the save's buildings back up (on start). */
+export function initKit(ctx: Ctx): void {
+  // the doorstep and the campfire stay free: the way into the house is never blocked
+  const c = ctx.house?.campfire.root.position;
+  if (c) for (let dx = -2; dx <= 2; dx++) for (let dz = -3; dz <= 2; dz++) reserved.add(`${Math.floor(c.x) + dx},${Math.floor(c.z) + dz}`);
+  for (const rec of ctx.save.placed) raise(ctx, rec, false);
+  pushHud(ctx);
+  // For automated checks.
+  (window as unknown as { __kotoKit: object }).__kotoKit = {
+    pick: (id: BuildingId) => pick(ctx, id),
+    place: () => ctx.input.press('kit:place'),
+    fold: () => ctx.input.press('prompt:fold'),
+    get state() {
+      return { selected, spot, kit: { ...ctx.save.kit }, placed: ctx.save.placed.map((p) => ({ ...p })) };
+    },
+  };
+}
+
+/** How many of a building the child owns (in the box and standing). */
+export function owned(ctx: Ctx, id: BuildingId): number {
+  return (ctx.save.kit[id] ?? 0) + ctx.save.placed.filter((p) => p.id === id).length;
+}
+
+/** One more of a building in the box (a reward). */
+export function addToKit(ctx: Ctx, id: BuildingId, n = 1): void {
+  ctx.save.kit[id] = (ctx.save.kit[id] ?? 0) + n;
+  pushHud(ctx);
+  ctx.hud.kitBump();
+}
+
+/** The kit plate's pieces and the build button's look. */
+export function pushHud(ctx: Ctx): void {
+  ctx.hud.setKitItems(
+    KIT_ORDER.map((id) => {
+      const card = BUILDINGS[id];
+      return { id, sprite: card.sprite, count: card.count === null ? null : (ctx.save.kit[id] ?? 0) };
+    }),
+  );
+  ctx.hud.setKitMode(selected);
+}
+
+/** The child chose a building in the kit plate (or the boss suggests the lantern). */
+export function pick(ctx: Ctx, id: BuildingId | null, byBoss = false): void {
+  if (id && BUILDINGS[id].count !== null && (ctx.save.kit[id] ?? 0) <= 0) {
+    sfx.play('click');
+    return;
+  }
+  selected = id;
+  auto = byBoss && id !== null;
+  spotTimer = 0;
+  if (ghost && ghostId !== id) {
+    ctx.scene.remove(ghost);
+    ghost = null;
+    ghostId = null;
+  }
+  if (id && !ghost) {
+    ghost = createGhost(ctx.skin, id);
+    ghostId = id;
+    ghost.visible = false;
+    ctx.scene.add(ghost);
+  }
+  ctx.hud.setKitMode(selected);
+  ctx.hud.suggestKit(auto);
+}
+
+export function selectedBuilding(): BuildingId | null {
+  return selected;
+}
+
+export function pickedByBoss(): boolean {
+  return auto;
+}
+
+function place(ctx: Ctx): void {
+  if (!selected) return;
+  const card = BUILDINGS[selected];
+  if (!spot) {
+    sfx.play('click');
+    if (performance.now() - lastNoSpace > 8000) {
+      lastNoSpace = performance.now();
+      voice.say('kit_nospace', { priority: 6, interrupt: true });
+    }
+    return;
+  }
+  const at = new THREE.Vector3();
+  if (card.block !== undefined) {
+    const { x, y, z } = spot;
+    ctx.world.setBlock(x, y, z, card.block);
+    ctx.save.placed.push({ id: card.id, x, y, z, rot: 0 });
+    raise(ctx, ctx.save.placed[ctx.save.placed.length - 1], true);
+    events.emit('block:placed', { x, y, z, id: card.block });
+    ctx.effects.poof(at.set(x + 0.5, y + 0.5, z + 0.5), 0xffd54f, 8);
+  } else {
+    const rec: PlacedBuilding = { id: card.id, x: spot.x, y: spot.y, z: spot.z, rot: spot.rot };
+    ctx.save.placed.push(rec);
+    ctx.save.kit[card.id] = Math.max(0, (ctx.save.kit[card.id] ?? 0) - 1);
+    const s = raise(ctx, rec, true);
+    ctx.effects.poof(at.copy(s.centre).setY(s.centre.y + 0.4), 0xffe3a3, 16);
+    selected = null;
+    if (ghost) {
+      ctx.scene.remove(ghost);
+      ghost = null;
+      ghostId = null;
+    }
+    if (card.firstLine && !ctx.save.said.includes(card.firstLine)) {
+      ctx.save.said.push(card.firstLine);
+      voice.say(card.firstLine, { priority: 7, interrupt: true });
+    }
+    events.emit('building:placed', { id: card.id });
+  }
+  ctx.player.model.play('attack');
+  sfx.play('place');
+  setTimeout(() => sfx.play('place', { pitch: 1.25 }), 120);
+  pushHud(ctx);
+}
+
+/** The building the hero stands next to, if any (the fold piece shows for it). */
+export function nearestStanding(ctx: Ctx, only?: (c: BuildingCard) => boolean): Standing | null {
+  const p = ctx.player.pos;
+  let best: Standing | null = null;
+  let bestD = Infinity;
+  for (const s of standing) {
+    if (s.folding || (only && !only(s.card))) continue;
+    const [w, d] = dims(s.card, s.rec.rot);
+    const reach = Math.max(w, d) / 2 + 1.8;
+    const dist = Math.hypot(p.x - s.centre.x, p.z - s.centre.z);
+    if (dist < reach && Math.abs(p.y - s.centre.y) < 2.5 && dist < bestD) {
+      best = s;
+      bestD = dist;
+    }
+  }
+  return best;
+}
+
+/** The fold piece is offered next to the child's buildings, unless the child is placing one. */
+export function canFold(ctx: Ctx): boolean {
+  return !selected && nearestStanding(ctx) !== null;
+}
+
+function fold(ctx: Ctx): void {
+  const s = nearestStanding(ctx);
+  if (!s) return;
+  s.folding = true;
+  s.age = 0;
+  const i = ctx.save.placed.indexOf(s.rec);
+  if (i >= 0) ctx.save.placed.splice(i, 1);
+  const at = s.centre.clone().setY(s.centre.y + 0.5);
+  if (s.card.block !== undefined) {
+    const { x, y, z } = s.rec;
+    if (ctx.world.revertBlock) ctx.world.revertBlock(x, y, z);
+    else ctx.world.setBlock(x, y, z, B.AIR);
+    events.emit('block:broken', { x, y, z, id: s.card.block });
+  } else {
+    for (const [x, y, z] of barrierCells(s)) ctx.world.setBarrier?.(x, y, z, false);
+    ctx.save.kit[s.card.id] = (ctx.save.kit[s.card.id] ?? 0) + 1;
+  }
+  ctx.effects.poof(at, 0xffe3a3, 14);
+  sfx.play('poof');
+  ctx.hud.kitBump();
+  pushHud(ctx);
+  events.emit('building:folded', { id: s.card.id });
+}
+
+/** Speakers that are playing: their feet-level centres. */
+export function playingSpeakers(): THREE.Vector3[] {
+  return standing.filter((s) => s.card.music && !s.folding).map((s) => s.centre);
+}
+
+/** Tents standing (sleep spots away from home). */
+export function tentNear(ctx: Ctx): { centre: THREE.Vector3 } | null {
+  return nearestStanding(ctx, (c) => !!c.sleep);
+}
+
+const DROP_FROM = 3;
+
+export function updateKit(ctx: Ctx, dt: number): void {
+  t += dt;
+  if (ctx.input.take('kit:cancel')) pick(ctx, null);
+  if (ctx.input.take('kit:place')) place(ctx);
+  if (ctx.input.take('prompt:fold') && !selected) fold(ctx);
+
+  // the ghost follows the hero on a free spot
+  if (selected && ghost) {
+    spotTimer -= dt;
+    if (spotTimer <= 0) {
+      spotTimer = 0.12;
+      const card = BUILDINGS[selected];
+      spot =
+        card.block !== undefined
+          ? lanternSpot(ctx)
+          : findSpot(ctx.world, card.size, ctx.player.pos.x, ctx.player.pos.z, ctx.player.pos.y, ctx.player.yaw, (x, z) => blockedCell(ctx, x, z));
+      ctx.hud.setKitReady(!!spot);
+    }
+    ghost.visible = !!spot && ctx.playing && !ctx.sleeping;
+    if (spot) {
+      const [w, d] = dims(BUILDINGS[selected], spot.rot);
+      const card = BUILDINGS[selected];
+      const target = card.block !== undefined ? new THREE.Vector3(spot.x + 0.5, spot.y, spot.z + 0.5) : new THREE.Vector3(spot.x + w / 2, spot.y, spot.z + d / 2);
+      ghost.position.lerp(target, ghost.position.distanceToSquared(target) > 9 ? 1 : 1 - Math.exp(-dt * 16));
+      ghost.rotation.y = (spot.rot * Math.PI) / 2;
+    }
+    breatheGhost(t);
+  }
+
+  // standing buildings: drop in, fold away, play
+  const beat = music.beat();
+  const night = 1 - ctx.clock.daylight;
+  let nearest = Infinity;
+  const p = ctx.player.pos;
+  for (let i = standing.length - 1; i >= 0; i--) {
+    const s = standing[i];
+    s.age += dt;
+    const root = s.model?.root;
+    if (s.folding) {
+      const k = Math.min(1, s.age / 0.35);
+      if (root) root.scale.setScalar(Math.max(0.001, 1 - k * k));
+      if (k >= 1) {
+        if (root) ctx.scene.remove(root);
+        standing.splice(i, 1);
+      }
+      continue;
+    }
+    if (root) {
+      // falls in from above with a little bounce and a squash on landing
+      const a = s.age;
+      const fall = a < 0.6 ? DROP_FROM * Math.exp(-7 * a) * Math.cos(11 * a) : 0;
+      root.position.y = s.centre.y + Math.max(0, fall);
+      const squash = a < 0.6 ? Math.max(0, Math.sin(a * 22) * Math.exp(-8 * a)) * 0.12 : 0;
+      root.scale.set(1 + squash, 1 - squash, 1 + squash);
+      s.model!.update(dt, { beat, playing: !!s.card.music, night });
+    }
+    if (s.card.music) nearest = Math.min(nearest, Math.hypot(p.x - s.centre.x, p.z - s.centre.z));
+  }
+  music.update(dt, ctx.playing ? nearest : Infinity, MUSIC.hear, voice.isSpeaking());
+}

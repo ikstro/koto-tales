@@ -4,7 +4,6 @@ import { readParams } from '../core/params';
 import { goFullscreen } from './fullscreen';
 import type { Input } from '../core/input';
 import { sfx } from '../voice/sfx';
-import { B, BUILD_PALETTE } from '../world/blocks';
 import { Guide, type GuideCard } from './guide';
 import { NINE, SPRITES, type SpriteName } from './hudSprites';
 import type { Portraits } from './portraits';
@@ -312,11 +311,25 @@ export interface BossBar {
   lanterns: number;
 }
 
+/** A building in the kit plate: its piece and how many are left (null: never runs out). */
+export interface KitItem {
+  id: string;
+  sprite: string;
+  count: number | null;
+}
+
+/** A piece that breathes by the action pieces when something can be done here. */
+export type PromptKind = 'moon' | 'fold';
+
 export class Hud {
   readonly root = div('hud hidden');
   /** The breathing book by the chest; systems/house.ts toggles `hidden` on it. */
   readonly chestPrompt: HTMLElement;
-  onPickBlock: ((id: number) => void) | null = null;
+  /** A building chosen in the kit plate. */
+  onKitPick: ((id: string) => void) | null = null;
+  /** The kit plate opened / the next reward's task piece was tapped. */
+  onKitOpen: (() => void) | null = null;
+  onKitTask: (() => void) | null = null;
   onPause: ((paused: boolean) => void) | null = null;
   onDifficulty: ((level: Difficulty) => void) | null = null;
   onSound: ((on: boolean) => void) | null = null;
@@ -330,7 +343,7 @@ export class Hud {
   private gKills: Group;
   private gTop: Group;
   private gAct: Group;
-  private gTray: Group;
+  private gKit: Group;
   private gMenu: Group;
   private gBoss: Group;
   private bossFace: Piece;
@@ -340,7 +353,6 @@ export class Hud {
   private bossLit = -1;
   private bossLampsLit = -1;
   private bossArmored: boolean | null = null;
-  private suggested: number | null = null;
   private suggestAnim: Animation | null = null;
 
   private hearts: { tile: Piece; lost: boolean; anim: Animation | null }[] = [];
@@ -357,9 +369,18 @@ export class Hud {
   private bolt: Piece;
   private boltFull: HTMLImageElement;
   private boltGlow: HTMLDivElement;
-  private brick: Piece;
-  private brickGlow: HTMLDivElement;
-  private trayBricks = new Map<number, Piece>();
+  private kitRing: Piece;
+  private kitLit: HTMLImageElement[] = [];
+  private kitPiece: Piece;
+  private kitGlow: HTMLDivElement;
+  private cancelPiece: Piece;
+  private promptPiece: Piece;
+  private prompt: PromptKind | null = null;
+  private kitItems: KitItem[] = [];
+  private kitCells = new Map<string, { p: Piece; count: Counter | null }>();
+  private kitNext: { sprite: string; task: string } | null = null;
+  private kitSelected: string | null = null;
+  private kitLitN = -1;
   private guide: Guide;
   private soundPiece: Piece;
   private helpPiece: Piece;
@@ -386,7 +407,7 @@ export class Hud {
   private soundOn = true;
   private paused = false;
   private fanOpen = false;
-  private trayOpen = false;
+  private kitOpen = false;
   private shown = false;
   private firstShow = true;
   private k = 1;
@@ -475,7 +496,9 @@ export class Hud {
       this.fanTiles.set(id, p);
     });
 
-    // Bottom right: lightning (stud ring + tile), bow, building brick, pickaxe.
+    // Bottom right, around the thumb: the bow; lightning (stud ring + tile) above it; the kit box on
+    // its own stud ring to the left (the studs = how far the kit's task has come). While a building
+    // is being placed the box turns into ✓ with a small ✕ beside it. A prompt (moon, fold) breathes above.
     this.gAct = new Group(r, 'g-act');
     this.ring = this.gAct.add('ring', -112, -238);
     for (let i = 0; i < 8; i++) this.lit.push(this.ring.layer(`ring-lit-${i}` as SpriteName, 'sp lit'));
@@ -484,13 +507,15 @@ export class Hud {
     this.boltGlow = div('glow');
     this.bolt.lf.insertBefore(this.boltGlow, this.bolt.pr);
     const bow = this.gAct.add('bow', -80, -74, 'big-sh');
-    const hints = (['red', 'yellow', 'green'] as const).map((c, i) =>
-      this.gAct.add(`brick1-${c}` as SpriteName, -296 + i * 30, -204 - [0, 18, 20][i], 'brick1-sh'),
-    );
-    this.brick = this.gAct.add(`brick-${BUILD_PALETTE[4]}` as SpriteName, -252, -166, 'brick-sh');
-    this.brickGlow = div('lamp-glow hidden');
-    this.brick.pr.insertBefore(this.brickGlow, this.brick.img);
-    const pick = this.gAct.add('pick', -236, -60, 'tile6-sh');
+    this.kitRing = this.gAct.add('ring', -268, -96);
+    for (let i = 0; i < 8; i++) this.kitLit.push(this.kitRing.layer(`ring-lit-${i}` as SpriteName, 'sp lit'));
+    this.kitPiece = this.gAct.add('kit', -268, -96 - TOP);
+    this.kitGlow = div('glow');
+    this.kitPiece.lf.insertBefore(this.kitGlow, this.kitPiece.pr);
+    this.cancelPiece = this.gAct.add('close', -372, -206, 'tile6-sh');
+    this.cancelPiece.el.classList.add('small', 'hidden');
+    this.promptPiece = this.gAct.add('moon', -318, -322, 'tile6-sh');
+    this.promptPiece.el.classList.add('prompt', 'hidden');
     this.gAct.seal();
     this.press(
       bow,
@@ -502,50 +527,20 @@ export class Hud {
       { up: () => (input.fireHeld = false) },
     );
     this.press(this.bolt, this.bolt.target(104), () => input.press('bolt'));
-    this.press(this.brick, this.brick.target(100, 84, 26), () => input.press('place'));
-    this.press(pick, pick.target(100), () => input.press('break'));
-    const hintHit = hints[1].target(96, 64, 30);
-    this.press(hints[1], hintHit, () => this.toggleTray(), { ui: true, also: [hints[0], hints[2]] });
+    this.press(this.kitPiece, this.kitPiece.target(116, 116, 18), () => this.kitTap());
+    this.press(this.cancelPiece, this.cancelPiece.target(96), () => input.press('kit:cancel'), { ui: true });
+    this.press(this.promptPiece, this.promptPiece.target(110), () => this.prompt && input.press(`prompt:${this.prompt}`), { ui: true });
 
-    // Taps outside an open fan / tray close it.
+    // Taps outside an open fan / kit plate close it.
     this.catcher = div('catcher hidden', r);
     this.catcher.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       this.toggleFan(false);
-      this.toggleTray(false);
+      this.toggleKit(false);
     });
 
-    // The palette tray: a studded plate with every building colour as a real 2×2 brick.
-    this.gTray = new Group(r, 'g-tray hidden');
-    const cols = 4;
-    const rows = Math.ceil(BUILD_PALETTE.length / cols);
-    const cell = 92;
-    const tw = cols * cell + 64;
-    const th = rows * cell + 56;
-    const trayPlate = ninePlate(this.gTray.inner, tw, th);
-    trayPlate.style.left = `${-tw / 2}px`;
-    trayPlate.style.top = `${-th / 2}px`;
-    (trayPlate.previousElementSibling as HTMLElement).style.cssText += `;left:${-tw / 2 + 14}px;top:${-th / 2 + 18}px`;
-    BUILD_PALETTE.forEach((id, i) => {
-      const cx = -tw / 2 + 32 + cell * ((i % cols) + 0.5);
-      const cy = -th / 2 + 34 + cell * (Math.floor(i / cols) + 0.5) + 26;
-      const holder = div('tb', this.gTray.inner);
-      holder.style.cssText = `left:${cx}px;top:${cy}px`;
-      const p = new Piece(holder, `brick-${id}` as SpriteName, 0, 0, brickShadow(id));
-      if (id === B.LANTERN) {
-        // taller than a brick: a little smaller, so it stays inside its cell
-        holder.style.transform = 'scale(0.7)';
-        p.pr.insertBefore(div('lamp-glow'), p.img);
-      }
-      this.press(p, p.target(cell, cell, 34), () => this.pickBlock(id), { ui: true });
-      this.trayBricks.set(id, p);
-    });
-    this.gTray.pieces.push(...this.trayBricks.values());
-    this.gTray.minX = -tw / 2;
-    this.gTray.minY = -th / 2;
-    this.gTray.w = tw + 16;
-    this.gTray.h = th + 20;
-    this.gTray.inner.style.transform = `translate(${tw / 2}px, ${th / 2}px)`;
+    // The kit plate: a studded plate with the buildings in the box, filled by setKitItems.
+    this.gKit = new Group(r, 'g-kit hidden');
 
     // The pause menu: picture pieces on a plate. ▶ continue, sound, «?» guide, home; difficulty below.
     this.menu = div('pmenu hidden', r);
@@ -560,11 +555,12 @@ export class Hud {
     const play = new Piece(this.gMenu.inner, 'play', 112, 118, 'big-sh');
     this.soundPiece = new Piece(this.gMenu.inner, 'sound-on', 250, 112, 'tile6-sh');
     this.helpPiece = new Piece(this.gMenu.inner, 'help', 368, 112, 'tile6-sh');
-    const home = new Piece(this.gMenu.inner, 'home', 486, 112, 'tile6-sh');
+    // the door out (the house now means «home» through the portal)
+    const exit = new Piece(this.gMenu.inner, 'exit', 486, 112, 'tile6-sh');
     this.press(play, play.target(124), () => this.setPaused(false), { ui: true, paused: true });
     this.press(this.soundPiece, this.soundPiece.target(104), () => this.toggleSound(), { ui: true, paused: true });
     this.press(this.helpPiece, this.helpPiece.target(104), () => this.openGuide(), { ui: true, paused: true });
-    this.press(home, home.target(104), () => this.exit(), { ui: true, paused: true });
+    this.press(exit, exit.target(104), () => this.exit(), { ui: true, paused: true });
     LEVELS.forEach((lvl, i) => {
       const p = new Piece(this.gMenu.inner, `diff-${i + 1}` as SpriteName, mw / 2 - 116 + i * 116, 250, 'tile6-sh');
       p.layer('rim6', 'sp rim');
@@ -650,9 +646,14 @@ export class Hud {
     // Bottom: joystick plate left, action pieces right; shrink both if they would meet.
     const joyW = 212;
     const kb = Math.min(k, (W - 2 * g - gap) / (joyW + GA.w), (H - topBottom - g - gap) / GA.h);
-    GA.place(W - g - GA.w * kb, H - g - GA.h * kb, kb);
+    // A tablet is held by both sides a little below the middle: the thumbs reach the side bands at
+    // about two thirds of the height, not the corners, so the bow and the joystick's rest go there.
+    // A phone is held by its bottom corners: there they stay at the bottom edge.
+    const bottom = H - g - GA.h * kb;
+    const lift = Math.min(W, H) >= TABLET ? Math.max(0, bottom - (H * THUMB_Y - (BOW_Y - GA.minY) * kb)) : 0;
+    GA.place(W - g - GA.w * kb, Math.max(topBottom + gap, bottom - lift), kb);
     root.setProperty('--hud-joy-x', `${Math.round(g + 104 * kb)}px`);
-    root.setProperty('--hud-joy-y', `${Math.round(H - g - 96 * kb)}px`);
+    root.setProperty('--hud-joy-y', `${Math.round(H - g - 96 * kb - (H - GA.bottom - g))}px`);
     root.setProperty('--hud-kb', kb.toFixed(4));
     this.zone.style.top = `${Math.round(topBottom)}px`;
 
@@ -669,7 +670,7 @@ export class Hud {
     GM.place(mx, my, ms);
     this.placeBoss(g, gap, ts, topBottom);
 
-    if (this.trayOpen) this.placeTray();
+    if (this.kitOpen) this.placeKit();
     this.placeMenu();
   }
 
@@ -695,13 +696,14 @@ export class Hud {
     BG.place(Math.max(g, (g + right2) / 2 - (BG.w * s2) / 2), y2, s2);
   }
 
-  private placeTray(): void {
+  /** The kit plate opens above and to the left of the kit box, inside the screen. */
+  private placeKit(): void {
     const W = window.innerWidth;
     const H = window.innerHeight;
     const g = 8;
-    const T = this.gTray;
+    const T = this.gKit;
     const s = Math.min(this.gAct.s * 1.05, (W - 2 * g) / T.w, (H - 2 * g) / T.h);
-    const [bx, by] = this.gAct.toScreen(-200, -260);
+    const [bx, by] = this.gAct.toScreen(-205, -170);
     const x = Math.min(W - g - T.w * s, Math.max(g, bx - T.w * s));
     const y = Math.min(H - g - T.h * s, Math.max(g, by - T.h * s));
     T.place(x, y, s);
@@ -761,35 +763,121 @@ export class Hud {
   private toggleFan(on = !this.fanOpen): void {
     if (on === this.fanOpen) return;
     this.fanOpen = on;
-    if (on) this.toggleTray(false);
+    if (on) this.toggleKit(false);
     this.fan.classList.toggle('hidden', !on);
     this.gTop.el.classList.toggle('raised', on);
-    this.catcher.classList.toggle('hidden', !this.fanOpen && !this.trayOpen);
+    this.catcher.classList.toggle('hidden', !this.fanOpen && !this.kitOpen);
     if (on) {
       let i = 0;
       for (const p of this.fanTiles.values()) p.drop(i++ * 50, 40);
     }
   }
 
-  private toggleTray(on = !this.trayOpen): void {
-    if (on === this.trayOpen) return;
-    this.trayOpen = on;
+  /** The kit box: opens the plate, or (while a building is being placed) puts it up. */
+  private kitTap(): void {
+    if (this.kitSelected) {
+      this.input.press('kit:place');
+      return;
+    }
+    sfx.play('click');
+    this.toggleKit();
+  }
+
+  private toggleKit(on = !this.kitOpen): void {
+    if (on === this.kitOpen) return;
+    this.kitOpen = on;
     if (on) this.toggleFan(false);
-    this.gTray.el.classList.toggle('hidden', !on);
-    this.catcher.classList.toggle('hidden', !this.fanOpen && !this.trayOpen);
+    this.gKit.el.classList.toggle('hidden', !on);
+    this.catcher.classList.toggle('hidden', !this.fanOpen && !this.kitOpen);
     if (on) {
-      this.placeTray();
-      let i = 0;
-      for (const p of this.trayBricks.values()) p.drop(i++ * 28, 40);
+      this.placeKit();
+      this.gKit.pieces.forEach((p, i) => p.drop(i * 34, 40));
+      this.onKitOpen?.();
     }
   }
 
-  private pickBlock(id: number): void {
-    this.suggestBlock(null);
-    this.setBuildBlock(id);
-    this.onPickBlock?.(id);
-    this.toggleTray(false);
-    this.brick.drop(0, 40);
+  /** (Re)builds the kit plate: one cell per building, then the next reward, dark, with its task. */
+  private buildKit(): void {
+    const K = this.gKit;
+    K.inner.replaceChildren();
+    K.pieces.length = 0;
+    this.kitCells.clear();
+    const n = this.kitItems.length + (this.kitNext ? 1 : 0);
+    const cols = Math.min(4, Math.max(1, n));
+    const rows = Math.ceil(n / cols);
+    const cell = 118;
+    const tw = cols * cell + 60;
+    const th = rows * cell + 60;
+    const plate = ninePlate(K.inner, tw, th);
+    plate.style.left = `${-tw / 2}px`;
+    plate.style.top = `${-th / 2}px`;
+    (plate.previousElementSibling as HTMLElement).style.cssText += `;left:${-tw / 2 + 14}px;top:${-th / 2 + 18}px`;
+    const at = (i: number) => [-tw / 2 + 30 + cell * ((i % cols) + 0.5), -th / 2 + 30 + cell * (Math.floor(i / cols) + 0.5) + 30];
+    this.kitItems.forEach((item, i) => {
+      const [cx, cy] = at(i);
+      const holder = div('tb kb', K.inner);
+      holder.style.cssText = `left:${cx}px;top:${cy}px`;
+      // the lantern is taller than a building's square frame
+      const tall = item.sprite.startsWith('brick-');
+      if (tall) holder.style.transform = 'scale(0.62)';
+      const p = new Piece(holder, item.sprite as SpriteName, 0, 0);
+      if (tall) p.pr.insertBefore(div('lamp-glow'), p.img);
+      let count: Counter | null = null;
+      if (item.count !== null) {
+        const ch = div('kc', holder);
+        ch.style.cssText = `left:44px;top:4px`;
+        count = new Counter(new Piece(ch, 'numtile', 0, 0, null));
+      }
+      this.press(p, p.target(cell, cell, 34), () => this.pickKit(item.id), { ui: true });
+      K.pieces.push(p);
+      this.kitCells.set(item.id, { p, count });
+    });
+    if (this.kitNext) {
+      const [cx, cy] = at(this.kitItems.length);
+      const holder = div('tb kb', K.inner);
+      holder.style.cssText = `left:${cx}px;top:${cy}px`;
+      const p = new Piece(holder, this.kitNext.sprite as SpriteName, 0, 0);
+      p.el.classList.add('locked');
+      const tk = div('kt', holder);
+      const task = new Piece(tk, this.kitNext.task as SpriteName, 0, 0);
+      this.press(
+        p,
+        p.target(cell, cell, 34),
+        () => {
+          task.bump();
+          this.onKitTask?.();
+        },
+        { ui: true, also: [task] },
+      );
+      K.pieces.push(p, task);
+    }
+    K.minX = -tw / 2;
+    K.minY = -th / 2;
+    K.w = tw + 16;
+    K.h = th + 20;
+    K.inner.style.transform = `translate(${tw / 2}px, ${th / 2}px)`;
+    this.refreshKitCells();
+    if (this.kitOpen) this.placeKit();
+  }
+
+  private refreshKitCells(): void {
+    for (const item of this.kitItems) {
+      const c = this.kitCells.get(item.id);
+      if (!c) continue;
+      c.count?.set(item.count ?? 0, false);
+      c.p.el.classList.toggle('empty', item.count === 0);
+      c.p.el.classList.toggle('on', item.id === this.kitSelected);
+    }
+  }
+
+  private pickKit(id: string): void {
+    const item = this.kitItems.find((i) => i.id === id);
+    if (!item || item.count === 0) {
+      this.kitCells.get(id)?.p.bump('translateX(-6px) rotate(-8deg)');
+      return;
+    }
+    this.toggleKit(false);
+    this.onKitPick?.(id);
   }
 
   private toggleFullscreen(): void {
@@ -804,7 +892,7 @@ export class Hud {
     if (on === this.paused) return;
     this.paused = on;
     this.toggleFan(false);
-    this.toggleTray(false);
+    this.toggleKit(false);
     this.menu.classList.toggle('hidden', !on);
     if (on) {
       this.input.fireHeld = false;
@@ -826,7 +914,7 @@ export class Hud {
     if (selfPause) {
       this.paused = true;
       this.toggleFan(false);
-      this.toggleTray(false);
+      this.toggleKit(false);
       this.input.fireHeld = false;
       this.onPause?.(true);
     }
@@ -875,7 +963,7 @@ export class Hud {
       // Test-only switches for screenshots.
       const q = readParams();
       if (q.album) setTimeout(() => this.input.press('album'), 300);
-      if (q.palette) setTimeout(() => this.toggleTray(true), 300);
+      if (q.kit) setTimeout(() => this.toggleKit(true), 300);
       if (q.pause) setTimeout(() => this.setPaused(true), 300);
       if (q.guide === 'all') setTimeout(() => (this.setPaused(true), this.openGuide()), 300);
       else if (q.guide) setTimeout(() => this.openGuide(q.guide as GuideCard), 300);
@@ -1043,29 +1131,60 @@ export class Hud {
     if (!first) this.heroPiece.drop(0, 36);
   }
 
-  setBuildBlock(id: number): void {
-    const name = `brick-${id}` as SpriteName;
-    if (name in SPRITES) {
-      setSprite(this.brick.img, name);
-      if (this.brick.sh) setSprite(this.brick.sh, brickShadow(id));
-      this.brickGlow.classList.toggle('hidden', id !== B.LANTERN);
-    }
-    for (const [bid, p] of this.trayBricks) p.el.classList.toggle('on', bid === id);
+  // ─── the kit ───
+
+  setKitItems(items: KitItem[]): void {
+    const same = items.length === this.kitItems.length && items.every((it, i) => it.id === this.kitItems[i].id);
+    this.kitItems = items.map((i) => ({ ...i }));
+    if (same && this.kitCells.size) this.refreshKitCells();
+    else this.buildKit();
   }
 
-  /**
-   * Points the build button at a block (the lantern inside the boss's wasteland): the brick
-   * switches to it and keeps pulsing. null stops the pulse (the caller sets the block back).
-   */
-  suggestBlock(id: number | null): void {
-    if (id === this.suggested) return;
-    this.suggested = id;
+  /** The next reward and its task's picture (the last cell of the kit plate). */
+  setKitNext(next: { sprite: string; task: string } | null): void {
+    if (next?.sprite === this.kitNext?.sprite && next?.task === this.kitNext?.task) return;
+    this.kitNext = next ? { ...next } : null;
+    this.buildKit();
+  }
+
+  /** How far the kit's task has come: 0..8 studs lit around the box. */
+  setKitProgress(lit: number): void {
+    if (lit === this.kitLitN) return;
+    const grew = this.kitLitN >= 0 && lit > this.kitLitN;
+    this.kitLit.forEach((l, i) => {
+      const on = i < lit;
+      l.style.visibility = on ? '' : 'hidden';
+      if (on && grew && i >= this.kitLitN) l.animate([{ transform: 'translateY(-6px)' }, { transform: 'none' }], { duration: SP.press.duration, easing: SP.press.easing });
+    });
+    this.kitLitN = lit;
+  }
+
+  /** The box while a building is being placed (✓ with a small ✕), or the box itself (null). */
+  setKitMode(selected: string | null): void {
+    const was = this.kitSelected;
+    this.kitSelected = selected;
+    setSprite(this.kitPiece.img, selected ? 'ok' : 'kit');
+    if (this.kitPiece.sh) setSprite(this.kitPiece.sh, selected ? 'tile6-sh' : 'kit-sh');
+    this.cancelPiece.el.classList.toggle('hidden', !selected);
+    if (!!was !== !!selected) {
+      this.kitPiece.drop(0, 40);
+      if (selected) this.cancelPiece.drop(80, 30);
+    }
+    if (!selected) this.kitPiece.el.classList.remove('dim');
+    this.refreshKitCells();
+  }
+
+  /** ✓ dims while there is no free spot for the building. */
+  setKitReady(ok: boolean): void {
+    this.kitPiece.el.classList.toggle('dim', !!this.kitSelected && !ok);
+  }
+
+  /** ✓ keeps pulsing while the boss's wasteland suggests a lantern. */
+  suggestKit(on: boolean): void {
     this.suggestAnim?.cancel();
     this.suggestAnim = null;
-    if (id === null) return;
-    this.setBuildBlock(id);
-    this.brick.drop(0, 40);
-    this.suggestAnim = this.brick.lf.animate(
+    if (!on) return;
+    this.suggestAnim = this.kitPiece.lf.animate(
       [
         { transform: 'none' },
         { transform: 'translateY(-14px) scale(1.16)', offset: 0.3 },
@@ -1074,6 +1193,27 @@ export class Hud {
       ],
       { duration: 1100, delay: 450, iterations: Infinity, easing: 'ease-in-out' },
     );
+  }
+
+  /** Something went into the box or came out of it. */
+  kitBump(): void {
+    this.kitPiece.bump('translateY(-18px) scale(1.18) rotate(-8deg)');
+    this.kitGlow.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 700, easing: 'ease-out' });
+  }
+
+  /** The breathing prompt above the action pieces (moon: sleep; fold: pack a building away). */
+  setPrompt(kind: PromptKind | null): void {
+    if (kind === this.prompt) return;
+    this.prompt = kind;
+    this.promptPiece.el.classList.toggle('hidden', !kind);
+    if (!kind) return;
+    setSprite(this.promptPiece.img, kind);
+    this.promptPiece.drop(0, 50);
+  }
+
+  /** Stars over the dark fade (the night passing while the heroes sleep). */
+  stars(on: boolean): void {
+    this.faderEl.classList.toggle('stars', on);
   }
 
   /** The boss bar near «Пожирач земель»; null hides it. Stones chip off as its health drops. */
@@ -1171,11 +1311,12 @@ export class Hud {
   }
 }
 
-/** A brick's contact shadow; the lantern piece is taller and has its own. */
-function brickShadow(id: number): SpriteName {
-  const own = `brick-${id}-sh`;
-  return own in SPRITES ? (own as SpriteName) : 'brick-sh';
-}
+/** Tablets (shorter side at least this, css px) lift the bow and the joystick to where the thumbs rest. */
+const TABLET = 560;
+/** Where the bow's centre goes on a tablet, as a share of the screen height from the top. */
+const THUMB_Y = 0.66;
+/** The bow's centre in the action group (design px). */
+const BOW_Y = -74 - 46;
 
 /** Press / lift springs are CSS transitions; their easings go into custom properties once. */
 let springVarsSet = false;

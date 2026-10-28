@@ -32,6 +32,8 @@ export interface MapMarker {
   pointer: boolean;
   /** Big map (and minimap): a dashed danger ring of this radius in blocks, drawn over the clouds. */
   zoneRadius?: number;
+  /** A tap on the mark on the big map: the map closes, then this runs (the house: the portal home). */
+  onTap?: () => void;
 }
 
 const marks = new Map<string, MapMarker>();
@@ -142,6 +144,8 @@ export class GameMap {
   private big: HTMLCanvasElement | null = null;
   private bigLayer: HTMLDivElement | null = null;
   private bigMarks: Mark[] = [];
+  /** Marks with an action, where they sit on the big map (design px of the view). */
+  private taps: { x: number; y: number; fn: () => void }[] = [];
   private view = { cx: 0, cz: 0, ppb: 4, vw: 0, vh: 0, s: 1, pd: 1, bounds: [0, 0, 0, 0] as [number, number, number, number] };
   private raf = 0;
 
@@ -521,7 +525,26 @@ export class GameMap {
       this.schedule();
     });
     const up = (e: PointerEvent) => {
-      if (e.pointerId === id) id = -1;
+      if (e.pointerId !== id) return;
+      id = -1;
+      if (moved || e.type !== 'pointerup') return;
+      // a tap, not a drag: on a mark with an action? the map closes and the action runs
+      const r = el.getBoundingClientRect();
+      const x = (e.clientX - r.left) / this.view.s;
+      const y = (e.clientY - r.top) / this.view.s;
+      let best: (() => void) | null = null;
+      let bestD = 56;
+      for (const t of this.taps) {
+        const d = Math.hypot(t.x - x, t.y - y);
+        if (d < bestD) {
+          bestD = d;
+          best = t.fn;
+        }
+      }
+      if (best) {
+        this.close();
+        best();
+      }
     };
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', up);
@@ -592,7 +615,8 @@ export class GameMap {
       return m;
     };
     const inset = 26;
-    const place = (wx: number, wz: number, name: string, pointer: boolean, lift = false) => {
+    this.taps = [];
+    const place = (wx: number, wz: number, name: string, pointer: boolean, lift = false, onTap?: () => void) => {
       let x = (wx - left) * v.ppb;
       let y = (wz - top) * v.ppb;
       const inside = x >= inset && x <= v.vw - inset && y >= inset && y <= v.vh - inset;
@@ -601,6 +625,7 @@ export class GameMap {
       m.piece.el.classList.toggle('on', lift);
       if (inside) {
         m.at(x, y + 10);
+        if (onTap) this.taps.push({ x, y: y - 6, fn: onTap });
         if (lift) m.el.style.zIndex = '2500';
         return;
       }
@@ -613,11 +638,12 @@ export class GameMap {
       x = cx + dx * k;
       y = cy + dy * k;
       m.at(x, y + 10);
+      if (onTap) this.taps.push({ x, y: y - 6, fn: onTap });
       const a = Math.atan2(dy, dx);
       next('map-arrow').at(x + Math.cos(a) * 46, y + Math.sin(a) * 46, ` rotate(${((a * 180) / Math.PI + 90).toFixed(1)}deg)`);
     };
     for (const mon of ctx.monsters) if (mon.alive) place(mon.pos.x, mon.pos.z, 'mark-monster', false);
-    for (const mk of marks.values()) place(mk.pos.x, mk.pos.z, mk.icon, mk.pointer);
+    for (const mk of marks.values()) place(mk.pos.x, mk.pos.z, mk.icon, mk.pointer, false, mk.onTap);
     for (const hero of ctx.heroes.values()) if (hero !== ctx.player) place(hero.pos.x, hero.pos.z, `mark-${hero.id}`, false);
     place(ctx.player.pos.x, ctx.player.pos.z, `mark-${ctx.player.id}`, true, true);
     for (let j = i; j < this.bigMarks.length; j++) this.bigMarks[j].show(false);

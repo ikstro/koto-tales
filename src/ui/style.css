@@ -150,6 +150,8 @@ body {
 .lf,
 .pr,
 .tb,
+.kc,
+.kt,
 .fan {
   position: absolute;
   left: 0;
@@ -162,9 +164,49 @@ body {
   transform-origin: 0 0;
 }
 
-/* tray bricks sit a little apart on their plate */
+/* pieces in the kit plate sit a little apart on their plate */
 .tb {
   transform: scale(0.82);
+}
+
+/* a building's count: a small number tile at the cell's lower right */
+.kc {
+  transform: scale(0.5);
+}
+
+/* the next reward is a dark silhouette until its task is done; the task's picture sits on it */
+.pc.locked .sp:not(.sh) {
+  filter: brightness(0.22) saturate(0) opacity(0.8);
+}
+
+.kt {
+  left: 40px;
+  top: -18px;
+  transform: scale(0.62);
+}
+
+.kt > .pc {
+  animation: breathe 1.4s ease-in-out infinite;
+}
+
+/* none left in the box */
+.pc.empty .sp:not(.sh) {
+  filter: saturate(0.2) opacity(0.55);
+}
+
+/* ✓ while there is no free spot */
+.pc.dim > .bd {
+  filter: saturate(0.35) brightness(0.85);
+}
+
+/* the small ✕ next to ✓ */
+.pc.small {
+  transform: scale(0.72);
+}
+
+/* moon / fold: breathes above the action pieces */
+.pc.prompt > .bd {
+  animation: breathe 1.2s ease-in-out infinite;
 }
 
 .sp {
@@ -315,7 +357,7 @@ body {
 }
 
 .g-top.raised,
-.g-tray {
+.g-kit {
   z-index: 6;
 }
 
@@ -404,6 +446,22 @@ body {
 
 .fader.on {
   opacity: 1;
+}
+
+/* the night passing while the heroes sleep: warm little stars on the dark */
+.fader.stars {
+  background:
+    radial-gradient(2px 2px at 12% 18%, #ffe3a3 99%, transparent),
+    radial-gradient(3px 3px at 27% 62%, #ffd23a 99%, transparent),
+    radial-gradient(2px 2px at 41% 31%, #ffe3a3 99%, transparent),
+    radial-gradient(3px 3px at 58% 14%, #ffe3a3 99%, transparent),
+    radial-gradient(2px 2px at 66% 71%, #ffd23a 99%, transparent),
+    radial-gradient(3px 3px at 79% 38%, #ffe3a3 99%, transparent),
+    radial-gradient(2px 2px at 88% 82%, #ffe3a3 99%, transparent),
+    radial-gradient(2px 2px at 19% 84%, #ffd23a 99%, transparent),
+    radial-gradient(3px 3px at 49% 87%, #ffe3a3 99%, transparent),
+    radial-gradient(2px 2px at 93% 11%, #ffd23a 99%, transparent),
+    radial-gradient(circle at 50% 45%, #1f4644, #0c1d1c 75%);
 }
 
 /* ─── album (ui/album.ts): sticker tiles on a studded plate ─────────────────── */

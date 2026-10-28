@@ -33,6 +33,8 @@ export class Hero {
   botBoltCd = 4;
   stuckTime = 0;
   isPlayer = false;
+  /** Dancing to a boombox (the player stood still near the music). */
+  dancing = false;
 
   constructor(
     readonly id: HeroId,
@@ -63,7 +65,8 @@ export class Hero {
   }
 }
 
-export type MonsterState = 'wander' | 'chase' | 'flee';
+/** 'dance': near a playing boombox a monster forgets to bite and dances. */
+export type MonsterState = 'wander' | 'chase' | 'flee' | 'dance';
 
 export class Monster {
   readonly card: MonsterCard;

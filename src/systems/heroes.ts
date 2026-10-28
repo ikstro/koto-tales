@@ -2,15 +2,19 @@ import * as THREE from 'three';
 import type { CharacterModel, HeroId } from '../contracts';
 import { Hero, turnTowards, yawOf } from '../actors/entities';
 import { placeOnGround, stepBody } from '../actors/physics';
+import { MUSIC } from '../content/buildings';
 import { HEROES, HERO_ORDER, HERO_STATS } from '../content/heroes';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
 import { sfx } from '../voice/sfx';
 import { castBolt, fireArrow, nearestMonster } from './combat';
 import { isInside } from './house';
+import { playingSpeakers } from './kit';
 import { tuneOf } from './tune';
 
 const tmp = new THREE.Vector3();
+/** Seconds the player has stood still (near the music, the party starts dancing). */
+let stillFor = 0;
 
 /** A hero already standing in the world (the start ritual's models), taken over as is. */
 export interface HeroHandoff {
@@ -120,6 +124,18 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
     player.body.vel.z *= 0.8;
   }
 
+  // Standing still near a playing boombox, the party dances; a step and it stops.
+  const moving = Math.hypot(input.moveX, input.moveY) > 0.1;
+  stillFor = moving || ctx.sleeping ? 0 : stillFor + dt;
+  const party = stillFor > 1.2 && playingSpeakers().some((c) => Math.hypot(c.x - player.pos.x, c.z - player.pos.z) < MUSIC.dance);
+  for (const h of ctx.heroes.values()) {
+    const want = party && Math.hypot(h.body.vel.x, h.body.vel.z) < 0.4;
+    if (want !== h.dancing) {
+      h.dancing = want;
+      h.model.play(want ? 'dance' : 'idle');
+    }
+  }
+
   // Hearts come back on their own, quickly at home.
   if (player.hearts < HERO_STATS.maxHearts && player.sinceHit > HERO_STATS.regenDelay) {
     player.regenTimer += dt;
@@ -133,6 +149,8 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
   // ── helpers follow the player and fight on their own ──
   const fwdX = Math.sin(player.yaw);
   const fwdZ = Math.cos(player.yaw);
+  // helpers leave dancing monsters alone
+  const dancers = new Set(ctx.monsters.filter((m) => m.state === 'dance'));
   bots.forEach((bot, i) => {
     const side = i === 0 ? 1 : -1;
     // Behind the player, one on each side (character's left is +X when facing +Z).
@@ -175,7 +193,7 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
     if (ctx.playing && !ctx.sleeping) {
       bot.botFireCd -= dt;
       bot.botBoltCd -= dt;
-      const target = nearestMonster(ctx, bot.pos, 9);
+      const target = nearestMonster(ctx, bot.pos, 9, undefined, dancers);
       if (target) {
         if (dist < 3) bot.yaw = turnTowards(bot.yaw, yawOf(target.pos.x - bot.pos.x, target.pos.z - bot.pos.z), dt * 12);
         if (bot.botFireCd <= 0) {

@@ -16,7 +16,8 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { createSkin } from '/src/render/skins/index.ts';
 import { Models } from '/src/assets/models.ts';
-import { B, BLOCKS, BUILD_PALETTE } from '/src/world/blocks.ts';
+import { createBuilding, createPortal } from '/src/assets/buildings.ts';
+import { B } from '/src/world/blocks.ts';
 
 const U = 40, DPR = 2, LO = 1.5, TILT = THREE.MathUtils.degToRad(34);
 const canvas = document.getElementById('c');
@@ -53,7 +54,7 @@ ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
 const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
 
 // --- geometry helpers ------------------------------------------------------------
-const STUD_R = 0.3, STUD_H = 0.2, PLATE_H = 0.4, BRICK_H = 1.2;
+const STUD_R = 0.3, STUD_H = 0.2, PLATE_H = 0.4;
 /** A rounded-edge solid of revolution: outer radius R, height h, edge round b (optionally a hole). */
 function roundDisc(R, h, b, inner = 0) {
   const pts = [];
@@ -122,13 +123,6 @@ function boltPath(x, s) {
   x.beginPath(); p.forEach(([a, b], i) => { const X = s / 2 + a * s * 0.56, Y = s / 2 - b * s * 0.56; i ? x.lineTo(X, Y) : x.moveTo(X, Y); }); x.closePath();
 }
 const printBolt = (col) => (x, s) => { x.lineJoin = 'round'; boltPath(x, s); x.fillStyle = col; x.fill(); x.strokeStyle = col; x.lineWidth = 16; x.stroke(); };
-function printPick(x, s) {
-  x.translate(s / 2, s / 2); x.rotate(-Math.PI / 4); x.lineCap = 'round';
-  x.strokeStyle = '#5a3418'; x.lineWidth = 44; x.beginPath(); x.moveTo(0, 170); x.lineTo(0, -120); x.stroke();
-  x.fillStyle = '#34414e';
-  x.beginPath(); x.moveTo(-190, -40); x.quadraticCurveTo(0, -210, 190, -40); x.quadraticCurveTo(0, -130, -190, -40); x.fill();
-  x.beginPath(); x.arc(0, -130, 46, 0, Math.PI * 2); x.fill();
-}
 function printJoy(x, s) {
   x.fillStyle = '#eab02b';
   for (let i = 0; i < 4; i++) { x.save(); x.translate(s / 2, s / 2); x.rotate(i * Math.PI / 2); x.beginPath(); x.moveTo(0, -s * 0.36); x.lineTo(-s * 0.07, -s * 0.28); x.lineTo(s * 0.07, -s * 0.28); x.closePath(); x.lineJoin = 'round'; x.lineWidth = 14; x.strokeStyle = '#eab02b'; x.fill(); x.stroke(); x.restore(); }
@@ -170,6 +164,54 @@ const printHome = (col) => (x, s) => {
 const printX = (col) => (x, s) => {
   x.strokeStyle = col; x.lineWidth = 64; x.lineCap = 'round';
   x.beginPath(); x.moveTo(s / 2 - 110, s / 2 - 110); x.lineTo(s / 2 + 110, s / 2 + 110); x.moveTo(s / 2 + 110, s / 2 - 110); x.lineTo(s / 2 - 110, s / 2 + 110); x.stroke();
+};
+/** ✓: put the building here. */
+const printCheck = (col) => (x, s) => {
+  x.strokeStyle = col; x.lineWidth = 70; x.lineCap = 'round'; x.lineJoin = 'round';
+  x.beginPath(); x.moveTo(s / 2 - 130, s / 2 + 10); x.lineTo(s / 2 - 40, s / 2 + 100); x.lineTo(s / 2 + 140, s / 2 - 100); x.stroke();
+};
+/** A crescent moon and two little stars: go to sleep. */
+const printMoon = (col, star, bg) => (x, s) => {
+  x.fillStyle = col;
+  x.beginPath(); x.arc(s / 2 - 20, s / 2 + 10, 150, 0, Math.PI * 2); x.fill();
+  x.fillStyle = bg;
+  x.beginPath(); x.arc(s / 2 + 55, s / 2 - 45, 128, 0, Math.PI * 2); x.fill();
+  x.fillStyle = star;
+  for (const [cx, cy, r] of [[s / 2 + 120, s / 2 + 70, 36], [s / 2 + 50, s / 2 + 160, 24]]) {
+    x.beginPath();
+    for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.45 : r; x.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+    x.closePath(); x.fill();
+  }
+};
+/** An open box with an arrow going down into it: fold the building back into the kit. */
+const printFold = (col, arrow) => (x, s) => {
+  x.lineJoin = 'round'; x.lineCap = 'round';
+  x.fillStyle = col; x.beginPath(); x.roundRect(s / 2 - 150, s / 2 + 10, 300, 150, 22); x.fill();
+  x.fillStyle = 'rgba(255,227,163,0.35)'; x.fillRect(s / 2 - 150, s / 2 + 10, 300, 26);
+  x.fillStyle = arrow; x.strokeStyle = arrow; x.lineWidth = 56;
+  x.beginPath(); x.moveTo(s / 2, s / 2 - 190); x.lineTo(s / 2, s / 2 - 40); x.stroke();
+  x.beginPath(); x.moveTo(s / 2 - 90, s / 2 - 70); x.lineTo(s / 2 + 90, s / 2 - 70); x.lineTo(s / 2, s / 2 + 40); x.closePath(); x.fill();
+};
+/** A door standing open with an arrow walking out of it: leave the game. */
+const printExit = (col, arrow) => (x, s) => {
+  x.lineJoin = 'round'; x.lineCap = 'round';
+  x.fillStyle = col; x.beginPath(); x.roundRect(s / 2 - 150, s / 2 - 170, 190, 340, 18); x.fill();
+  x.fillStyle = '#ffe3a3'; x.beginPath(); x.arc(s / 2 + 5, s / 2 + 10, 16, 0, Math.PI * 2); x.fill();
+  x.strokeStyle = arrow; x.fillStyle = arrow; x.lineWidth = 50;
+  x.beginPath(); x.moveTo(s / 2 - 40, s / 2 + 10); x.lineTo(s / 2 + 110, s / 2 + 10); x.stroke();
+  x.beginPath(); x.moveTo(s / 2 + 95, s / 2 - 70); x.lineTo(s / 2 + 190, s / 2 + 10); x.lineTo(s / 2 + 95, s / 2 + 90); x.closePath(); x.fill();
+};
+/** The portal's warm swirl, for its map mark. */
+const printSwirl = (x, s) => {
+  const g = x.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s * 0.42);
+  g.addColorStop(0, '#fff6d6'); g.addColorStop(0.4, '#ffd23a'); g.addColorStop(1, '#e0583f');
+  x.fillStyle = g; x.beginPath(); x.arc(s / 2, s / 2, s * 0.42, 0, Math.PI * 2); x.fill();
+  x.strokeStyle = 'rgba(255,246,214,0.85)'; x.lineWidth = 26; x.lineCap = 'round';
+  for (let arm = 0; arm < 3; arm++) {
+    x.beginPath();
+    for (let i = 0; i <= 40; i++) { const k = i / 40, a = arm * (Math.PI * 2 / 3) + k * Math.PI * 1.8, r = k * s * 0.38; const px = s / 2 + Math.cos(a) * r, py = s / 2 + Math.sin(a) * r; i ? x.lineTo(px, py) : x.moveTo(px, py); }
+    x.stroke();
+  }
 };
 /** «?» for the guide piece in the pause menu: a thick hook and a dot. */
 const printHelp = (col) => (x, s) => {
@@ -214,13 +256,28 @@ function heartSocket() {
   geo.rotateX(-Math.PI / 2); geo.translate(0, 0.03, 0);
   const g = new THREE.Group(); g.add(new THREE.Mesh(geo, M(C.socket))); return g;
 }
-function brick(color, cols = 2, rows = 2, opts) {
-  const g = new THREE.Group(); const m = M(color, opts);
-  const b = new THREE.Mesh(new RoundedBoxGeometry(cols, BRICK_H, rows, 4, 0.08), m); b.position.y = BRICK_H / 2; g.add(b);
-  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) g.add(stud(m, i + 0.5 - cols / 2, BRICK_H - 0.01, j + 0.5 - rows / 2));
+function coin() { return itemPiece('coin', 1.7, true); }
+/** A game model scaled to `size` studs across, turned by `yaw`, standing on the ground in the middle. */
+function fitted(obj, size, yaw = 0) {
+  const holder = new THREE.Group(); obj.rotation.y = yaw; holder.add(obj); holder.updateMatrixWorld(true);
+  const sz = new THREE.Box3().setFromObject(holder).getSize(new THREE.Vector3());
+  holder.scale.setScalar(size / Math.max(sz.x, sz.z)); holder.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(holder), c = b.getCenter(new THREE.Vector3());
+  holder.position.set(-c.x, -b.min.y + 0.02, -c.z);
+  const g = new THREE.Group(); g.add(holder); return g;
+}
+/** The kit box: a mustard toolbox with a coral lid, a dark handle and a cream latch. */
+function toolbox() {
+  const g = new THREE.Group();
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
+  add(new RoundedBoxGeometry(2.1, 0.95, 1.3, 4, 0.1), M(C.mustard), 0, 0.475, 0);
+  add(new RoundedBoxGeometry(2.18, 0.34, 1.38, 4, 0.1), M(C.coral), 0, 1.12, 0);
+  for (const s of [-1, 1]) add(new RoundedBoxGeometry(0.16, 0.4, 0.16, 2, 0.05), M('#3b302b'), s * 0.5, 1.48, 0);
+  add(new RoundedBoxGeometry(1.16, 0.16, 0.22, 2, 0.06), M('#3b302b'), 0, 1.68, 0);
+  add(new RoundedBoxGeometry(0.36, 0.3, 0.08, 2, 0.04), M(CREAM), 0, 0.92, 0.68);
+  for (const sx of [-0.75, 0.75]) g.add(stud(M(C.coral), sx, 1.28, 0));
   return g;
 }
-function coin() { return itemPiece('coin', 1.7, true); }
 /** A game item, sized to `size` studs across, standing on the ground (`flat`: laid down like the coin). */
 function itemPiece(id, size, flat = false) {
   const o = models.item(id); const holder = new THREE.Group(); holder.add(o);
@@ -474,21 +531,31 @@ shoot('ring', ringPlate(), 230, 230, { dpr: LO });
 for (let i = 0; i < RING_N; i++) shoot('ring-lit-' + i, ringLit(i), 230, 230, { shadow: null });
 shoot('bolt', roundTile(1, C.navy, printBolt('#ffd23a'), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('bolt-empty', roundTile(1, C.navy, printBolt(C.navyDeep), 0.6), 130, 130, { shadow: null });
-shoot('pick', roundTile(1, C.mustard, printPick, 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('kit', toolbox(), 150, 150, { oy: 0.5 });
+shoot('ok', roundTile(1, C.green, printCheck(CREAM), 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('moon', roundTile(1, C.navy, printMoon(CREAM, '#ffd23a', C.navy), 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('fold', roundTile(1, C.mustard, printFold(INK, C.coral), 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('exit', roundTile(1, C.mustard, printExit(INK, C.coral), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('sound-on', roundTile(1, C.navy, printSound(true, CREAM), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('sound-off', roundTile(1, C.navy, printSound(false, CREAM), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('home', roundTile(1, C.mustard, printHome(INK), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('close', roundTile(1, C.coral, printX(CREAM), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('bow', roundTile(1.35, C.coral, printBow, 0.6), 160, 160, { shadow: 'big-sh' });
 shoot('play', roundTile(1.35, C.green, printPlay(CREAM), 0.6), 160, 160, { shadow: 'big-sh' });
-for (const id of BUILD_PALETTE) {
-  // the lantern is a real toy lantern, not a yellow brick (its own, taller frame and shadow)
-  if (id === B.LANTERN) { shoot('brick-' + id, lanternPiece(1.05), 200, 260, { oy: 1.1, shadow: 'brick-' + id + '-sh' }); continue; }
-  const b = BLOCKS[id], look = b.side;
-  const opts = look.surface === 'glass' ? { transparent: true } : b.glow ? { emissive: true } : undefined;
-  shoot('brick-' + id, brick(look.color, 2, 2, opts), 200, 200, { oy: 0.4, shadow: 'brick-sh' });
+// the lantern is a real toy lantern (the kit's piece and the boss's light)
+shoot('brick-' + B.LANTERN, lanternPiece(1.05), 200, 260, { oy: 1.1, shadow: 'brick-' + B.LANTERN + '-sh' });
+// the kit's buildings, as the game builds them (src/assets/buildings.ts), turned a little to the sun
+shoot('b-tent', fitted(createBuilding(skin, 'tent').root, 3.3, -0.5), 200, 200, { oy: 0.7 });
+{
+  const bb = createBuilding(skin, 'boombox');
+  bb.update(0, { beat: 0, playing: false, night: 0 });
+  shoot('b-boombox', fitted(bb.root, 2.7, -0.35), 200, 200, { oy: 0.7 });
 }
-for (const [n, c] of [['red', '#e33a2f'], ['yellow', '#f6c420'], ['green', '#3fa142']]) shoot('brick1-' + n, brick(c, 1, 1), 150, 150, { oy: 0.4, shadow: 'brick1-sh' });
+{
+  const pt = createPortal(skin);
+  pt.update(0.4);
+  shoot('b-portal', fitted(pt.root, 3.0, -0.3), 200, 200, { oy: 0.9 });
+}
 shoot('sticker-on', squareTile(C.sky), 130, 130, { shadow: 'sticker-sh', dpr: LO });
 shoot('sticker-off', squareTile(C.socket), 130, 130, { shadow: null, dpr: LO });
 
@@ -581,6 +648,7 @@ shoot('map-house', housePiece(), 100, 110, { oy: 0.35, dpr: LO });
 for (const id of Object.keys(HC)) shoot('mark-' + id, roundTile(0.62, HC[id], faces[id], 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
 for (const id of Object.keys(HC)) shoot('dot-' + id, dotTile(HC[id]), 56, 56, { shadow: 'dot-sh', dpr: LO });
 shoot('mark-monster', roundTile(0.52, '#8e3fb0', zombieOnPurple, 0.3), 66, 66, { dpr: LO });
+shoot('map-portal', roundTile(0.62, C.teal, printSwirl, 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
 shoot('boss', roundTile(0.8, SLATE, printBoss, 0.4), 96, 96, { dpr: LO });
 // --- the boss bar (ui/hud.ts setBoss): a plate with the face, 10 health stones, 3 lantern slots
 shoot('plate-boss', rectPlate(12, 2, C.plate), 540, 150, { dpr: LO });

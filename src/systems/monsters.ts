@@ -5,8 +5,10 @@ import { placeOnGround, stepBody } from '../actors/physics';
 import { MONSTERS, MONSTER_ORDER, SPAWN, type MonsterCard, type MonsterKind } from '../content/monsters';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
+import { MUSIC } from '../content/buildings';
 import { hurtHero, throwBone } from './combat';
 import { homeDistance } from './house';
+import { playingSpeakers } from './kit';
 import { tuneOf } from './tune';
 
 const spottedKinds = new Set<MonsterKind>();
@@ -91,6 +93,7 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
 
   const night = isNight(ctx);
   const pace = tune.monsterSpeed * (night ? tune.night : 1);
+  const speakers = playingSpeakers();
   for (const m of ctx.monsters) {
     if (!m.alive) continue;
     m.hitCd -= dt;
@@ -98,12 +101,17 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
     m.stun -= dt;
 
     const home = ctx.house ? homeDistance(ctx, m.pos) : Infinity;
-    const seen = ctx.playing && !ctx.sleeping ? nearestHero(ctx, m) : null;
+    const music = speakers.some((c) => Math.hypot(c.x - m.pos.x, c.z - m.pos.z) < MUSIC.dance);
+    const seen = ctx.playing && !ctx.sleeping && !music ? nearestHero(ctx, m) : null;
     let tx = 0;
     let tz = 0;
     let speed = 0;
 
-    if (home < SPAWN.houseSafeRadius) {
+    if (music !== (m.state === 'dance')) m.model.play(music ? 'dance' : 'idle');
+    if (music) {
+      // the music is on: no biting, only dancing
+      m.state = 'dance';
+    } else if (home < SPAWN.houseSafeRadius) {
       // Home is safe: monsters turn around at the fence of light.
       m.state = 'flee';
       tx = m.pos.x - ctx.house!.centre.x;

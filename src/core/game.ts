@@ -1,18 +1,23 @@
 import * as THREE from 'three';
 import type { HeroId } from '../contracts';
 import { HERO_STATS } from '../content/heroes';
+import { MUSIC, type BuildingId } from '../content/buildings';
 import { updateBoss } from '../systems/boss';
-import { updateBuilding } from '../systems/building';
 import { updateCombat } from '../systems/combat';
 import { updateDayNight } from '../systems/daynight';
 import { createHeroes, updateHeroes, type HeroHandoff } from '../systems/heroes';
 import { updateHouse } from '../systems/house';
 import { updateMonsters } from '../systems/monsters';
+import { canFold, pick, updateKit } from '../systems/kit';
 import { initNarration, updateNarration } from '../systems/narration';
 import { updatePickups } from '../systems/pickups';
+import { initProgress, updateProgress } from '../systems/progress';
 import { writeSave } from '../systems/save';
+import { sleepPlace, updateSleep } from '../systems/sleep';
+import { initPortals, updatePortals } from '../systems/travel';
 import { updateLanterns } from '../render/lanterns';
 import { cutaway } from '../render/skins/cutaway';
+import { music } from '../voice/music';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { tuneOf } from '../systems/tune';
@@ -68,6 +73,9 @@ export class Game {
     events.on('attack:bolt', ({ hero }) => {
       if (hero === ctx.player?.id) this.cam.shake(0.3);
     });
+    // a portal carried the party far away: the camera is there at once, under the fade
+    events.on('hero:teleport', () => this.cam.snap(ctx.player.pos));
+    events.on('sleep:done', () => this.persist());
 
     const persist = () => this.persist();
     window.addEventListener('pagehide', persist);
@@ -158,9 +166,10 @@ export class Game {
     createHeroes(ctx, hero, at, handoff);
     ctx.playing = true;
     ctx.hud.show(ctx.params.hud);
-    ctx.hud.setBuildBlock(ctx.save.buildBlock);
-    ctx.hud.onPickBlock = (id) => (ctx.save.buildBlock = id);
+    ctx.hud.onKitPick = (id) => pick(ctx, id as BuildingId);
     this.wireMenu();
+    initProgress(ctx);
+    initPortals(ctx);
     this.cam.snap(ctx.player.pos);
     sfx.ambient(ctx.clock.daylight > 0.4 ? 'day' : 'night');
   }
@@ -193,10 +202,21 @@ export class Game {
       ctx.hud.setSoundOn(on);
       this.applySound();
     };
-    // «Exit» goes back to the title: save, then start the page afresh.
+    // «Exit»: save, Пупся says goodbye in the dark, then the game closes. A page in a browser tab
+    // may not close itself: then it lets go of fullscreen and starts afresh at the title.
     ctx.hud.onExit = () => {
       this.persist();
-      location.reload();
+      this.paused = true;
+      voice.say('bye', { priority: 10, interrupt: true });
+      void ctx.hud.fade(true).then(() =>
+        setTimeout(() => {
+          window.close();
+          setTimeout(() => {
+            if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+            location.reload();
+          }, 300);
+        }, 1400),
+      );
     };
   }
 
@@ -204,6 +224,7 @@ export class Game {
     const v = this.ctx.save.soundOn && !this.ctx.params.mute ? 1 : 0;
     voice.setVolume(v);
     sfx.setVolume(v);
+    music.setVolume(v);
   }
 
   private frame(dt: number, ms: number): void {
@@ -212,6 +233,7 @@ export class Game {
     if (this.paused) {
       // Paused: the world stays drawn and still; nothing moves, nobody spawns.
       ctx.input.clearPresses();
+      music.update(dt, Infinity, MUSIC.hear, false);
       ctx.world.update(ctx.player.pos); // keeps streaming if paused before the world finished loading
       ctx.skin.updateScene(ctx.clock.daylight, ctx.player.pos);
       ctx.skin.render(ctx.renderer, ctx.scene, ctx.camera);
@@ -227,13 +249,18 @@ export class Game {
       }
       if (ctx.input.take('close')) ctx.album.close();
 
-      updateHeroes(ctx, dt);
+      if (ctx.napping) for (const h of ctx.heroes.values()) h.model.update(dt, 0);
+      else updateHeroes(ctx, dt);
       updateCombat(ctx, dt);
       updateMonsters(ctx, dt);
       updateBoss(ctx, dt);
-      updateBuilding(ctx);
+      updateKit(ctx, dt);
+      updateProgress(ctx);
+      updateSleep(ctx);
+      ctx.hud.setPrompt(ctx.sleeping ? null : sleepPlace(ctx) ? 'moon' : canFold(ctx) ? 'fold' : null);
       updateNarration(ctx, dt);
     }
+    updatePortals(ctx, dt);
     updatePickups(ctx, dt);
     updateHouse(ctx, dt);
     updateDayNight(ctx, dt);

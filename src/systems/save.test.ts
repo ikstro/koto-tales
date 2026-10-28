@@ -53,6 +53,20 @@ describe('save', () => {
     expect(s.edits['1,2,3']).toBe(24);
   });
 
+  it('migrates v5 → v6: a full kit, the first task counted from now, the bricks kept in the world', () => {
+    const v5 = { ...freshSave(), v: 5, coins: 120, buildBlock: 18, edits: { '1,2,3': 18 } } as Record<string, unknown>;
+    for (const k of ['kit', 'placed', 'progress', 'portal', 'stats']) delete v5[k];
+    const s = migrate(v5);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.kit).toEqual({ tent: 1, boombox: 1 });
+    expect(s.placed).toEqual([]);
+    expect(s.progress).toEqual({ level: 0, kind: 'monsters', start: null, got: [] });
+    expect(s.portal).toBeNull();
+    expect(s.stats).toEqual({ coins: 120, slept: 0 });
+    expect('buildBlock' in s).toBe(false);
+    expect(s.edits['1,2,3']).toBe(18);
+  });
+
   it('keeps the boss as it was left (health, lanterns, beaten day)', () => {
     const boss = { level: 2, site: [150, -20] as [number, number], hp: 12, lanterns: ['1,2,3', '4,5,6'], defeatedDay: null, eatenAt: [150, -20] as [number, number], bites: 5 };
     const s = migrate({ ...freshSave(), day: 7, boss } as unknown as Record<string, unknown>);

@@ -11,7 +11,7 @@ import { SPRITES, type SpriteName } from './hudSprites';
  * Captions are short and only for parents — the pictures and the voice do the explaining.
  */
 
-export type GuideCard = 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'boss';
+export type GuideCard = 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'portal' | 'sleep' | 'boss';
 
 interface CardSpec {
   id: GuideCard;
@@ -114,11 +114,15 @@ const CARDS: CardSpec[] = [
   {
     id: 'build',
     line: 'guide_build',
-    caption: 'Будуй і ламай',
+    caption: 'Будівлі',
     span: 1,
     art: (a) => {
-      a.put('brick-14', -62, 0, 1, 'brick-sh');
-      a.put('pick', 74, -14, 1, 'tile6-sh');
+      // the kit box on its stud ring, and what comes out of it
+      const ring = a.put('ring', -120, 0);
+      for (let i = 0; i < 3; i++) ring.layer(`ring-lit-${i}` as SpriteName, 'sp lit');
+      a.put('kit', -120, -TOP);
+      step(a, 2, -14);
+      a.put('b-tent', 120, 0, 0.85);
     },
   },
   {
@@ -145,6 +149,27 @@ const CARDS: CardSpec[] = [
       const arrow = a.put('map-arrow', 44, -TOP - 2, 1.1, null);
       arrow.img.style.transform = 'rotate(90deg)';
       a.put('boss', 88, -TOP - 2, 0.8);
+    },
+  },
+  {
+    id: 'portal',
+    line: 'guide_portal',
+    caption: 'Портал',
+    span: 1,
+    art: (a) => {
+      a.put('map-house', -110, 0, 1.3);
+      step(a, 0, -14);
+      a.put('b-portal', 110, 0, 0.8);
+    },
+  },
+  {
+    id: 'sleep',
+    line: 'guide_sleep',
+    caption: 'Сон',
+    span: 1,
+    art: (a) => {
+      a.put('moon', -100, -8, 1, 'tile6-sh');
+      a.put('b-tent', 90, 0, 0.8);
     },
   },
   {

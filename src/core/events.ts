@@ -24,6 +24,15 @@ export interface GameEvents {
   'ground:changed': { x: number; z: number };
   'time:phase': { phase: 'morning' | 'evening' | 'night' };
   'album:open': Record<string, never>;
+  /** A building from the kit went up / was packed back into the box. */
+  'building:placed': { id: string };
+  'building:folded': { id: string };
+  /** The kit box gave its reward for a task done (content/progress.ts). */
+  'kit:reward': { id: string };
+  /** The party was carried somewhere at once (a portal): the camera jumps after them. */
+  'hero:teleport': Record<string, never>;
+  /** The party slept the night through, at home or in a tent. */
+  'sleep:done': { where: 'home' | 'tent' };
 }
 
 type Handler<T> = (payload: T) => void;
