@@ -29,6 +29,8 @@ export interface GameEvents {
   'building:folded': { id: string };
   /** The kit box gave its reward for a task done (content/progress.ts). */
   'kit:reward': { id: string };
+  'lighthouse:lit': { id: string };
+  'music:song': { song: number };
   /** The party was carried somewhere at once (a portal): the camera jumps after them. */
   'hero:teleport': Record<string, never>;
   /** The party slept the night through, at home or in a tent. */

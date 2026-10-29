@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { B } from '../world/blocks';
-import { findSpot } from './kit';
+import { findSpot, standsOk } from './kit';
 
 /** A little world of columns: ground height per (x, z), grass on top unless `top` says otherwise. */
 function world(height: (x: number, z: number) => number, top: (x: number, z: number) => number = () => B.GRASS) {
@@ -44,5 +44,18 @@ describe('where a building goes', () => {
     const blocked = (x: number, z: number) => z < 6;
     const s = findSpot(world(() => 12), [3, 3], 0.5, 0.5, 12, SOUTH, blocked)!;
     expect(s.z).toBeGreaterThanOrEqual(6);
+  });
+});
+
+describe('a building the world moved under', () => {
+  const rec = { id: 'tent' as const, x: 0, y: 12, z: 0, rot: 0 };
+  it('still stands on dry ground no higher than its floor', () => {
+    expect(standsOk(world(() => 12), rec)).toBe(true);
+    expect(standsOk(world((x) => (x === 2 ? 11 : 12)), rec)).toBe(true);
+  });
+  it('goes back to the box where a river flows now or the ground rose over its floor', () => {
+    const river = { ...world(() => 8), isWater: (_x: number, y: number) => y >= 8 && y <= 10 };
+    expect(standsOk(river, rec)).toBe(false);
+    expect(standsOk(world(() => 13), rec)).toBe(false);
   });
 });

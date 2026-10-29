@@ -49,8 +49,12 @@ export interface SaveData {
   progress: ProgressSave;
   /** The field end of the home portal (where it stands, the way it faces); null until the first jump home. */
   portal: { x: number; y: number; z: number; yaw: number } | null;
-  /** Totals that only grow; tasks count from them. */
-  stats: { coins: number; slept: number };
+  /** Totals that only grow; tasks count from them (`danced` in seconds). */
+  stats: { coins: number; slept: number; danced: number };
+  /** Lighthouses (world/landmarks.ts ids) that have been lit at least once. */
+  lit: string[];
+  /** The DJ's song (voice/music.ts SONGS). */
+  song: number;
 }
 
 /** A building put up from the kit: footprint min corner, the height its floor stands on, quarter turns. */
@@ -60,6 +64,8 @@ export interface PlacedBuilding {
   y: number;
   z: number;
   rot: number;
+  /** A battery's store (sparks × seconds). */
+  charge?: number;
 }
 
 export interface ProgressSave {
@@ -94,7 +100,7 @@ export const freshBoss = (): BossSave => ({ level: 1, site: null, hp: null, lant
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 8;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -124,7 +130,9 @@ export function freshSave(): SaveData {
     placed: [],
     progress: freshProgress(),
     portal: null,
-    stats: { coins: 0, slept: 0 },
+    stats: { coins: 0, slept: 0, danced: 0 },
+    lit: [],
+    song: 0,
   };
 }
 
@@ -159,6 +167,11 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
     delete rest.buildBlock;
     return { ...rest, v: 6, kit: freshKit(), placed: [], progress: freshProgress(), portal: null, stats: { coins: (d.coins as number) ?? 0, slept: 0 } };
   },
+  // v7: power and lighthouses. The world moved (no sea, rivers: TERRAIN_VERSION 2); buildings
+  // that now stand in water go back to the kit when the game starts (systems/kit.ts).
+  6: (d) => ({ ...d, v: 7, lit: [] }),
+  // v8: the disco — dancing is counted, the DJ's song is kept.
+  7: (d) => ({ ...d, v: 8, stats: { ...(d.stats as object), danced: 0 }, song: 0 }),
 };
 
 export function migrate(raw: Raw): SaveData {

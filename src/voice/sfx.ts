@@ -213,6 +213,11 @@ const recipes: Record<SfxName, (k: K) => void> = {
     hiss(k, 0, 0.8, 0.3, 'lowpass', 600, 120, 0.6, 0.03);
     for (let i = 0; i < 5; i++) hiss(k, 0.05 + i * 0.07 + Math.random() * 0.03, 0.08, 0.1, 'bandpass', 400 + Math.random() * 900, undefined, 1.2);
   },
+  chug(k) {
+    // a soft low putt with a little puff of air
+    tone(k, 62 + Math.random() * 6, 0, 0.12, 0.3, 'triangle', 44, 0.004);
+    hiss(k, 0, 0.07, 0.06, 'lowpass', 500);
+  },
 };
 
 // ─── ambience ───────────────────────────────────────────────────────────────

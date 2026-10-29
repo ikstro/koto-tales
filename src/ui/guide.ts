@@ -11,7 +11,7 @@ import { SPRITES, type SpriteName } from './hudSprites';
  * Captions are short and only for parents — the pictures and the voice do the explaining.
  */
 
-export type GuideCard = 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'portal' | 'sleep' | 'boss';
+export type GuideCard = 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'portal' | 'sleep' | 'power' | 'lighthouse' | 'disco' | 'defense' | 'boss';
 
 interface CardSpec {
   id: GuideCard;
@@ -170,6 +170,50 @@ const CARDS: CardSpec[] = [
     art: (a) => {
       a.put('moon', -100, -8, 1, 'tile6-sh');
       a.put('b-tent', 90, 0, 0.8);
+    },
+  },
+  {
+    id: 'power',
+    line: 'guide_power',
+    caption: 'Струм',
+    span: 1,
+    art: (a) => {
+      // the windmill gives, a pole carries it on, the lamp lights
+      a.put('b-windmill', -125, 4, 1.35);
+      a.put('b-pole', 0, 4, 1.35);
+      a.put('b-lamp', 120, 4, 1.35);
+    },
+  },
+  {
+    id: 'lighthouse',
+    line: 'guide_lighthouse',
+    caption: 'Маяк',
+    span: 1,
+    art: (a) => {
+      a.put('b-windmill', -110, 4, 1.35);
+      step(a, 0, -14);
+      a.put('task-lighthouse', 110, -8, 1.1, 'tile6-sh');
+    },
+  },
+  {
+    id: 'disco',
+    line: 'guide_disco',
+    caption: 'Дискотека',
+    span: 1,
+    art: (a) => {
+      a.put('b-bigspeaker', -130, 4, 1.2);
+      a.put('b-dancefloor', 0, 4, 1.05);
+      a.put('note', 120, -8, 0.95, 'tile6-sh');
+    },
+  },
+  {
+    id: 'defense',
+    line: 'guide_defense',
+    caption: 'Захист',
+    span: 1,
+    art: (a) => {
+      a.put('b-tesla', -80, 4, 1.3);
+      a.put('b-trafficlight', 80, 4, 1.3);
     },
   },
   {

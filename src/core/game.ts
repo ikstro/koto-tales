@@ -7,7 +7,7 @@ import { updateCombat } from '../systems/combat';
 import { updateDayNight } from '../systems/daynight';
 import { createHeroes, updateHeroes, type HeroHandoff } from '../systems/heroes';
 import { updateHouse } from '../systems/house';
-import { updateMonsters } from '../systems/monsters';
+import { exposeMonsters, updateMonsters } from '../systems/monsters';
 import { canFold, pick, updateKit } from '../systems/kit';
 import { initNarration, updateNarration } from '../systems/narration';
 import { updatePickups } from '../systems/pickups';
@@ -15,6 +15,10 @@ import { initProgress, updateProgress } from '../systems/progress';
 import { writeSave } from '../systems/save';
 import { sleepPlace, updateSleep } from '../systems/sleep';
 import { initPortals, updatePortals } from '../systems/travel';
+import { updateLandmarks } from '../systems/landmarks';
+import { djNear, initDisco, updateDisco } from '../systems/disco';
+import { exposeDefense, updateDefense } from '../systems/defense';
+import { updatePower } from '../systems/power';
 import { updateLanterns } from '../render/lanterns';
 import { cutaway } from '../render/skins/cutaway';
 import { music } from '../voice/music';
@@ -170,6 +174,9 @@ export class Game {
     this.wireMenu();
     initProgress(ctx);
     initPortals(ctx);
+    initDisco(ctx);
+    exposeMonsters(ctx);
+    exposeDefense();
     this.cam.snap(ctx.player.pos);
     sfx.ambient(ctx.clock.daylight > 0.4 ? 'day' : 'night');
   }
@@ -233,7 +240,7 @@ export class Game {
     if (this.paused) {
       // Paused: the world stays drawn and still; nothing moves, nobody spawns.
       ctx.input.clearPresses();
-      music.update(dt, Infinity, MUSIC.hear, false);
+      music.update(dt, 0, false);
       ctx.world.update(ctx.player.pos); // keeps streaming if paused before the world finished loading
       ctx.skin.updateScene(ctx.clock.daylight, ctx.player.pos);
       ctx.skin.render(ctx.renderer, ctx.scene, ctx.camera);
@@ -255,12 +262,17 @@ export class Game {
       updateMonsters(ctx, dt);
       updateBoss(ctx, dt);
       updateKit(ctx, dt);
+      updateDisco(ctx, dt);
+      updateDefense(ctx, dt);
       updateProgress(ctx);
       updateSleep(ctx);
       ctx.hud.setPrompt(ctx.sleeping ? null : sleepPlace(ctx) ? 'moon' : canFold(ctx) ? 'fold' : null);
+      ctx.hud.setNote(!ctx.sleeping && djNear(ctx));
       updateNarration(ctx, dt);
     }
     updatePortals(ctx, dt);
+    updatePower(ctx, dt);
+    updateLandmarks(ctx, dt);
     updatePickups(ctx, dt);
     updateHouse(ctx, dt);
     updateDayNight(ctx, dt);

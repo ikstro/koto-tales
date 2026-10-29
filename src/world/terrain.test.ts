@@ -94,3 +94,31 @@ describe('terrain', () => {
     for (let i = 0; i < 256; i++) expect(d[i]).toBe(B.STONE);
   });
 });
+
+describe('water: lakes and rivers, no sea', () => {
+  it('has no sea: every wet place is a lake or a river', () => {
+    const t = new Terrain(SEED);
+    const s = { hf: 0, h: 0, wet: 0, lake: 0, hill: 0, forest: 0, biome: 0 };
+    for (let z = -600; z <= 600; z += 7) {
+      for (let x = -600; x <= 600; x += 7) {
+        t.sample(x, z, s);
+        if (s.h < SEA_LEVEL) expect(s.lake > 0.1 || Math.abs(t.riverField(x, z)) < 0.12, `${x},${z} lake ${s.lake} river ${t.riverField(x, z)}`).toBe(true);
+      }
+    }
+  });
+
+  it('a river runs within reach of home, but never through the yard', () => {
+    for (const seed of [SEED, 1, 42]) {
+      const t = new Terrain(seed);
+      let nearest = Infinity;
+      for (let z = -200; z <= 200; z += 2) {
+        for (let x = -200; x <= 200; x += 2) {
+          const d = Math.hypot(x, z);
+          if (t.heightAt(x, z) < SEA_LEVEL && Math.abs(t.riverField(x, z)) < 0.03) nearest = Math.min(nearest, d);
+        }
+      }
+      expect(nearest).toBeGreaterThan(30);
+      if (seed === SEED) expect(nearest).toBeLessThan(120);
+    }
+  });
+});

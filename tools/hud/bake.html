@@ -556,6 +556,36 @@ shoot('b-tent', fitted(createBuilding(skin, 'tent').root, 3.3, -0.5), 200, 200, 
   pt.update(0.4);
   shoot('b-portal', fitted(pt.root, 3.0, -0.3), 200, 200, { oy: 0.9 });
 }
+/** Like `fitted`, but also limits the height (tall buildings): the largest scale that fits both. */
+function fittedBox(obj, maxW, maxH, yaw = 0) {
+  const holder = new THREE.Group(); obj.rotation.y = yaw; holder.add(obj); holder.updateMatrixWorld(true);
+  const sz = new THREE.Box3().setFromObject(holder).getSize(new THREE.Vector3());
+  holder.scale.setScalar(Math.min(maxW / Math.max(sz.x, sz.z), maxH / sz.y)); holder.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(holder), c = b.getCenter(new THREE.Vector3());
+  holder.position.set(-c.x, -b.min.y + 0.02, -c.z);
+  const g = new THREE.Group(); g.add(holder); return g;
+}
+// the power buildings, fed and lit: windmill, pole, lamp (night glow), solar (facing the sun), battery (half full), generator
+{
+  const PW = { linked: true, on: true, low: false, charge: 0.5, sunYaw: 0.55, sunUp: 0.85 };
+  const run = (id, night = 0, extra = {}) => { const b = createBuilding(skin, id); b.update(3.2, { beat: 0, playing: false, night, power: PW, ...extra });
+    // additive halos and light pools do not read on a transparent sprite
+    const glows = []; b.root.traverse((o) => { if (o.isMesh && o.material.blending === THREE.AdditiveBlending) glows.push(o); }); glows.forEach((o) => o.parent.remove(o));
+    return b; };
+  shoot('b-windmill', fittedBox(run('windmill').root, 3.0, 4.6, -0.35), 200, 200, { oy: 1.55 });
+  shoot('b-pole', fittedBox(run('pole').root, 2.4, 4.4, -0.35), 200, 200, { oy: 1.55 });
+  shoot('b-lamp', fittedBox(run('lamp', 0.65).root, 2.6, 5.0, -0.45), 200, 200, { oy: 1.65 });
+  shoot('b-solar', fittedBox(run('solar').root, 3.2, 3.0, -0.3), 200, 200, { oy: 0.9 });
+  shoot('b-battery', fittedBox(run('battery').root, 2.0, 3.6, -0.35), 200, 200, { oy: 1.0 });
+  shoot('b-generator', fittedBox(run('generator').root, 3.2, 3.2, -0.45), 200, 200, { oy: 1.05 });
+  // disco and defence (src/assets/disco.ts): fed, the floor mid-pattern, the signal red
+  shoot('b-bigspeaker', fittedBox(run('bigspeaker', 0, { beat: 2.1, playing: true }).root, 2.0, 3.8, -0.4), 200, 200, { oy: 1.3 });
+  shoot('b-dancefloor', fittedBox(run('dancefloor', 0, { beat: 2.05, playing: true }).root, 3.6, 2.4, -0.5), 200, 200, { oy: 0.6 });
+  shoot('b-discoball', fittedBox(run('discoball', 0.8).root, 2.2, 4.2, -0.4), 200, 200, { oy: 1.4 });
+  shoot('b-djconsole', fittedBox(run('djconsole', 0, { beat: 1.1, playing: true, song: 1 }).root, 3.0, 2.2, -0.4), 200, 200, { oy: 0.85 });
+  shoot('b-tesla', fittedBox(run('tesla', 0, { zap: 5 }).root, 2.2, 4.6, -0.4), 200, 200, { oy: 1.55 });
+  shoot('b-trafficlight', fittedBox(run('trafficlight', 0, { signal: 2 }).root, 1.8, 4.2, -0.4), 200, 200, { oy: 1.4 });
+}
 shoot('sticker-on', squareTile(C.sky), 130, 130, { shadow: 'sticker-sh', dpr: LO });
 shoot('sticker-off', squareTile(C.socket), 130, 130, { shadow: null, dpr: LO });
 
@@ -642,6 +672,46 @@ function cloudPiece() {
   }
   return g;
 }
+/** A little lighthouse on a mustard tile (like the house): striped tower, teal balcony, glass lamp (`lit`: glowing, with two beams). */
+function lighthousePiece(lit) {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(roundDisc(0.85, 0.24, 0.07), M(C.mustard)));
+  const cyl = (rt, rb, h, color, y, opt) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 16), M(color, opt)); m.position.y = y; g.add(m); return m; };
+  let y = 0.24;
+  const R = [0.34, 0.31, 0.28, 0.25];
+  for (let i = 0; i < 4; i++) { cyl(R[i] - 0.03, R[i], 0.27, i % 2 ? C.coral : '#f6e2b0', y + 0.135); y += 0.27; }
+  cyl(0.34, 0.34, 0.05, C.teal, y + 0.025); y += 0.05;
+  cyl(0.2, 0.2, 0.4, lit ? '#fff1b0' : '#5b5550', y + 0.2, { emissive: lit });
+  if (lit) for (const s of [-1, 1]) {
+    const b = new THREE.Mesh(new RoundedBoxGeometry(0.5, 0.08, 0.16, 2, 0.03), M('#fff1b0', { emissive: true })); b.position.set(s * 0.5, y + 0.2, 0.0); g.add(b);
+  }
+  y += 0.4;
+  const dome = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.2, 16), M(C.mustard)); dome.position.y = y + 0.1; g.add(dome);
+  return g;
+}
+/** The lighthouse as a task picture: lit tower with two beams on a navy tile. */
+const printLighthouse = (x, s) => {
+  const k = s / 512; x.save(); x.scale(k, k); x.lineJoin = 'round';
+  // two warm beams
+  for (const d of [-1, 1]) {
+    const g = x.createLinearGradient(256, 0, 256 + d * 250, 0);
+    g.addColorStop(0, 'rgba(255,241,176,0.95)'); g.addColorStop(1, 'rgba(255,241,176,0.12)');
+    x.fillStyle = g; x.beginPath(); x.moveTo(256, 170); x.lineTo(256 + d * 250, 110); x.lineTo(256 + d * 250, 230); x.closePath(); x.fill();
+  }
+  // tower, in stripes
+  const body = (yy0, yy1, w0, w1, col) => { x.fillStyle = col; x.beginPath(); x.moveTo(256 - w0, yy0); x.lineTo(256 + w0, yy0); x.lineTo(256 + w1, yy1); x.lineTo(256 - w1, yy1); x.closePath(); x.fill(); };
+  const stripes = ['#f6e2b0', C.coral, '#f6e2b0', C.coral];
+  stripes.forEach((col, i) => body(250 + i * 52, 302 + i * 52, 52 + i * 8, 60 + i * 8, col));
+  x.fillStyle = INK; x.beginPath(); x.roundRect(238, 410, 36, 54, [18, 18, 0, 0]); x.fill();
+  x.fillStyle = '#7a4a24'; x.fillRect(150, 456, 212, 22);
+  // balcony, lamp room, dome
+  x.fillStyle = C.teal; x.beginPath(); x.roundRect(188, 236, 136, 22, 8); x.fill();
+  x.fillStyle = '#fff1b0'; x.beginPath(); x.roundRect(222, 160, 68, 80, 8); x.fill();
+  x.fillStyle = INK; x.fillRect(250, 160, 12, 80);
+  x.fillStyle = C.mustard; x.beginPath(); x.moveTo(214, 164); x.lineTo(256, 108); x.lineTo(298, 164); x.closePath(); x.fill();
+  x.fillStyle = C.coral; x.fillRect(250, 84, 12, 28);
+  x.restore();
+};
 const zombieOnPurple = face('zombie', 0.3, '#8e3fb0');
 shoot('map-plate', mapPlate(), 200, 190, { dpr: LO });
 shoot('map-house', housePiece(), 100, 110, { oy: 0.35, dpr: LO });
@@ -649,6 +719,28 @@ for (const id of Object.keys(HC)) shoot('mark-' + id, roundTile(0.62, HC[id], fa
 for (const id of Object.keys(HC)) shoot('dot-' + id, dotTile(HC[id]), 56, 56, { shadow: 'dot-sh', dpr: LO });
 shoot('mark-monster', roundTile(0.52, '#8e3fb0', zombieOnPurple, 0.3), 66, 66, { dpr: LO });
 shoot('map-portal', roundTile(0.62, C.teal, printSwirl, 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
+shoot('map-lighthouse', lighthousePiece(false), 100, 110, { oy: 0.6, dpr: LO });
+shoot('map-lighthouse-lit', lighthousePiece(true), 100, 110, { oy: 0.6, shadow: 'map-lighthouse-sh', dpr: LO });
+// task picture (kit plate «next reward»): a round tile like the moon's
+shoot('task-lighthouse', roundTile(1, C.navy, printLighthouse, 0.6), 130, 130, { shadow: 'tile6-sh' });
+/** A music note: the action prompt next to the DJ console (switch the song). */
+const printNote = (col) => (x, s) => {
+  x.lineJoin = 'round'; x.lineCap = 'round'; x.fillStyle = col; x.strokeStyle = col;
+  x.beginPath(); x.ellipse(s / 2 - 60, s / 2 + 90, 84, 62, -0.4, 0, Math.PI * 2); x.fill();
+  x.fillRect(s / 2 + 4, s / 2 - 150, 38, 240);
+  x.lineWidth = 46; x.beginPath(); x.moveTo(s / 2 + 28, s / 2 - 140); x.bezierCurveTo(s / 2 + 90, s / 2 - 90, s / 2 + 150, s / 2 - 50, s / 2 + 124, s / 2 + 40); x.stroke();
+};
+/** The dance task: two cream notes over a small coloured dance-floor grid, on a navy tile. */
+const printDance = (x, s) => {
+  x.lineJoin = 'round'; x.lineCap = 'round'; x.fillStyle = CREAM;
+  for (const [cx, cy] of [[160, 250], [330, 215]]) { x.beginPath(); x.ellipse(cx, cy, 56, 40, -0.4, 0, Math.PI * 2); x.fill(); x.fillRect(cx + 38, cy - 170, 28, 170); }
+  x.beginPath(); x.moveTo(198, 80); x.lineTo(396, 45); x.lineTo(396, 100); x.lineTo(198, 135); x.closePath(); x.fill();
+  x.fillStyle = C.navyDeep; x.beginPath(); x.roundRect(120, 318, 272, 142, 18); x.fill();
+  const pal = [C.coral, '#ffd23a', C.mint, '#6fb7ff', '#ee6a82', C.coral];
+  pal.forEach((c, i) => { x.fillStyle = c; x.beginPath(); x.roundRect(132 + (i % 3) * 88, 330 + Math.floor(i / 3) * 66, 80, 58, 10); x.fill(); });
+};
+shoot('note', roundTile(1, C.mustard, printNote(INK), 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('task-dance', roundTile(1, C.navy, printDance, 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('boss', roundTile(0.8, SLATE, printBoss, 0.4), 96, 96, { dpr: LO });
 // --- the boss bar (ui/hud.ts setBoss): a plate with the face, 10 health stones, 3 lantern slots
 shoot('plate-boss', rectPlate(12, 2, C.plate), 540, 150, { dpr: LO });

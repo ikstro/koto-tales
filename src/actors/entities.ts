@@ -66,7 +66,7 @@ export class Hero {
 }
 
 /** 'dance': near a playing boombox a monster forgets to bite and dances. */
-export type MonsterState = 'wander' | 'chase' | 'flee' | 'dance';
+export type MonsterState = 'wander' | 'chase' | 'flee' | 'dance' | 'wait';
 
 export class Monster {
   readonly card: MonsterCard;

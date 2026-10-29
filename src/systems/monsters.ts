@@ -5,10 +5,11 @@ import { placeOnGround, stepBody } from '../actors/physics';
 import { MONSTERS, MONSTER_ORDER, SPAWN, type MonsterCard, type MonsterKind } from '../content/monsters';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
-import { MUSIC } from '../content/buildings';
 import { hurtHero, throwBone } from './combat';
 import { homeDistance } from './house';
 import { playingSpeakers } from './kit';
+import { inLight } from './power';
+import { redLight } from './defense';
 import { tuneOf } from './tune';
 
 const spottedKinds = new Set<MonsterKind>();
@@ -57,15 +58,33 @@ function trySpawn(ctx: Ctx): void {
     if (homeDistance(ctx, new THREE.Vector3(x, y, z)) < SPAWN.houseSafeRadius + 4) continue;
     // the boss's wasteland is its own: no regular monsters spawn there
     if (ctx.boss?.inZone(x, z, 2)) continue;
-    const m = new Monster(kind, ctx.models.character(MONSTERS[kind].model));
-    m.hp = Math.max(1, Math.ceil(m.card.hp * tune.monsterHp * (night ? tune.night : 1)));
-    m.throwCd = 1 + Math.random() * 1.5;
-    placeOnGround(ctx.world, m.body, x, z);
-    m.model.update(0, 0);
-    ctx.scene.add(m.model.root);
-    ctx.monsters.push(m);
-    events.emit('monster:spawn', { kind });
+    // nor where powered lamps and lighthouses shine at night
+    if (night && inLight(x, z)) continue;
+    spawnAt(ctx, kind, x, z);
   }
+}
+
+function spawnAt(ctx: Ctx, kind: MonsterKind, x: number, z: number): Monster {
+  const tune = tuneOf(ctx);
+  const m = new Monster(kind, ctx.models.character(MONSTERS[kind].model));
+  m.hp = Math.max(1, Math.ceil(m.card.hp * tune.monsterHp * (isNight(ctx) ? tune.night : 1)));
+  m.throwCd = 1 + Math.random() * 1.5;
+  placeOnGround(ctx.world, m.body, x, z);
+  m.model.update(0, 0);
+  ctx.scene.add(m.model.root);
+  ctx.monsters.push(m);
+  events.emit('monster:spawn', { kind });
+  return m;
+}
+
+/** For automated checks: a monster where a test wants it, and where they all are. */
+export function exposeMonsters(ctx: Ctx): void {
+  (window as unknown as { __kotoMonsters: object }).__kotoMonsters = {
+    spawn: (kind: MonsterKind, x: number, z: number) => void spawnAt(ctx, kind, x, z),
+    get list() {
+      return ctx.monsters.filter((m) => m.alive).map((m) => ({ kind: m.kind, state: m.state, hp: m.hp, pos: m.pos.toArray().map((v) => +v.toFixed(1)) }));
+    },
+  };
 }
 
 function nearestHero(ctx: Ctx, m: Monster): { hero: Hero; dist: number } | null {
@@ -101,8 +120,10 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
     m.stun -= dt;
 
     const home = ctx.house ? homeDistance(ctx, m.pos) : Infinity;
-    const music = speakers.some((c) => Math.hypot(c.x - m.pos.x, c.z - m.pos.z) < MUSIC.dance);
-    const seen = ctx.playing && !ctx.sleeping && !music ? nearestHero(ctx, m) : null;
+    const music = speakers.some((sp) => Math.hypot(sp.centre.x - m.pos.x, sp.centre.z - m.pos.z) < sp.dance);
+    // a red traffic light close by: it stops and waits (no chasing, no biting)
+    const red = !music && redLight(m.pos.x, m.pos.z);
+    const seen = ctx.playing && !ctx.sleeping && !music && !red ? nearestHero(ctx, m) : null;
     let tx = 0;
     let tz = 0;
     let speed = 0;
@@ -111,6 +132,9 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
     if (music) {
       // the music is on: no biting, only dancing
       m.state = 'dance';
+    } else if (red) {
+      if (m.state !== 'wait') m.model.play('idle');
+      m.state = 'wait';
     } else if (home < SPAWN.houseSafeRadius) {
       // Home is safe: monsters turn around at the fence of light.
       m.state = 'flee';

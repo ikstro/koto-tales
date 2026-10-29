@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import type { CharacterModel, HeroId } from '../contracts';
 import { Hero, turnTowards, yawOf } from '../actors/entities';
 import { placeOnGround, stepBody } from '../actors/physics';
-import { MUSIC } from '../content/buildings';
 import { HEROES, HERO_ORDER, HERO_STATS } from '../content/heroes';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
@@ -10,6 +9,7 @@ import { sfx } from '../voice/sfx';
 import { castBolt, fireArrow, nearestMonster } from './combat';
 import { isInside } from './house';
 import { playingSpeakers } from './kit';
+import { onDanceFloor } from './disco';
 import { tuneOf } from './tune';
 
 const tmp = new THREE.Vector3();
@@ -124,10 +124,14 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
     player.body.vel.z *= 0.8;
   }
 
-  // Standing still near a playing boombox, the party dances; a step and it stops.
+  // Standing still near a playing speaker, the party dances (on a working dance floor, at
+  // once); a step and it stops.
   const moving = Math.hypot(input.moveX, input.moveY) > 0.1;
   stillFor = moving || ctx.sleeping ? 0 : stillFor + dt;
-  const party = stillFor > 1.2 && playingSpeakers().some((c) => Math.hypot(c.x - player.pos.x, c.z - player.pos.z) < MUSIC.dance);
+  const floor = onDanceFloor(player.pos.x, player.pos.y, player.pos.z);
+  const party =
+    (floor && stillFor > 0.25) ||
+    (stillFor > 1.2 && playingSpeakers().some((sp) => Math.hypot(sp.centre.x - player.pos.x, sp.centre.z - player.pos.z) < sp.dance));
   for (const h of ctx.heroes.values()) {
     const want = party && Math.hypot(h.body.vel.x, h.body.vel.z) < 0.4;
     if (want !== h.dancing) {

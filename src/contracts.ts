@@ -10,6 +10,7 @@
  */
 import type * as THREE from 'three';
 import type { ItemId as ContentItemId } from './content/items';
+import type { BridgeSite, LighthouseSite } from './world/landmarks';
 import type { MonsterKind as ContentMonsterKind } from './content/monsters';
 
 // ─── ids ────────────────────────────────────────────────────────────────────
@@ -30,7 +31,7 @@ export const SEA_LEVEL = 10;
  * Bump when terrain generation changes in a way that moves the ground.
  * Saves remember the version they were made with (see systems/save.ts).
  */
-export const TERRAIN_VERSION = 1;
+export const TERRAIN_VERSION = 2;
 
 export interface RayHit {
   /** The block that was hit. */
@@ -140,6 +141,9 @@ export interface IWorld {
    * An invisible solid cell (a building's body): bodies collide with it, nothing is drawn or saved.
    * Counted, so two buildings may share a cell; `on` false takes one away.
    */
+  /** Landmarks the world grows from its seed (world/landmarks.ts) near a point. */
+  lighthousesNear?(x: number, z: number, radius: number): LighthouseSite[];
+  bridgesNear?(x: number, z: number, radius: number): BridgeSite[];
   setBarrier?(x: number, y: number, z: number, on: boolean): void;
   /** Everything within the render distance is meshed (after a long jump: the place is ready to show). */
   isIdle?(): boolean;
@@ -290,7 +294,9 @@ export type SfxName =
   /** «Дзинь»: an arrow or a bolt bouncing off stone. */
   | 'clink'
   /** A deep rumble: the boss's stomp and roar. */
-  | 'rumble';
+  | 'rumble'
+  /** One putt of a toy engine (the generator, a few times a second). */
+  | 'chug';
 
 export interface IVoice {
   /** Must be called from a user gesture once (mobile audio unlock). */

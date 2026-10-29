@@ -375,6 +375,8 @@ export class Hud {
   private kitGlow: HTMLDivElement;
   private cancelPiece: Piece;
   private promptPiece: Piece;
+  private notePiece: Piece;
+  private noteOn = false;
   private prompt: PromptKind | null = null;
   private kitItems: KitItem[] = [];
   private kitCells = new Map<string, { p: Piece; count: Counter | null }>();
@@ -516,6 +518,9 @@ export class Hud {
     this.cancelPiece.el.classList.add('small', 'hidden');
     this.promptPiece = this.gAct.add('moon', -318, -322, 'tile6-sh');
     this.promptPiece.el.classList.add('prompt', 'hidden');
+    // the DJ's note sits where the ✕ does while placing (never both at once)
+    this.notePiece = this.gAct.add('note', -372, -206, 'tile6-sh');
+    this.notePiece.el.classList.add('prompt', 'hidden');
     this.gAct.seal();
     this.press(
       bow,
@@ -530,6 +535,7 @@ export class Hud {
     this.press(this.kitPiece, this.kitPiece.target(116, 116, 18), () => this.kitTap());
     this.press(this.cancelPiece, this.cancelPiece.target(96), () => input.press('kit:cancel'), { ui: true });
     this.press(this.promptPiece, this.promptPiece.target(110), () => this.prompt && input.press(`prompt:${this.prompt}`), { ui: true });
+    this.press(this.notePiece, this.notePiece.target(110), () => this.noteOn && input.press('prompt:note'), { ui: true });
 
     // Taps outside an open fan / kit plate close it.
     this.catcher = div('catcher hidden', r);
@@ -803,7 +809,8 @@ export class Hud {
     K.pieces.length = 0;
     this.kitCells.clear();
     const n = this.kitItems.length + (this.kitNext ? 1 : 0);
-    const cols = Math.min(4, Math.max(1, n));
+    // up to two rows while it fits: wider before taller (short landscape screens)
+    const cols = n <= 4 ? Math.max(1, n) : n <= 8 ? 4 : Math.min(6, Math.ceil(n / 2));
     const rows = Math.ceil(n / cols);
     const cell = 118;
     const tw = cols * cell + 60;
@@ -1209,6 +1216,14 @@ export class Hud {
     if (!kind) return;
     setSprite(this.promptPiece.img, kind);
     this.promptPiece.drop(0, 50);
+  }
+
+  /** The note piece breathing next to a working DJ console (a tap: the next song). */
+  setNote(on: boolean): void {
+    if (on === this.noteOn) return;
+    this.noteOn = on;
+    this.notePiece.el.classList.toggle('hidden', !on);
+    if (on) this.notePiece.drop(0, 50);
   }
 
   /** Stars over the dark fade (the night passing while the heroes sleep). */

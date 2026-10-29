@@ -15,6 +15,8 @@ import { createSkin } from './render/skins';
 import { bossStartSpot, initBoss } from './systems/boss';
 import { buildHouse } from './systems/house';
 import { initKit } from './systems/kit';
+import { initLandmarks } from './systems/landmarks';
+import { initPower } from './systems/power';
 import { initPickups } from './systems/pickups';
 import { freshSave, loadSave, persistStorage, reconcileTerrain } from './systems/save';
 import { Album } from './ui/album';
@@ -107,7 +109,9 @@ async function boot(): Promise<void> {
   };
   initPickups(ctx);
   ctx.house = buildHouse(ctx);
+  initPower(ctx);
   initKit(ctx);
+  initLandmarks(ctx);
   if (params.demo) placeDemo(ctx);
   initBoss(ctx);
   initLanterns(ctx);

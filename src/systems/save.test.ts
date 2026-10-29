@@ -58,13 +58,32 @@ describe('save', () => {
     for (const k of ['kit', 'placed', 'progress', 'portal', 'stats']) delete v5[k];
     const s = migrate(v5);
     expect(s.v).toBe(SAVE_VERSION);
-    expect(s.kit).toEqual({ tent: 1, boombox: 1 });
+    expect(s.kit).toMatchObject({ tent: 1, boombox: 1 });
     expect(s.placed).toEqual([]);
     expect(s.progress).toEqual({ level: 0, kind: 'monsters', start: null, got: [] });
     expect(s.portal).toBeNull();
-    expect(s.stats).toEqual({ coins: 120, slept: 0 });
+    expect(s.stats).toEqual({ coins: 120, slept: 0, danced: 0 });
     expect('buildBlock' in s).toBe(false);
     expect(s.edits['1,2,3']).toBe(18);
+  });
+
+  it('migrates v6 → v7: no lighthouse lit yet, everything else kept', () => {
+    const v6 = { ...freshSave(), v: 6, coins: 9, placed: [{ id: 'tent', x: 1, y: 12, z: 2, rot: 0 }] } as Record<string, unknown>;
+    delete v6.lit;
+    const s = migrate(v6);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.lit).toEqual([]);
+    expect(s.placed).toEqual([{ id: 'tent', x: 1, y: 12, z: 2, rot: 0 }]);
+    expect(s.coins).toBe(9);
+  });
+
+  it('migrates v7 → v8: dancing counted from now, the first song', () => {
+    const v7 = { ...freshSave(), v: 7, stats: { coins: 40, slept: 2 } } as Record<string, unknown>;
+    delete v7.song;
+    const s = migrate(v7);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.stats).toEqual({ coins: 40, slept: 2, danced: 0 });
+    expect(s.song).toBe(0);
   });
 
   it('keeps the boss as it was left (health, lanterns, beaten day)', () => {

@@ -48,6 +48,8 @@ export class Album {
     for (const kind of MONSTER_ORDER) {
       entries.push({ img: this.portraits.monsters[kind], got: found.has(`m:${kind}`), line: MONSTERS[kind].spotLine, count: save.defeated?.[kind] ?? 0 });
     }
+    // places: a lighthouse the child lit (×N lit)
+    entries.push({ img: `${import.meta.env.BASE_URL}hud/map-lighthouse-lit.png`, got: found.has('lighthouse'), line: 'lighthouse_lit', count: save.lit.length });
 
     const cols = W >= H ? 6 : 4;
     const rows = Math.ceil(entries.length / cols);

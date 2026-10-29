@@ -66,3 +66,37 @@ export function injectCutaway(shader: THREE.WebGLProgramParametersWithUniforms):
     .replace('#include <common>', '#include <common>\n' + FRAG_PARS)
     .replace('#include <clipping_planes_fragment>', FRAG_MAIN + '#include <clipping_planes_fragment>');
 }
+
+const cutCopies = new Map<string, THREE.Material>();
+
+/**
+ * Tall models (lighthouses, the kit's buildings) dissolve on the camera–hero line too: their
+ * shared standard materials are swapped for copies with the cutaway (one copy per material);
+ * a model's own materials (`userData.own`: they blink or change colour) get it in place.
+ */
+export function cutawayModel(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const swap = (m: THREE.Material): THREE.Material => {
+      if (!(m as THREE.MeshStandardMaterial).isMeshStandardMaterial && !(m as THREE.MeshBasicMaterial).isMeshBasicMaterial) return m;
+      if (m.userData.own) {
+        if (!m.userData.cut) {
+          m.userData.cut = true;
+          m.onBeforeCompile = (shader) => injectCutaway(shader);
+          m.customProgramCacheKey = () => 'own-cut';
+        }
+        return m;
+      }
+      let c = cutCopies.get(m.uuid);
+      if (!c) {
+        c = m.clone();
+        c.onBeforeCompile = (shader) => injectCutaway(shader);
+        c.customProgramCacheKey = () => `${m.customProgramCacheKey()}-cut`;
+        cutCopies.set(m.uuid, c);
+      }
+      return c;
+    };
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map(swap) : swap(mesh.material);
+  });
+}

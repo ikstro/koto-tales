@@ -32,13 +32,17 @@ function counter(ctx: Ctx, kind: TaskKind): number {
     case 'boss':
       // the boss comes back a level higher each time it was beaten
       return s.boss.level - 1 + (s.boss.defeatedDay !== null ? 1 : 0);
+    case 'lighthouse':
+      return s.lit.length;
+    case 'dance':
+      return Math.floor(s.stats.danced);
   }
 }
 
 /** What the kit plate shows in its last cell: the next reward (dark) and the task's picture. */
 function pushNext(ctx: Ctx): void {
   const r = nextReward(ctx.save.progress.got, (b) => owned(ctx, b));
-  const sprite = r.ability === 'portal' ? 'b-portal' : r.building ? BUILDINGS[r.building].sprite : 'coin';
+  const sprite = r.ability === 'portal' ? 'b-portal' : r.items ? BUILDINGS[r.items[0][0]].sprite : 'coin';
   ctx.hud.setKitNext({ sprite, task: TASKS[ctx.save.progress.kind].icon });
 }
 
@@ -56,11 +60,11 @@ export function initProgress(ctx: Ctx): void {
   (window as unknown as { __kotoProgress: object }).__kotoProgress = {
     get state() {
       const p = ctx.save.progress;
-      const goal = taskFor(p.level).goal;
+      const goal = taskFor(p.level, p.got).goal;
       return { ...p, goal, now: counter(ctx, p.kind) - (p.start ?? 0) };
     },
     /** Finishes the current task at once. */
-    finish: () => (ctx.save.progress.start = counter(ctx, ctx.save.progress.kind) - taskFor(ctx.save.progress.level).goal),
+    finish: () => (ctx.save.progress.start = counter(ctx, ctx.save.progress.kind) - taskFor(ctx.save.progress.level, ctx.save.progress.got).goal),
   };
 }
 
@@ -72,7 +76,7 @@ function tellTask(ctx: Ctx, interrupt: boolean): void {
 /** Starts the task for the current level, counting from now. */
 function begin(ctx: Ctx): void {
   const p = ctx.save.progress;
-  const { kind } = taskFor(p.level);
+  const { kind } = taskFor(p.level, p.got);
   if (p.kind !== kind || p.start === null) {
     p.kind = kind;
     p.start = counter(ctx, kind);
@@ -86,7 +90,7 @@ function give(ctx: Ctx, r: Reward): void {
   p.got.push(r.id);
   p.level++;
   p.start = null;
-  if (r.building) addToKit(ctx, r.building);
+  for (const [id, n] of r.items ?? []) addToKit(ctx, id, n);
   if (r.coins) {
     ctx.save.coins += r.coins;
     events.emit('coins:changed', { coins: ctx.save.coins });
@@ -105,8 +109,8 @@ function give(ctx: Ctx, r: Reward): void {
 export function updateProgress(ctx: Ctx): void {
   if (!ctx.playing || ctx.sleeping) return;
   const p = ctx.save.progress;
-  if (p.start === null || p.kind !== taskFor(p.level).kind) begin(ctx);
-  const { goal } = taskFor(p.level);
+  if (p.start === null || p.kind !== taskFor(p.level, p.got).kind) begin(ctx);
+  const { goal } = taskFor(p.level, p.got);
   const done = Math.max(0, counter(ctx, p.kind) - (p.start ?? 0));
   const lit = Math.min(8, Math.floor((done / goal) * 8 + 1e-6));
   if (lit !== lastLit) {

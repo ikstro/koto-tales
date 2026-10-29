@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import type { IWorld } from '../contracts';
 import { overlapsBlock } from '../actors/physics';
-import { breatheGhost, createBuilding, createGhost, type BuildingModel } from '../assets/buildings';
-import { BUILDINGS, KIT_ORDER, MUSIC, type BuildingCard, type BuildingId } from '../content/buildings';
+import { breatheGhost, createBuilding, createGhost, type BuildingModel, type BuildingTick } from '../assets/buildings';
+import { BUILDINGS, KIT_ORDER, type BuildingCard, type BuildingId } from '../content/buildings';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
+import { cutawayModel } from '../render/skins/cutaway';
 import { music } from '../voice/music';
+import { addSite, offView, previewWires, removeSite, type PowerSite } from './power';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { B } from '../world/blocks';
@@ -85,6 +87,15 @@ function lanternSpot(ctx: Ctx): Spot | null {
   return { x, z, y, rot: 0, low: y };
 }
 
+/** A hero stands (partly) on this cell: a building dropped there would lift them onto its roof. */
+function underHero(ctx: Ctx, x: number, z: number): boolean {
+  for (const h of ctx.heroes.values()) {
+    const r = h.body.radius + 0.15;
+    if (h.pos.x + r > x && h.pos.x - r < x + 1 && h.pos.z + r > z && h.pos.z - r < z + 1) return true;
+  }
+  return false;
+}
+
 function occupied(ctx: Ctx, x: number, y: number, z: number): boolean {
   for (const h of ctx.heroes.values()) if (overlapsBlock(h.body, x, y, z)) return true;
   for (const m of ctx.monsters) if (m.alive && overlapsBlock(m.body, x, y, z)) return true;
@@ -93,7 +104,7 @@ function occupied(ctx: Ctx, x: number, y: number, z: number): boolean {
 
 // ─── buildings standing in the world ────────────────────────────────────────
 
-interface Standing {
+export interface Standing {
   rec: PlacedBuilding;
   card: BuildingCard;
   model: BuildingModel | null;
@@ -102,6 +113,10 @@ interface Standing {
   /** Seconds since it went up (the drop-in), or since folding began (negative). */
   age: number;
   folding: boolean;
+  /** Its place in the power networks, if it has one. */
+  site: PowerSite | null;
+  /** What other systems tell its model (a traffic light's colour, a tesla's strike). */
+  extra: Partial<BuildingTick>;
 }
 
 const standing: Standing[] = [];
@@ -114,9 +129,31 @@ let ghostId: BuildingId | null = null;
 let spot: Spot | null = null;
 let spotTimer = 0;
 let lastNoSpace = -1e9;
+let ghostWas = false;
 let t = 0;
 
 const dims = (card: BuildingCard, rot: number): [number, number] => (rot % 2 ? [card.size[1], card.size[0]] : card.size);
+
+const DEFAULT_SOCKET = new THREE.Vector3(0, 2.4, 0);
+
+/** A model-space point of a building standing at `centre`, turned `rot` quarter turns, in the world. */
+function worldPoint(local: THREE.Vector3, centre: THREE.Vector3, rot: number): THREE.Vector3 {
+  return local.clone().applyAxisAngle(THREE.Object3D.DEFAULT_UP, (rot * Math.PI) / 2).add(centre);
+}
+
+let siteN = 0;
+function siteFor(ctx: Ctx, rec: PlacedBuilding, card: BuildingCard, model: BuildingModel, centre: THREE.Vector3): PowerSite | null {
+  if (!card.power) return null;
+  const socket = worldPoint(model.socket ?? DEFAULT_SOCKET, centre, rec.rot);
+  return {
+    key: `k${siteN++}`,
+    socket,
+    card: card.power,
+    charge: rec.charge ?? 0,
+    keep: card.power.store ? (c) => (rec.charge = Math.round(c)) : undefined,
+    view: offView(),
+  };
+}
 
 function footprint(s: Standing): [number, number, number, number] {
   const [w, d] = dims(s.card, s.rec.rot);
@@ -151,12 +188,13 @@ function raise(ctx: Ctx, rec: PlacedBuilding, fresh: boolean): Standing {
   const [w, d] = dims(card, rec.rot);
   const centre = new THREE.Vector3(rec.x + w / 2, rec.y, rec.z + d / 2);
   if (card.block !== undefined) centre.set(rec.x + 0.5, rec.y, rec.z + 0.5);
-  const s: Standing = { rec, card, model: null, centre, age: fresh ? 0 : 99, folding: false };
+  const s: Standing = { rec, card, model: null, centre, age: fresh ? 0 : 99, folding: false, site: null, extra: {} };
   if (card.block === undefined) {
     const model = createBuilding(ctx.skin, rec.id);
     model.root.position.copy(centre);
     model.root.rotation.y = (rec.rot * Math.PI) / 2;
     model.root.userData.casts = true;
+    cutawayModel(model.root);
     // uneven ground: a plinth of teal plates under the whole footprint
     let lowest = rec.y;
     for (let x = rec.x; x < rec.x + w; x++) for (let z = rec.z; z < rec.z + d; z++) lowest = Math.min(lowest, ctx.world.groundHeight(x, z));
@@ -171,6 +209,8 @@ function raise(ctx: Ctx, rec: PlacedBuilding, fresh: boolean): Standing {
     ctx.scene.add(model.root);
     s.model = model;
     for (const [x, y, z] of barrierCells(s)) ctx.world.setBarrier?.(x, y, z, true);
+    s.site = siteFor(ctx, rec, card, model, centre);
+    if (s.site) addSite(s.site);
   }
   standing.push(s);
   return s;
@@ -181,6 +221,13 @@ export function initKit(ctx: Ctx): void {
   // the doorstep and the campfire stay free: the way into the house is never blocked
   const c = ctx.house?.campfire.root.position;
   if (c) for (let dx = -2; dx <= 2; dx++) for (let dz = -3; dz <= 2; dz++) reserved.add(`${Math.floor(c.x) + dx},${Math.floor(c.z) + dz}`);
+  // the world moved (a river now flows there, the ground rose over the floor): back into the box
+  ctx.save.placed = ctx.save.placed.filter((rec) => {
+    const card = BUILDINGS[rec.id];
+    if (card.block !== undefined || standsOk(ctx, rec)) return true;
+    ctx.save.kit[rec.id] = (ctx.save.kit[rec.id] ?? 0) + 1;
+    return false;
+  });
   for (const rec of ctx.save.placed) raise(ctx, rec, false);
   pushHud(ctx);
   // For automated checks.
@@ -188,10 +235,24 @@ export function initKit(ctx: Ctx): void {
     pick: (id: BuildingId) => pick(ctx, id),
     place: () => ctx.input.press('kit:place'),
     fold: () => ctx.input.press('prompt:fold'),
+    add: (id: BuildingId, n = 1) => addToKit(ctx, id, n),
     get state() {
       return { selected, spot, kit: { ...ctx.save.kit }, placed: ctx.save.placed.map((p) => ({ ...p })) };
     },
   };
+}
+
+/** Whether a saved building still has dry ground under it, no higher than its floor. */
+export function standsOk(world: Pick<IWorld, 'groundHeight' | 'isWater'> | Ctx, rec: PlacedBuilding): boolean {
+  const w = 'world' in world ? world.world : world;
+  const [sw, sd] = dims(BUILDINGS[rec.id], rec.rot);
+  for (let x = rec.x; x < rec.x + sw; x++) {
+    for (let z = rec.z; z < rec.z + sd; z++) {
+      const g = w.groundHeight(x, z);
+      if (g > rec.y || w.isWater(x, g, z) || w.isWater(x, g - 1, z)) return false;
+    }
+  }
+  return true;
 }
 
 /** How many of a building the child owns (in the box and standing). */
@@ -206,10 +267,10 @@ export function addToKit(ctx: Ctx, id: BuildingId, n = 1): void {
   ctx.hud.kitBump();
 }
 
-/** The kit plate's pieces and the build button's look. */
+/** The kit plate's pieces (only what the child has: in the box or standing) and the build button's look. */
 export function pushHud(ctx: Ctx): void {
   ctx.hud.setKitItems(
-    KIT_ORDER.map((id) => {
+    KIT_ORDER.filter((id) => BUILDINGS[id].count === null || owned(ctx, id) > 0).map((id) => {
       const card = BUILDINGS[id];
       return { id, sprite: card.sprite, count: card.count === null ? null : (ctx.save.kit[id] ?? 0) };
     }),
@@ -225,7 +286,10 @@ export function pick(ctx: Ctx, id: BuildingId | null, byBoss = false): void {
   }
   selected = id;
   auto = byBoss && id !== null;
-  spotTimer = 0;
+  // never the last building's spot: this one's is found at once
+  spot = null;
+  if (id) findSpotNow(ctx);
+  else ctx.hud.setKitReady(false);
   if (ghost && ghostId !== id) {
     ctx.scene.remove(ghost);
     ghost = null;
@@ -239,6 +303,18 @@ export function pick(ctx: Ctx, id: BuildingId | null, byBoss = false): void {
   }
   ctx.hud.setKitMode(selected);
   ctx.hud.suggestKit(auto);
+}
+
+/** Where the chosen building would go now (the ghost walks there; ✓ puts it up there). */
+function findSpotNow(ctx: Ctx): void {
+  if (!selected) return;
+  spotTimer = 0.12;
+  const card = BUILDINGS[selected];
+  spot =
+    card.block !== undefined
+      ? lanternSpot(ctx)
+      : findSpot(ctx.world, card.size, ctx.player.pos.x, ctx.player.pos.z, ctx.player.pos.y, ctx.player.yaw, (x, z) => blockedCell(ctx, x, z) || underHero(ctx, x, z));
+  ctx.hud.setKitReady(!!spot);
 }
 
 export function selectedBuilding(): BuildingId | null {
@@ -268,6 +344,8 @@ function place(ctx: Ctx): void {
     raise(ctx, ctx.save.placed[ctx.save.placed.length - 1], true);
     events.emit('block:placed', { x, y, z, id: card.block });
     ctx.effects.poof(at.set(x + 0.5, y + 0.5, z + 0.5), 0xffd54f, 8);
+    // the next lantern goes on top or beside, never into this one
+    findSpotNow(ctx);
   } else {
     const rec: PlacedBuilding = { id: card.id, x: spot.x, y: spot.y, z: spot.z, rot: spot.rot };
     ctx.save.placed.push(rec);
@@ -331,6 +409,7 @@ function fold(ctx: Ctx): void {
   } else {
     for (const [x, y, z] of barrierCells(s)) ctx.world.setBarrier?.(x, y, z, false);
     ctx.save.kit[s.card.id] = (ctx.save.kit[s.card.id] ?? 0) + 1;
+    if (s.site) removeSite(s.site.key);
   }
   ctx.effects.poof(at, 0xffe3a3, 14);
   sfx.play('poof');
@@ -339,10 +418,31 @@ function fold(ctx: Ctx): void {
   events.emit('building:folded', { id: s.card.id });
 }
 
-/** Speakers that are playing: their feet-level centres. */
-export function playingSpeakers(): THREE.Vector3[] {
-  return standing.filter((s) => s.card.music && !s.folding).map((s) => s.centre);
+/** Whether a standing building works: up (not folding) and, if it needs power, its network has enough. */
+export function working(s: Standing): boolean {
+  return !s.folding && (!s.card.power || !!s.site?.view.on);
 }
+
+/** The child's buildings standing that match `only` (other systems drive them: disco, defence). */
+export function standingWhere(only: (c: BuildingCard) => boolean): Standing[] {
+  return standing.filter((s) => !s.folding && only(s.card));
+}
+
+/** Speakers that are playing: feet-level centres, how far they carry and how close monsters dance. */
+export function playingSpeakers(): { centre: THREE.Vector3; hear: number; dance: number }[] {
+  return standing.filter((s) => s.card.music && working(s)).map((s) => ({ centre: s.centre, hear: s.card.music!.hear, dance: s.card.music!.dance }));
+}
+
+/** How loud the speakers are at (x, z): 0 out of earshot; a big speaker close by goes past 1. */
+export function musicLevel(x: number, z: number): number {
+  let level = 0;
+  for (const sp of playingSpeakers()) {
+    const near = Math.min(1, Math.max(0, (sp.hear - Math.hypot(x - sp.centre.x, z - sp.centre.z)) / (sp.hear - 4)));
+    level = Math.max(level, Math.pow(near, 1.3) * (sp.hear > MUSIC_BIG ? 1.25 : 1));
+  }
+  return level;
+}
+const MUSIC_BIG = 20;
 
 /** Tents standing (sleep spots away from home). */
 export function tentNear(ctx: Ctx): { centre: THREE.Vector3 } | null {
@@ -360,15 +460,7 @@ export function updateKit(ctx: Ctx, dt: number): void {
   // the ghost follows the hero on a free spot
   if (selected && ghost) {
     spotTimer -= dt;
-    if (spotTimer <= 0) {
-      spotTimer = 0.12;
-      const card = BUILDINGS[selected];
-      spot =
-        card.block !== undefined
-          ? lanternSpot(ctx)
-          : findSpot(ctx.world, card.size, ctx.player.pos.x, ctx.player.pos.z, ctx.player.pos.y, ctx.player.yaw, (x, z) => blockedCell(ctx, x, z));
-      ctx.hud.setKitReady(!!spot);
-    }
+    if (spotTimer <= 0) findSpotNow(ctx);
     ghost.visible = !!spot && ctx.playing && !ctx.sleeping;
     if (spot) {
       const [w, d] = dims(BUILDINGS[selected], spot.rot);
@@ -376,15 +468,20 @@ export function updateKit(ctx: Ctx, dt: number): void {
       const target = card.block !== undefined ? new THREE.Vector3(spot.x + 0.5, spot.y, spot.z + 0.5) : new THREE.Vector3(spot.x + w / 2, spot.y, spot.z + d / 2);
       ghost.position.lerp(target, ghost.position.distanceToSquared(target) > 9 ? 1 : 1 - Math.exp(-dt * 16));
       ghost.rotation.y = (spot.rot * Math.PI) / 2;
-    }
+      // a powered building shows the wire it would hang to whatever is in reach
+      previewWires(card.power && ghost.visible ? worldPoint((ghost.userData.socket as THREE.Vector3 | undefined) ?? DEFAULT_SOCKET, ghost.position, spot.rot) : null);
+    } else previewWires(null);
     breatheGhost(t);
-  }
+  } else if (ghostWas) previewWires(null);
+  ghostWas = !!(selected && ghost);
 
   // standing buildings: drop in, fold away, play
   const beat = music.beat();
   const night = 1 - ctx.clock.daylight;
-  let nearest = Infinity;
   const p = ctx.player.pos;
+  const heard = musicLevel(p.x, p.z) > 0;
+  const song = music.songIndex;
+  const feet = [...ctx.heroes.values()].map((h) => h.pos);
   for (let i = standing.length - 1; i >= 0; i--) {
     const s = standing[i];
     s.age += dt;
@@ -405,9 +502,22 @@ export function updateKit(ctx: Ctx, dt: number): void {
       root.position.y = s.centre.y + Math.max(0, fall);
       const squash = a < 0.6 ? Math.max(0, Math.sin(a * 22) * Math.exp(-8 * a)) * 0.12 : 0;
       root.scale.set(1 + squash, 1 - squash, 1 + squash);
-      s.model!.update(dt, { beat, playing: !!s.card.music, night });
+      // a speaker plays when it works; the rest swing along when music is near
+      const playing = s.card.music ? working(s) : heard;
+      s.model!.update(dt, { beat, playing, night, power: s.site?.view, song, feet: s.card.floor ? feet : undefined, ...s.extra });
     }
-    if (s.card.music) nearest = Math.min(nearest, Math.hypot(p.x - s.centre.x, p.z - s.centre.z));
   }
-  music.update(dt, ctx.playing ? nearest : Infinity, MUSIC.hear, voice.isSpeaking());
+  music.update(dt, ctx.playing ? musicLevel(p.x, p.z) : 0, voice.isSpeaking());
+
+  // a working engine-generator putts quietly, louder as the hero comes closer
+  engineT -= dt;
+  if (engineT <= 0 && ctx.playing) {
+    engineT = 0.3;
+    let d = ENGINE_HEAR;
+    for (const s of standing) if (s.card.id === 'generator' && working(s)) d = Math.min(d, Math.hypot(p.x - s.centre.x, p.z - s.centre.z));
+    if (d < ENGINE_HEAR) sfx.play('chug', { volume: 0.55 * (1 - d / ENGINE_HEAR) });
+  }
 }
+
+const ENGINE_HEAR = 12;
+let engineT = 0;

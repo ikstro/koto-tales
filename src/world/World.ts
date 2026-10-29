@@ -23,6 +23,7 @@ import {
 import { BLOCKS, B } from './blocks';
 import { meshBounds, meshChunk, PAD_SIZE, PAD_X, PAD_Z } from './mesher';
 import { hash2, mulberry32 } from './rng';
+import { bridgesNear, lighthousesNear, type BridgeSite, type LighthouseSite } from './landmarks';
 import { Terrain } from './terrain';
 
 const CS = CHUNK_SIZE;
@@ -583,6 +584,14 @@ export class World implements IWorld {
       if (Math.abs(n - g) > 1 || this.isWater(x + ox, n, z + oz)) return false;
     }
     return true;
+  }
+
+  lighthousesNear(x: number, z: number, radius: number): LighthouseSite[] {
+    return lighthousesNear(this.terrain, x, z, radius);
+  }
+
+  bridgesNear(x: number, z: number, radius: number): BridgeSite[] {
+    return bridgesNear(this.terrain, x, z, radius);
   }
 
   biomeAt(x: number, z: number): Biome {

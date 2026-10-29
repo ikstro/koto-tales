@@ -1,7 +1,9 @@
 /**
  * Deterministic terrain: a height map from a few layers of simplex noise,
  * biomes from low-frequency noise, trees placed on a jittered 5×5 grid so
- * they can be generated chunk by chunk without seams.
+ * they can be generated chunk by chunk without seams. Water is lakes and
+ * rivers (no sea, the owner's call): a river is the zero line of a slow,
+ * warped noise, carved below the water level with sandy banks.
  *
  * Column model: `h` = y of the top solid block. Columns with h < SEA_LEVEL
  * are filled with water up to SEA_LEVEL (inclusive).
@@ -20,6 +22,13 @@ export const BIOME_NAMES: readonly Biome[] = ['meadow', 'forest', 'beach', 'hill
 
 export const SNOW_LINE = 24;
 const TREE_CELL = 5;
+/** River bed height: two blocks of water under the water line. */
+const RIVER_BED = SEA_LEVEL - 1.6;
+/** No river comes closer to home than this. */
+const RIVER_HOME_CLEAR = 44;
+/** Half-width of a river in field units (about 2–4 blocks), and of its banks. */
+const RIVER_W = 0.03;
+const RIVER_BANK = 0.024;
 /** Trees stay out of this radius around (0,0): the house goes there. */
 const HOME_CLEAR = 10;
 
@@ -29,6 +38,8 @@ export interface ColumnSample {
   /** y of the top solid block. */
   h: number;
   wet: number;
+  /** How much of it is lake (the rest of `wet` is river). */
+  lake: number;
   hill: number;
   forest: number;
   biome: number;
@@ -47,9 +58,12 @@ export class Terrain {
   private nB: NoiseFunction2D;
   private nH: NoiseFunction2D;
   private nS: NoiseFunction2D;
-  private nC: NoiseFunction2D;
   private nL: NoiseFunction2D;
   private nF: NoiseFunction2D;
+  private nR: NoiseFunction2D;
+  private nW: NoiseFunction2D;
+  /** Where the river field is sampled from: chosen so that home sits far from any river. */
+  private rOff: [number, number];
   private treeSeed: number;
   private seed: number;
 
@@ -59,8 +73,8 @@ export class Terrain {
   private gWet = new Float32Array(G * G);
   private gHill = new Float32Array(G * G);
   private gBiome = new Uint8Array(G * G);
-  private s: ColumnSample = { hf: 0, h: 0, wet: 0, hill: 0, forest: 0, biome: 0 };
-  private s2: ColumnSample = { hf: 0, h: 0, wet: 0, hill: 0, forest: 0, biome: 0 };
+  private s: ColumnSample = { hf: 0, h: 0, wet: 0, lake: 0, hill: 0, forest: 0, biome: 0 };
+  private s2: ColumnSample = { hf: 0, h: 0, wet: 0, lake: 0, hill: 0, forest: 0, biome: 0 };
 
   constructor(seed: number) {
     this.seed = seed | 0;
@@ -69,10 +83,19 @@ export class Terrain {
     this.nB = mk(2);
     this.nH = mk(3);
     this.nS = mk(4);
-    this.nC = mk(5);
     this.nL = mk(6);
     this.nF = mk(7);
+    this.nR = mk(8);
+    this.nW = mk(9);
     this.treeSeed = hash2(seed, 0x7ee5, 3);
+    // The first offset (from the seed) where the river field around home is far from zero:
+    // rivers then pass the yard by instead of ending at its edge.
+    const rand = mulberry32(hash2(seed, 0x51de, 5));
+    this.rOff = [0, 0];
+    for (let i = 0; i < 64; i++) {
+      this.rOff = [Math.floor(rand() * 20000) - 10000, Math.floor(rand() * 20000) - 10000];
+      if (this.riverAway(RIVER_HOME_CLEAR)) break;
+    }
   }
 
   /** Full column sample into `out`. */
@@ -85,12 +108,15 @@ export class Terrain {
     const hs = this.nS(x / 90, z / 90) * 0.5 + 0.5;
     land += hill * (3 + 13 * Math.pow(hs, 1.5));
 
-    const c = this.nC(x / 400, z / 400) * 0.8 + this.nC(x / 130 + 31.7, z / 130 - 12.3) * 0.2;
-    const sea = 1 - smoothstep(-0.5, -0.22, c);
-    const lake = smoothstep(0.6, 0.85, this.nL(x / 120, z / 120));
-    const wet = Math.max(sea, lake) * (1 - homeT);
+    // low meadows stay above the water: no stray puddles away from lakes and rivers
+    land = Math.max(land, SEA_LEVEL + 1.3);
+    const lake = smoothstep(0.6, 0.85, this.nL(x / 120, z / 120)) * (1 - homeT);
+    // the yard stays dry even if a river comes close
+    const river = this.riverAt(x, z, hill) * smoothstep(RIVER_HOME_CLEAR - 16, RIVER_HOME_CLEAR, d);
+    const wet = Math.max(lake, river);
     const bottom = 5.5 + 1.5 * this.nB(x / 30 + 50, z / 30 - 50);
-    let hf = land + (bottom - land) * wet;
+    let hf = land + (bottom - land) * lake;
+    hf += (Math.min(hf, RIVER_BED) - hf) * river;
     // keep the home meadow dry
     if (homeT > 0) hf = hf + (Math.max(hf, 12.2) - hf) * homeT;
 
@@ -108,10 +134,36 @@ export class Terrain {
     out.hf = hf;
     out.h = h;
     out.wet = wet;
+    out.lake = lake;
     out.hill = hill;
     out.forest = forest;
     out.biome = biome;
     return out;
+  }
+
+  /** The raw river field: 0 on a river's middle line, ±RIVER_W at its edges. */
+  riverField(x: number, z: number): number {
+    const wx = x + 34 * this.nW(x / 110, z / 110);
+    const wz = z + 34 * this.nW(x / 110 + 41.3, z / 110 - 17.9);
+    return this.nR((wx + this.rOff[0]) / 380, (wz + this.rOff[1]) / 380);
+  }
+
+  /** 1 in a river, falling to 0 across its banks (wider valleys in the hills). */
+  private riverAt(x: number, z: number, hill: number): number {
+    const v = Math.abs(this.riverField(x, z));
+    return 1 - smoothstep(RIVER_W, RIVER_W + RIVER_BANK + 0.06 * hill, v);
+  }
+
+  /** Whether no river line passes within `r` of home (checked on a coarse ring grid). */
+  private riverAway(r: number): boolean {
+    const sign = Math.sign(this.riverField(0, 0));
+    for (let rr = 0; rr <= r; rr += 6) {
+      for (let a = 0; a < 24; a++) {
+        const v = this.riverField(Math.cos((a / 24) * Math.PI * 2) * rr, Math.sin((a / 24) * Math.PI * 2) * rr);
+        if (Math.sign(v) !== sign || Math.abs(v) < RIVER_W + RIVER_BANK) return false;
+      }
+    }
+    return true;
   }
 
   heightAt(x: number, z: number): number {
@@ -194,51 +246,67 @@ export class Terrain {
     this.placeTrees(x0, z0, out);
   }
 
+  /** The tree of grid cell (gx, gz), if one grows there: trunk position, ground, trunk height, its hash. */
+  private treeIn(gx: number, gz: number): [number, number, number, number, number] | null {
+    const s = this.s2;
+    const r = hash2(this.treeSeed, gx, gz);
+    const tx = gx * TREE_CELL + 1 + ((r & 15) % 3);
+    const tz = gz * TREE_CELL + 1 + (((r >>> 4) & 15) % 3);
+    if (tx * tx + tz * tz < HOME_CLEAR * HOME_CLEAR) return null;
+    const roll = ((r >>> 8) & 0xffff) / 65536;
+    this.sample(tx, tz, s);
+    let p = 0;
+    switch (s.biome) {
+      case BIOME_FOREST:
+        p = 0.72;
+        break;
+      case BIOME_MEADOW:
+        p = 0.12;
+        break;
+      case BIOME_HILLS:
+        p = 0.1;
+        break;
+      case BIOME_SNOW:
+        p = 0.05;
+        break;
+    }
+    if (roll >= p) return null;
+    const h = s.h;
+    if (h < SEA_LEVEL + 1) return null;
+    // no trees on steep spots
+    if (
+      Math.abs(this.heightAt(tx + 1, tz) - h) > 1 ||
+      Math.abs(this.heightAt(tx - 1, tz) - h) > 1 ||
+      Math.abs(this.heightAt(tx, tz + 1) - h) > 1 ||
+      Math.abs(this.heightAt(tx, tz - 1) - h) > 1
+    ) {
+      return null;
+    }
+    return [tx, tz, h, 4 + ((r >>> 24) % 3), r];
+  }
+
   private placeTrees(x0: number, z0: number, out: Uint8Array): void {
     const c0x = Math.floor((x0 - 3) / TREE_CELL);
     const c1x = Math.floor((x0 + CS + 2) / TREE_CELL);
     const c0z = Math.floor((z0 - 3) / TREE_CELL);
     const c1z = Math.floor((z0 + CS + 2) / TREE_CELL);
-    const s = this.s;
     for (let gz = c0z; gz <= c1z; gz++) {
       for (let gx = c0x; gx <= c1x; gx++) {
-        const r = hash2(this.treeSeed, gx, gz);
-        const tx = gx * TREE_CELL + 1 + ((r & 15) % 3);
-        const tz = gz * TREE_CELL + 1 + (((r >>> 4) & 15) % 3);
-        if (tx * tx + tz * tz < HOME_CLEAR * HOME_CLEAR) continue;
-        const roll = ((r >>> 8) & 0xffff) / 65536;
-        this.sample(tx, tz, s);
-        let p = 0;
-        switch (s.biome) {
-          case BIOME_FOREST:
-            p = 0.72;
-            break;
-          case BIOME_MEADOW:
-            p = 0.12;
-            break;
-          case BIOME_HILLS:
-            p = 0.1;
-            break;
-          case BIOME_SNOW:
-            p = 0.05;
-            break;
-        }
-        if (roll >= p) continue;
-        const h = s.h;
-        if (h < SEA_LEVEL + 1) continue;
-        // no trees on steep spots
-        if (
-          Math.abs(this.heightAt(tx + 1, tz) - h) > 1 ||
-          Math.abs(this.heightAt(tx - 1, tz) - h) > 1 ||
-          Math.abs(this.heightAt(tx, tz + 1) - h) > 1 ||
-          Math.abs(this.heightAt(tx, tz - 1) - h) > 1
-        ) {
-          continue;
-        }
-        const trunk = 4 + ((r >>> 24) % 3);
-        this.writeTree(out, x0, z0, tx, tz, h, trunk, r);
+        const t = this.treeIn(gx, gz);
+        if (t) this.writeTree(out, x0, z0, t[0], t[1], t[2], t[3], t[4]);
       }
     }
+  }
+
+  /** Whether a tree (trunk or crown) reaches into the box [x0, x1) × [z0, z1). */
+  treeNear(x0: number, z0: number, x1: number, z1: number): boolean {
+    for (let gz = Math.floor((z0 - 3) / TREE_CELL); gz <= Math.floor((z1 + 2) / TREE_CELL); gz++) {
+      for (let gx = Math.floor((x0 - 3) / TREE_CELL); gx <= Math.floor((x1 + 2) / TREE_CELL); gx++) {
+        const t = this.treeIn(gx, gz);
+        if (t && t[0] + 2 >= x0 && t[0] - 2 < x1 && t[1] + 2 >= z0 && t[1] - 2 < z1) return true;
+      }
+    }
+    return false;
   }
 
   private writeTree(

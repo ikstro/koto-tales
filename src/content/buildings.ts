@@ -8,7 +8,39 @@ import type { LineId } from './lines';
  * src/assets/buildings.ts; the ground under it is never changed.
  */
 
-export type BuildingId = 'tent' | 'boombox' | 'lantern';
+export type BuildingId =
+  | 'tent'
+  | 'boombox'
+  | 'lantern'
+  | 'windmill'
+  | 'pole'
+  | 'lamp'
+  | 'solar'
+  | 'battery'
+  | 'generator'
+  | 'bigspeaker'
+  | 'dancefloor'
+  | 'discoball'
+  | 'djconsole'
+  | 'tesla'
+  | 'trafficlight';
+
+/**
+ * What a building does in the power network (DESIGN.md «Power»): buildings closer than
+ * `REACH` join by themselves. Numbers are «sparks» a second.
+ */
+export interface PowerCard {
+  /** Given all the time. */
+  give?: number;
+  /** Given in full sun, times the daylight. */
+  solar?: number;
+  /** Taken while it works. */
+  take?: number;
+  /** A battery: how much it holds (sparks × seconds). */
+  store?: number;
+  /** At night no monster appears this close to it while it works (blocks). */
+  light?: number;
+}
 
 export interface BuildingCard {
   id: BuildingId;
@@ -28,10 +60,19 @@ export interface BuildingCard {
   rewardLine?: LineId;
   /** The lantern is a block in the world (it cracks the boss's armour), not a model. */
   block?: number;
-  /** Plays music around itself while it stands. */
-  music?: boolean;
+  /** Plays music around itself while it stands (and has power, if it needs it): heard this far, monsters this close dance. */
+  music?: { hear: number; dance: number };
+  /** Heroes on it dance (a dance floor). */
+  floor?: boolean;
+  /** A DJ console: next to it a note piece switches the song. */
+  dj?: boolean;
+  /** Strikes the nearest monster this close every `every` seconds (a tesla tower). */
+  zap?: { reach: number; every: number };
+  /** Monsters this close stop on its red light (a traffic light). */
+  traffic?: { reach: number };
   /** Heroes may sleep in it at night. */
   sleep?: boolean;
+  power?: PowerCard;
 }
 
 export const BUILDINGS: Record<BuildingId, BuildingCard> = {
@@ -55,7 +96,7 @@ export const BUILDINGS: Record<BuildingId, BuildingCard> = {
     sprite: 'b-boombox',
     firstLine: 'first_boombox',
     rewardLine: 'reward_boombox',
-    music: true,
+    music: { hear: 18, dance: 9 },
   },
   lantern: {
     id: 'lantern',
@@ -66,10 +107,183 @@ export const BUILDINGS: Record<BuildingId, BuildingCard> = {
     sprite: 'brick-24',
     block: B.LANTERN,
   },
+  windmill: {
+    id: 'windmill',
+    name: 'Вітряк',
+    size: [1, 1],
+    solid: [{ dx: 0, dz: 0, h: 4 }],
+    count: 0,
+    sprite: 'b-windmill',
+    firstLine: 'first_windmill',
+    rewardLine: 'reward_windmill_more',
+    power: { give: 2 },
+  },
+  pole: {
+    id: 'pole',
+    name: 'Стовп',
+    size: [1, 1],
+    solid: [{ dx: 0, dz: 0, h: 3 }],
+    count: 0,
+    sprite: 'b-pole',
+    firstLine: 'first_pole',
+    rewardLine: 'reward_poles',
+    power: {},
+  },
+  lamp: {
+    id: 'lamp',
+    name: 'Ліхтар на стовпі',
+    size: [1, 1],
+    solid: [{ dx: 0, dz: 0, h: 3 }],
+    count: 0,
+    sprite: 'b-lamp',
+    firstLine: 'first_lamp',
+    rewardLine: 'reward_lamp_more',
+    power: { take: 1, light: 8 },
+  },
+  solar: {
+    id: 'solar',
+    name: 'Сонячна панель',
+    size: [2, 2],
+    solid: [
+      { dx: 0, dz: 0, h: 1 },
+      { dx: 1, dz: 0, h: 1 },
+      { dx: 0, dz: 1, h: 1 },
+      { dx: 1, dz: 1, h: 1 },
+    ],
+    count: 0,
+    sprite: 'b-solar',
+    firstLine: 'first_solar',
+    rewardLine: 'reward_solar_more',
+    power: { solar: 3 },
+  },
+  battery: {
+    id: 'battery',
+    name: 'Акумулятор',
+    size: [1, 1],
+    solid: [{ dx: 0, dz: 0, h: 2 }],
+    count: 0,
+    sprite: 'b-battery',
+    firstLine: 'first_battery',
+    rewardLine: 'reward_battery',
+    power: { store: 200 },
+  },
+  generator: {
+    id: 'generator',
+    name: 'Двигун-генератор',
+    size: [2, 2],
+    solid: [
+      { dx: 0, dz: 0, h: 2 },
+      { dx: 1, dz: 0, h: 2 },
+      { dx: 0, dz: 1, h: 2 },
+      { dx: 1, dz: 1, h: 2 },
+    ],
+    count: 0,
+    sprite: 'b-generator',
+    firstLine: 'first_generator',
+    rewardLine: 'reward_generator',
+    power: { give: 6 },
+  },
+  // stage B2: disco and defence
+  bigspeaker: {
+    id: 'bigspeaker',
+    name: 'Велика колонка',
+    size: [1, 1],
+    solid: [{ dx: 0, dz: 0, h: 3 }],
+    count: 0,
+    sprite: 'b-bigspeaker',
+    firstLine: 'first_bigspeaker',
+    rewardLine: 'reward_bigspeaker_more',
+    music: { hear: 30, dance: 14 },
+    power: { take: 2 },
+  },
+  dancefloor: {
+    id: 'dancefloor',
+    name: 'Танцпол',
+    size: [3, 3],
+    solid: [],
+    count: 0,
+    sprite: 'b-dancefloor',
+    firstLine: 'first_dancefloor',
+    rewardLine: 'reward_dancefloor',
+    floor: true,
+    power: { take: 2 },
+  },
+  discoball: {
+    id: 'discoball',
+    name: 'Диско-куля',
+    size: [1, 1],
+    solid: [{ dx: 0, dz: 0, h: 3 }],
+    count: 0,
+    sprite: 'b-discoball',
+    firstLine: 'first_discoball',
+    rewardLine: 'reward_discoball',
+    power: { take: 1 },
+  },
+  djconsole: {
+    id: 'djconsole',
+    name: 'Пульт діджея',
+    size: [2, 1],
+    solid: [
+      { dx: 0, dz: 0, h: 1 },
+      { dx: 1, dz: 0, h: 1 },
+    ],
+    count: 0,
+    sprite: 'b-djconsole',
+    firstLine: 'first_djconsole',
+    rewardLine: 'reward_djconsole',
+    dj: true,
+    power: { take: 1 },
+  },
+  tesla: {
+    id: 'tesla',
+    name: 'Тесла-вежа',
+    size: [1, 1],
+    solid: [{ dx: 0, dz: 0, h: 4 }],
+    count: 0,
+    sprite: 'b-tesla',
+    firstLine: 'first_tesla',
+    rewardLine: 'reward_tesla_more',
+    zap: { reach: 7, every: 1.3 },
+    power: { take: 3 },
+  },
+  trafficlight: {
+    id: 'trafficlight',
+    name: 'Світлофор',
+    size: [1, 1],
+    solid: [{ dx: 0, dz: 0, h: 3 }],
+    count: 0,
+    sprite: 'b-trafficlight',
+    firstLine: 'first_trafficlight',
+    rewardLine: 'reward_trafficlight_more',
+    traffic: { reach: 9 },
+    power: { take: 1 },
+  },
 };
 
-/** Order of the kit plate. */
-export const KIT_ORDER: BuildingId[] = ['tent', 'boombox', 'lantern'];
+/** A lighthouse by the water (world/landmarks.ts) in the power network. */
+export const LIGHTHOUSE_POWER: PowerCard = { take: 2, light: 16 };
 
-/** Music carries this far (blocks); monsters this close to a playing speaker dance instead of biting. */
+/** Order of the kit plate. */
+export const KIT_ORDER: BuildingId[] = [
+  'tent',
+  'boombox',
+  'lantern',
+  'windmill',
+  'pole',
+  'lamp',
+  'solar',
+  'battery',
+  'generator',
+  'bigspeaker',
+  'dancefloor',
+  'discoball',
+  'djconsole',
+  'tesla',
+  'trafficlight',
+];
+
+/** The boombox's music (the smallest speaker): how far it carries and how close monsters dance. */
 export const MUSIC = { hear: 18, dance: 9 };
+
+/** The traffic light's cycle in seconds: green, yellow, red. */
+export const TRAFFIC = { green: 6, yellow: 1.5, red: 6 };
