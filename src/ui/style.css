@@ -205,6 +205,11 @@ body {
   transform: scale(0.72);
 }
 
+/* a building's picture on the tale piece, brought down to a tile's size */
+.pc.bpic {
+  transform: scale(0.62);
+}
+
 /* moon / fold: breathes above the action pieces */
 .pc.prompt > .bd {
   animation: breathe 1.2s ease-in-out infinite;
@@ -514,6 +519,11 @@ body {
 
 .missing .stk-img {
   filter: brightness(0) opacity(0.4);
+}
+
+/* a page of a tale Льоша made up: a gold glow round the sticker */
+.got.gold > .bd {
+  filter: drop-shadow(0 0 3px #ffd23a) drop-shadow(0 0 7px #eab02b);
 }
 
 .stk-count {

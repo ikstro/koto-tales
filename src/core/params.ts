@@ -22,6 +22,7 @@ import { SKIN_NAMES, type AnySkin } from '../render/skins';
  *   ?map=1  (test only: the big map opens after the start)  ?seen=<r>  (test only: seed explored chunks)
  *   ?boss=near  ?bossHp=<n>  ?lanterns=<n>  (test only: start by the boss, set its health / cracked armour)
  *   ?guide=all|boss|move|…  (test only: the picture guide opens after the start — all cards over the pause menu, or one card)
+ *   ?tale=<id>  (test only: that tale begins at once, content/tales.ts)
  */
 export interface Params {
   /** ?mute=1 silences everything (automated checks). */
@@ -70,7 +71,9 @@ export interface Params {
   /** Test only (?lanterns=<n>): this many lanterns already cracked its armour (3 = broken). */
   lanterns: number | null;
   /** Test only (?guide=all|<card>): the picture guide opens after the start. */
-  guide: 'all' | 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'boss' | null;
+  guide: 'all' | 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'tales' | 'boss' | null;
+  /** Test only (?tale=<id>): that tale begins at once. */
+  tale: string | null;
 }
 
 export function readParams(): Params {
@@ -110,6 +113,7 @@ export function readParams(): Params {
     boss: one('boss', ['near'] as const),
     bossHp: num('bossHp'),
     lanterns: num('lanterns'),
-    guide: one('guide', ['all', 'move', 'bow', 'bolt', 'build', 'heal', 'map', 'boss'] as const),
+    guide: one('guide', ['all', 'move', 'bow', 'bolt', 'build', 'heal', 'map', 'tales', 'boss'] as const),
+    tale: q.get('tale'),
   };
 }

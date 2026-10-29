@@ -37,6 +37,9 @@ export interface GameEvents {
   'sleep:done': { where: 'home' | 'tent' | 'guest' };
   'village:task': { race: string; kind: string; friends: boolean };
   'castle:freed': { race: string };
+  /** A tale began / was done (content/tales.ts). */
+  'tale:start': { id: string };
+  'tale:done': { id: string };
 }
 
 type Handler<T> = (payload: T) => void;

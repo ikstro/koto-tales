@@ -2,11 +2,13 @@ import { HEROES } from '../content/heroes';
 import { ITEMS } from '../content/items';
 import type { LineId } from '../content/lines';
 import { MONSTERS } from '../content/monsters';
+import { TASKS } from '../content/progress';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { WisdomClock } from './pacing';
+import { taleReminder } from './tales';
 
 /**
  * Everything the game says, in one place: the voice reacts to events, so a
@@ -20,7 +22,10 @@ const COIN_MILESTONES: [number, LineId][] = [
   [100, 'coins_100'],
 ];
 
-/** Пупся's thoughts: every ~2–3 minutes, never over another line (systems/pacing.ts). */
+/**
+ * Пупся's thoughts: every ~2–3 minutes, never over another line (systems/pacing.ts). Some of them
+ * remind of the goal: the tale's step when it has stood still a while, else now and then the kit's task.
+ */
 const wisdom = new WisdomClock();
 let lowHeartsSaid = false;
 
@@ -99,5 +104,8 @@ export function updateNarration(ctx: Ctx, dt: number): void {
   for (const m of ctx.monsters) if (m.alive) monsterDist = Math.min(monsterDist, Math.hypot(m.pos.x - p.x, m.pos.z - p.z));
   const boss = ctx.boss;
   const inBossZone = !!boss && boss.alive && boss.inZone(p.x, p.z);
-  if (wisdom.step(dt, { quietS: voice.quietSeconds(), monsterDist, inBossZone })) voice.say(pick(WISDOM), { priority: 1 });
+  if (wisdom.step(dt, { quietS: voice.quietSeconds(), monsterDist, inBossZone })) {
+    const goal = taleReminder(ctx) ?? (Math.random() < 0.33 ? TASKS[ctx.save.progress.kind].line : null);
+    voice.say(goal ?? pick(WISDOM), { priority: goal ? 3 : 1 });
+  }
 }

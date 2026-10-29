@@ -23,6 +23,7 @@ import { updatePrizes } from '../systems/prizes';
 import { eating, updateFood } from '../systems/food';
 import { updateSignal } from '../systems/signal';
 import { chestNear, updateCastles } from '../systems/castles';
+import { initTales, updateTales } from '../systems/tales';
 import { pushBubble } from '../systems/tasks';
 import { updateVillages } from '../systems/villages';
 import { updateLanterns } from '../render/lanterns';
@@ -199,6 +200,7 @@ export class Game {
     ctx.hud.onKitPick = (id) => pick(ctx, id as BuildingId);
     this.wireMenu();
     initProgress(ctx);
+    initTales(ctx);
     initPortals(ctx);
     initDisco(ctx);
     exposeMonsters(ctx);
@@ -329,6 +331,7 @@ export class Game {
     updateLandmarks(ctx, dt);
     updateVillages(ctx, dt);
     updateCastles(ctx, dt);
+    updateTales(ctx, dt);
     pushBubble(ctx);
     updatePickups(ctx, dt);
     updateHouse(ctx, dt);

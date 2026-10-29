@@ -110,6 +110,15 @@ describe('save', () => {
     expect(s.upgrades).toEqual({});
   });
 
+  it('migrates v11 → v12: a story under way skips the prologue, no tale yet', () => {
+    const v11 = { ...freshSave(), v: 11 } as Record<string, unknown>;
+    delete v11.tales;
+    const s = migrate(v11);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.tales).toEqual({ cur: null, step: 0, got: 0, done: ['fish'], after: 0 });
+    expect(freshSave().tales.done).toEqual([]);
+  });
+
   it('keeps the boss as it was left (health, lanterns, beaten day)', () => {
     const boss = { level: 2, site: [150, -20] as [number, number], hp: 12, lanterns: ['1,2,3', '4,5,6'], defeatedDay: null, eatenAt: [150, -20] as [number, number], bites: 5 };
     const s = migrate({ ...freshSave(), day: 7, boss } as unknown as Record<string, unknown>);

@@ -3,6 +3,7 @@ import { BUILDINGS, KIT_ORDER, type BuildingId } from '../content/buildings';
 import type { Difficulty } from '../content/difficulty';
 import type { TaskKind } from '../content/progress';
 import type { CastleSave } from '../content/castles';
+import { freshTales, PROLOGUE, type TalesSave } from '../content/tales';
 import type { VillageSave } from '../content/villages';
 import type { Race } from '../world/villages';
 import { homeChunks } from './explore';
@@ -64,6 +65,8 @@ export interface SaveData {
   castles: Partial<Record<Race, CastleSave>>;
   /** Buildings raised by the kit's rewards (content/upgrades.ts): level 1..3. */
   upgrades: Partial<Record<BuildingId, number>>;
+  /** The tales (content/tales.ts): the one under way, its step, the ones done. */
+  tales: TalesSave;
 }
 
 /** A building put up from the kit: footprint min corner, the height its floor stands on, quarter turns. */
@@ -109,7 +112,7 @@ export const freshBoss = (): BossSave => ({ level: 1, site: null, hp: null, lant
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -147,6 +150,7 @@ export function freshSave(): SaveData {
     villages: {},
     castles: {},
     upgrades: {},
+    tales: freshTales(),
   };
 }
 
@@ -192,6 +196,9 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
   9: (d) => ({ ...d, v: 10, castles: {} }),
   // v11: food, swings, the power station and upgrades (nothing raised yet).
   10: (d) => ({ ...d, v: 11, upgrades: {} }),
+  // v12: the tales. A story already under way skips the prologue (it teaches the first steps):
+  // the first letter or dream comes next.
+  11: (d) => ({ ...d, v: 12, tales: { ...freshTales(), done: [PROLOGUE] } }),
 };
 
 export function migrate(raw: Raw): SaveData {

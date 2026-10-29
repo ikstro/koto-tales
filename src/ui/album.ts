@@ -1,6 +1,7 @@
 import { ITEMS, ITEM_ORDER } from '../content/items';
 import { MONSTERS, MONSTER_ORDER } from '../content/monsters';
 import { CASTLE_CARDS } from '../content/castles';
+import { TALES } from '../content/tales';
 import { RACE_CARDS } from '../content/villages';
 import { RACES } from '../world/villages';
 import type { SaveData } from '../systems/save';
@@ -17,7 +18,8 @@ const HEAD = 104;
  * The album of finds: a studded plate with one sticker tile per kind of thing.
  * Found stickers are bright printed tiles that speak their name when tapped (with
  * «×N» when there are several); missing ones are dark tiles with a silhouette that
- * make the empty spots tempting. Numbers only, no words.
+ * make the empty spots tempting. Numbers only, no words. The book of tales follows on a row of
+ * its own: a page per tale, its picture once the tale is done; a tap retells it.
  */
 export class Album {
   private root = document.createElement('div');
@@ -43,7 +45,7 @@ export class Album {
     const H = window.innerHeight;
     const k = Number(getComputedStyle(document.documentElement).getPropertyValue('--hud-k')) || 0.85;
     const found = new Set(save.found);
-    const entries: { img: string; got: boolean; line: string; count: number }[] = [];
+    const entries: { img: string; got: boolean; line: string; count: number; gold?: boolean }[] = [];
     for (const id of ITEM_ORDER) {
       const count = id === 'coin' ? save.coins : (save.inv[id] ?? 0);
       entries.push({ img: this.portraits.items[id], got: found.has(id), line: ITEMS[id].line, count });
@@ -64,11 +66,23 @@ export class Album {
       entries.push({ img: `${import.meta.env.BASE_URL}hud/${card.sticker}.png`, got: found.has(`c:${race}`), line: card.hello, count: 0 });
     }
 
-    const cols = W >= H ? 6 : 4;
-    const rows = Math.ceil(entries.length / cols);
-    const pw = PAD * 2 + cols * CELL;
-    const ph = HEAD + rows * CELL + 36;
-    const s = Math.min(k * 1.1, (W - 20) / (pw + 16), (H - 20) / (ph + 20));
+    // the book of tales: a page per tale, from a new row
+    const book = entries.length;
+    for (const t of TALES) {
+      entries.push({ img: `${import.meta.env.BASE_URL}hud/${t.sticker}.png`, got: found.has(`t:${t.id}`), line: t.retell, count: 0, gold: t.lyosha });
+    }
+
+    // as many columns as keep the stickers biggest on this screen
+    const size = (cols: number) => {
+      const rows = Math.ceil(book / cols) + Math.ceil((entries.length - book) / cols);
+      const pw = PAD * 2 + cols * CELL;
+      const ph = HEAD + rows * CELL + 36;
+      return { pw, ph, s: Math.min(k * 1.1, (W - 20) / (pw + 16), (H - 20) / (ph + 20)) };
+    };
+    let cols = W >= H ? 6 : 4;
+    for (let c = cols + 1; c <= (W >= H ? 10 : 5); c++) if (size(c).s > size(cols).s + 1e-3) cols = c;
+    const { pw, ph, s } = size(cols);
+    const slot = (i: number) => (i < book ? i : Math.ceil(book / cols) * cols + (i - book));
 
     const panel = document.createElement('div');
     panel.className = 'alb-panel';
@@ -93,10 +107,12 @@ export class Album {
 
     const pieces: Piece[] = [close];
     entries.forEach((en, i) => {
-      const x = PAD + CELL * ((i % cols) + 0.5);
-      const y = HEAD + CELL * Math.floor(i / cols) + CELL * 0.56;
+      const at = slot(i);
+      const x = PAD + CELL * ((at % cols) + 0.5);
+      const y = HEAD + CELL * Math.floor(at / cols) + CELL * 0.56;
       const p = new Piece(panel, en.got ? 'sticker-on' : 'sticker-off', x, y, en.got ? 'sticker-sh' : null);
       p.el.classList.add(en.got ? 'got' : 'missing');
+      if (en.gold) p.el.classList.add('gold');
       if (en.got) p.lf.style.transform = `rotate(${((i * 37) % 9) - 4}deg)`;
       const img = document.createElement('img');
       img.className = 'stk-img';

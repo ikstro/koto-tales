@@ -11,7 +11,7 @@ import { SPRITES, type SpriteName } from './hudSprites';
  * Captions are short and only for parents — the pictures and the voice do the explaining.
  */
 
-export type GuideCard = 'move' | 'bow' | 'jump' | 'bolt' | 'build' | 'heal' | 'map' | 'portal' | 'sleep' | 'power' | 'lighthouse' | 'disco' | 'defense' | 'village' | 'castle' | 'signal' | 'food' | 'station' | 'boss';
+export type GuideCard = 'move' | 'bow' | 'jump' | 'bolt' | 'build' | 'heal' | 'map' | 'tales' | 'portal' | 'sleep' | 'power' | 'lighthouse' | 'disco' | 'defense' | 'village' | 'castle' | 'signal' | 'food' | 'station' | 'boss';
 
 interface CardSpec {
   id: GuideCard;
@@ -161,6 +161,22 @@ const CARDS: CardSpec[] = [
       const arrow = a.put('map-arrow', 44, -TOP - 2, 1.1, null);
       arrow.img.style.transform = 'rotate(90deg)';
       a.put('boss', 88, -TOP - 2, 0.8);
+    },
+  },
+  {
+    // a letter comes → help (the step's picture on its ring) → a page in the book
+    id: 'tales',
+    line: 'guide_tales',
+    caption: 'Казки',
+    span: 2,
+    art: (a) => {
+      a.put('tale-plane', -250, 0, 1.1, 'tile6-sh');
+      step(a, -150, -14);
+      a.put('ring', -40, TOP, 0.9);
+      a.put('item-fish', -40, 0, 0.9, 'tile6-sh');
+      a.put('mark-pupsia', -98, -44, 0.8, 'mark-sh');
+      step(a, 70, -14);
+      a.put('album', 180, 4, 1.1);
     },
   },
   {

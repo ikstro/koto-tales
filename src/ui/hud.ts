@@ -342,6 +342,8 @@ export class Hud {
   onRestart: ((held: boolean) => void) | null = null;
   /** A tap on the minimap plate (ui/map.ts opens the big map). */
   onMapTap: (() => void) | null = null;
+  /** A tap on the tale piece (systems/tales.ts says the step's ask again). */
+  onTaleTap: (() => void) | null = null;
 
   private gHearts: Group;
   private gMap: Group;
@@ -360,6 +362,14 @@ export class Hud {
   private bossLampsLit = -1;
   private bossArmored: boolean | null = null;
   private suggestAnim: Animation | null = null;
+  private gTale: Group;
+  private taleRing: Piece;
+  private taleLit: HTMLImageElement[] = [];
+  private talePic: Piece;
+  private taleFace: Piece;
+  private tale: { face: string; picture: string; lit: number } | null = null;
+  private taleShown = false;
+  private taleLitN = -1;
 
   private hearts: { tile: Piece; lost: boolean; anim: Animation | null }[] = [];
   private coinPiece: Piece;
@@ -494,6 +504,16 @@ export class Hud {
     const mapPlate = this.gMap.add('map-plate', 0, 0);
     this.gMap.seal();
     this.press(mapPlate, mapPlate.target(160, 130, TOP), () => this.onMapTap?.(), { ui: true });
+
+    // The tale piece left of the minimap: the step's picture on a stud ring (how far it has come)
+    // with the face of whoever asked; a tap says the ask again.
+    this.gTale = new Group(r, 'g-tale hidden');
+    this.taleRing = this.gTale.add('ring', 0, 0);
+    for (let i = 0; i < 8; i++) this.taleLit.push(this.taleRing.layer(`ring-lit-${i}` as SpriteName, 'sp lit'));
+    this.talePic = this.gTale.add('item-fish', 0, -TOP, 'tile6-sh');
+    this.taleFace = this.gTale.add('mark-pupsia', -66, -TOP - 48, 'mark-sh');
+    this.gTale.seal();
+    this.press(this.taleRing, this.taleRing.target(150, 140, TOP), () => this.onTaleTap?.(), { ui: true, also: [this.talePic, this.taleFace] });
 
     // The boss bar (top centre, only near «Пожирач земель»): its face, a row of stone studs that
     // chip off as it loses health, and in front three lantern slots while its armour holds.
@@ -713,6 +733,10 @@ export class Hud {
       my = g;
     }
     GM.place(mx, my, ms);
+    // the tale piece: left of the minimap, level with its middle
+    const GTl = this.gTale;
+    const tsT = ts * 1.05;
+    GTl.place(GM.x - gap * 0.5 - GTl.w * tsT, GM.y + (GM.h * ms - GTl.h * tsT) / 2, tsT);
     this.placeBoss(g, gap, ts, topBottom);
 
     if (this.kitOpen) this.placeKit();
@@ -1399,6 +1423,47 @@ export class Hud {
     u.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${k.toFixed(3)})`;
   }
 
+  /**
+   * The tale under way (null: none): the step's picture, the asker's face, 0..8 studs lit. It
+   * steps aside while the boss bar is up.
+   */
+  setTale(t: { face: string; picture: string; lit: number } | null): void {
+    const was = this.tale;
+    if (t && was && t.face === was.face && t.picture === was.picture && t.lit === was.lit) return;
+    if (!t && !was) return;
+    this.tale = t ? { ...t } : null;
+    if (t) {
+      const newPic = was?.picture !== t.picture;
+      const pic = (t.picture in SPRITES ? t.picture : 'zombie') as SpriteName;
+      setSprite(this.talePic.img, pic);
+      const sh = `${pic}-sh` as SpriteName;
+      if (this.talePic.sh) setSprite(this.talePic.sh, sh in SPRITES ? sh : 'tile6-sh');
+      // a building's picture is bigger than a tile: brought down to a tile's size
+      this.talePic.el.classList.toggle('bpic', pic.startsWith('b-'));
+      setSprite(this.taleFace.img, (t.face in SPRITES ? t.face : 'mark-pupsia') as SpriteName);
+      if (newPic && this.taleShown) {
+        this.talePic.drop(0, 40);
+        this.taleLitN = -1;
+      }
+      const grew = this.taleLitN >= 0 && t.lit > this.taleLitN;
+      this.taleLit.forEach((l, i) => {
+        const on = i < t.lit;
+        l.style.visibility = on ? '' : 'hidden';
+        if (on && grew && i >= this.taleLitN) l.animate([{ transform: 'translateY(-6px)' }, { transform: 'none' }], { duration: SP.press.duration, easing: SP.press.easing });
+      });
+      this.taleLitN = t.lit;
+    }
+    this.syncTale();
+  }
+
+  private syncTale(): void {
+    const on = !!this.tale && !this.bossShown;
+    if (on === this.taleShown) return;
+    this.taleShown = on;
+    this.gTale.el.classList.toggle('hidden', !on);
+    if (on) this.gTale.pieces.forEach((p, i) => p.drop(i * 60, 50));
+  }
+
   /** Stars over the dark fade (the night passing while the heroes sleep). */
   stars(on: boolean): void {
     this.faderEl.classList.toggle('stars', on);
@@ -1416,6 +1481,7 @@ export class Hud {
         this.bossArmored = null;
         this.gBoss.pieces.forEach((p, i) => p.drop(i * 30, 40));
       }
+      this.syncTale();
     }
     if (!b) return;
     const lit = b.hp <= 0 ? 0 : Math.max(1, Math.ceil(b.hp * BOSS_STONES - 1e-6));

@@ -111,6 +111,8 @@ function give(ctx: Ctx, r: Reward): void {
   ctx.player.model.play('cheer');
   voice.say('level_up', { priority: 8, interrupt: true });
   setTimeout(() => voice.say(r.line, { priority: 8, interrupt: true }), 2600);
+  // then Пупся names the next task
+  setTimeout(() => tellTask(ctx, false), 7500);
   events.emit('kit:reward', { id: r.id });
   begin(ctx);
 }

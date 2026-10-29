@@ -20,6 +20,7 @@ import { createBuilding, createPortal } from '/src/assets/buildings.ts';
 import { createVillageItem } from '/src/assets/villages.ts';
 import { createCastle, createCastleItem } from '/src/assets/castles.ts';
 import { createChest } from '/src/assets/props.ts';
+import { createPlane, createTaleThing } from '/src/assets/tales.ts';
 import { B } from '/src/world/blocks.ts';
 
 const U = 40, DPR = 2, LO = 1.5, TILT = THREE.MathUtils.degToRad(34);
@@ -966,6 +967,23 @@ shoot('jump', roundTile(1, C.green, printSpring, 0.6), 130, 130, { shadow: 'tile
   shoot('item-castle-elves', roundTile(1, C.navy, modelPrint(still(seed.root), C.navy, -0.4, 0.75), 0.6), 130, 130, { shadow: 'tile6-sh' });
   const chest = createChest(skin);
   shoot('chest', roundTile(1, C.mustard, modelPrint(chest.root, C.mustard, -0.5, 0.72), 0.6), 130, 130, { shadow: 'tile6-sh' });
+}
+
+// --- the tales (systems/tales.ts): things to find, the paper plane, the book's pages
+{
+  const still = (o) => { const glows = []; o.traverse((m) => { if (m.isMesh && m.material.blending === THREE.AdditiveBlending) glows.push(m); }); glows.forEach((m) => m.parent.remove(m)); return o; };
+  // the things, turned to show their best side and filling the print
+  for (const [kind, yaw, fill] of [['fish', 0.3, 0.46], ['scroll', 0.35, 0.48], ['yarn', 0.3, 0.6]]) {
+    const thing = createTaleThing(skin, kind); thing.update(0, 0); thing.root.children[0].rotation.y = 0;
+    shoot('item-' + kind, roundTile(1, C.navy, modelPrint(still(thing.root), C.navy, yaw, fill), 0.6), 130, 130, { shadow: 'tile6-sh' });
+  }
+  // the plane seen from above, nose up and to the right
+  const plane = createPlane(skin, C.coral); plane.update(0.1, true, 0);
+  const tilted = new THREE.Group(); plane.root.rotation.set(1.05, 0, 0); tilted.add(plane.root);
+  shoot('tale-plane', roundTile(1, C.teal, modelPrint(still(tilted), C.teal, -0.75, 0.45), 0.6), 130, 130, { shadow: 'tile6-sh' });
+  const PW = { linked: true, on: true, low: false, charge: 0.5, sunYaw: 0.55, sunUp: 0.85 };
+  const lamp = createBuilding(skin, 'lamp'); lamp.update(1, { beat: 0, playing: false, night: 0.8, power: PW });
+  shoot('tale-lamp', roundTile(1, C.navy, modelPrint(still(lamp.root), C.navy, -0.4, 0.5), 0.6), 130, 130, { shadow: 'tile6-sh' });
 }
 
 document.getElementById('out').textContent = JSON.stringify({ sprites: out, nine });
