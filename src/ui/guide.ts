@@ -11,7 +11,7 @@ import { SPRITES, type SpriteName } from './hudSprites';
  * Captions are short and only for parents — the pictures and the voice do the explaining.
  */
 
-export type GuideCard = 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'portal' | 'sleep' | 'power' | 'lighthouse' | 'disco' | 'defense' | 'boss';
+export type GuideCard = 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'portal' | 'sleep' | 'power' | 'lighthouse' | 'disco' | 'defense' | 'village' | 'boss';
 
 interface CardSpec {
   id: GuideCard;
@@ -214,6 +214,18 @@ const CARDS: CardSpec[] = [
     art: (a) => {
       a.put('b-tesla', -80, 4, 1.3);
       a.put('b-trafficlight', 80, 4, 1.3);
+    },
+  },
+  {
+    id: 'village',
+    line: 'guide_village',
+    caption: 'Село',
+    span: 1,
+    art: (a) => {
+      // the elder asks, the party helps, the village gives its building
+      a.put('folk-elves', -125, -8, 1.05, 'tile-sh');
+      a.put('item-elves', 0, -8, 0.85, 'tile6-sh');
+      a.put('b-garland', 120, 4, 1.1);
     },
   },
   {

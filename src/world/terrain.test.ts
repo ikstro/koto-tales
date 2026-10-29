@@ -98,7 +98,7 @@ describe('terrain', () => {
 describe('water: lakes and rivers, no sea', () => {
   it('has no sea: every wet place is a lake or a river', () => {
     const t = new Terrain(SEED);
-    const s = { hf: 0, h: 0, wet: 0, lake: 0, hill: 0, forest: 0, biome: 0 };
+    const s = { hf: 0, h: 0, wet: 0, lake: 0, hill: 0, forest: 0, biome: 0, village: 0, vtop: 0 };
     for (let z = -600; z <= 600; z += 7) {
       for (let x = -600; x <= 600; x += 7) {
         t.sample(x, z, s);

@@ -1,7 +1,7 @@
 import { CHUNK_SIZE } from '../contracts';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
-import { chunkKey, chunkOf, exploredOf, squareAround, type Explored } from '../systems/explore';
+import { chunkKey, chunkOf, EXPLORE_RADIUS, exploredOf, squareAround, type Explored } from '../systems/explore';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { Piece, TOP, ninePlate, type Hud } from './hud';
@@ -209,7 +209,10 @@ export class GameMap {
   update(dt: number): void {
     const ctx = this.ctx;
     if (!ctx || !this.explored) return;
-    this.explored.visit(ctx.player.pos.x, ctx.player.pos.z);
+    // high up (a trampoline's bounce) the hero sees farther: a wider ring opens
+    const p = ctx.player.pos;
+    const high = p.y - ctx.world.groundHeight(Math.floor(p.x), Math.floor(p.z)) > 4;
+    this.explored.visit(p.x, p.z, high ? EXPLORE_RADIUS + 1 : EXPLORE_RADIUS);
     this.miniTimer -= dt;
     if (this.miniTimer > 0) return;
     this.miniTimer = 0.2;

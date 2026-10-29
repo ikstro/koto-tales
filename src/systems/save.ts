@@ -2,6 +2,8 @@ import { TERRAIN_VERSION, type HeroId, type ItemId, type MonsterKind } from '../
 import { BUILDINGS, KIT_ORDER, type BuildingId } from '../content/buildings';
 import type { Difficulty } from '../content/difficulty';
 import type { TaskKind } from '../content/progress';
+import type { VillageSave } from '../content/villages';
+import type { Race } from '../world/villages';
 import { homeChunks } from './explore';
 
 /**
@@ -55,6 +57,8 @@ export interface SaveData {
   lit: string[];
   /** The DJ's song (voice/music.ts SONGS). */
   song: number;
+  /** The four villages: met, tasks done, the one under way, nights in the guest house. */
+  villages: Partial<Record<Race, VillageSave>>;
 }
 
 /** A building put up from the kit: footprint min corner, the height its floor stands on, quarter turns. */
@@ -100,7 +104,7 @@ export const freshBoss = (): BossSave => ({ level: 1, site: null, hp: null, lant
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -133,6 +137,7 @@ export function freshSave(): SaveData {
     stats: { coins: 0, slept: 0, danced: 0 },
     lit: [],
     song: 0,
+    villages: {},
   };
 }
 
@@ -172,6 +177,8 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
   6: (d) => ({ ...d, v: 7, lit: [] }),
   // v8: the disco — dancing is counted, the DJ's song is kept.
   7: (d) => ({ ...d, v: 8, stats: { ...(d.stats as object), danced: 0 }, song: 0 }),
+  // v9: the villages (TERRAIN_VERSION 3 flattens their squares; buildings standing there go back to the kit).
+  8: (d) => ({ ...d, v: 9, villages: {} }),
 };
 
 export function migrate(raw: Raw): SaveData {

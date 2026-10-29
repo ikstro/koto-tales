@@ -71,6 +71,8 @@ export type MonsterState = 'wander' | 'chase' | 'flee' | 'dance' | 'wait';
 export class Monster {
   readonly card: MonsterCard;
   readonly body: Body;
+  /** Seconds left standing still, caught in a searchlight's beam. */
+  frozen = 0;
   hp: number;
   yaw = Math.random() * TAU;
   state: MonsterState = 'wander';

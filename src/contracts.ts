@@ -11,6 +11,7 @@
 import type * as THREE from 'three';
 import type { ItemId as ContentItemId } from './content/items';
 import type { BridgeSite, LighthouseSite } from './world/landmarks';
+import type { VillageSite } from './world/villages';
 import type { MonsterKind as ContentMonsterKind } from './content/monsters';
 
 // ─── ids ────────────────────────────────────────────────────────────────────
@@ -31,7 +32,7 @@ export const SEA_LEVEL = 10;
  * Bump when terrain generation changes in a way that moves the ground.
  * Saves remember the version they were made with (see systems/save.ts).
  */
-export const TERRAIN_VERSION = 2;
+export const TERRAIN_VERSION = 3;
 
 export interface RayHit {
   /** The block that was hit. */
@@ -144,6 +145,8 @@ export interface IWorld {
   /** Landmarks the world grows from its seed (world/landmarks.ts) near a point. */
   lighthousesNear?(x: number, z: number, radius: number): LighthouseSite[];
   bridgesNear?(x: number, z: number, radius: number): BridgeSite[];
+  /** The four villages (world/villages.ts). */
+  villages?(): VillageSite[];
   setBarrier?(x: number, y: number, z: number, on: boolean): void;
   /** Everything within the render distance is meshed (after a long jump: the place is ready to show). */
   isIdle?(): boolean;
@@ -267,7 +270,7 @@ export interface HouseBlueprint {
 
 // ─── voice & sound ──────────────────────────────────────────────────────────
 
-export type Speaker = 'narrator' | 'lyosha' | 'solomiia' | 'pupsia' | 'monster';
+export type Speaker = 'narrator' | 'lyosha' | 'solomiia' | 'pupsia' | 'monster' | 'elf' | 'elf_kid' | 'gnome' | 'robot' | 'alien' | 'alien_kid';
 
 /** Entry of src/content/lines.json — the single source for voice generation. */
 export interface Line {

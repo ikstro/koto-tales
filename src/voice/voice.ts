@@ -1,4 +1,5 @@
-import type { IVoice } from '../contracts';
+import type { IVoice, Speaker } from '../contracts';
+import { LINES, type LineId } from '../content/lines';
 import { getCtx, getMaster, unlockAudio } from './audio';
 
 const BASE = import.meta.env.BASE_URL;
@@ -62,6 +63,38 @@ function out(): GainNode {
   return gain;
 }
 
+/** Robots buzz (ring modulation), aliens echo: added as their lines play (DESIGN.md «Villages»). */
+function connect(c: AudioContext, src: AudioBufferSourceNode, speaker: Speaker | undefined): void {
+  if (speaker === 'robot') {
+    const ring = c.createGain();
+    ring.gain.value = 0;
+    const osc = c.createOscillator();
+    osc.frequency.value = 62;
+    const depth = c.createGain();
+    depth.gain.value = 0.7;
+    osc.connect(depth).connect(ring.gain);
+    const dry = c.createGain();
+    dry.gain.value = 0.55;
+    src.connect(dry).connect(out());
+    src.connect(ring).connect(out());
+    osc.start();
+    src.addEventListener('ended', () => osc.stop());
+    return;
+  }
+  src.connect(out());
+  if (speaker === 'alien' || speaker === 'alien_kid') {
+    const delay = c.createDelay(1);
+    delay.delayTime.value = 0.17;
+    const back = c.createGain();
+    back.gain.value = 0.36;
+    const wet = c.createGain();
+    wet.gain.value = 0.42;
+    src.connect(delay);
+    delay.connect(back).connect(delay);
+    delay.connect(wet).connect(out());
+  }
+}
+
 export const voice: IVoice & { preload(ids: string[]): void; quietSeconds(): number } = {
   unlock() {
     unlockAudio();
@@ -90,7 +123,7 @@ export const voice: IVoice & { preload(ids: string[]): void; quietSeconds(): num
       if (c.state !== 'running') void c.resume();
       const src = c.createBufferSource();
       src.buffer = buf;
-      src.connect(out());
+      connect(c, src, LINES[lineId as LineId]?.speaker);
       const entry = { src, priority };
       current = entry;
       src.onended = () => {

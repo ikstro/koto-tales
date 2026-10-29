@@ -34,7 +34,8 @@ export interface GameEvents {
   /** The party was carried somewhere at once (a portal): the camera jumps after them. */
   'hero:teleport': Record<string, never>;
   /** The party slept the night through, at home or in a tent. */
-  'sleep:done': { where: 'home' | 'tent' };
+  'sleep:done': { where: 'home' | 'tent' | 'guest' };
+  'village:task': { race: string; kind: string; friends: boolean };
 }
 
 type Handler<T> = (payload: T) => void;

@@ -23,7 +23,11 @@ export type BuildingId =
   | 'discoball'
   | 'djconsole'
   | 'tesla'
-  | 'trafficlight';
+  | 'trafficlight'
+  | 'garland'
+  | 'carousel'
+  | 'searchlight'
+  | 'trampoline';
 
 /**
  * What a building does in the power network (DESIGN.md «Power»): buildings closer than
@@ -70,6 +74,12 @@ export interface BuildingCard {
   zap?: { reach: number; every: number };
   /** Monsters this close stop on its red light (a traffic light). */
   traffic?: { reach: number };
+  /** A carousel: heroes on it ride round and their hearts come back fast. */
+  ride?: boolean;
+  /** A searchlight: at night its beam sweeps this far; a monster caught in it freezes for `freeze` seconds. */
+  beam?: { reach: number; freeze: number };
+  /** A trampoline: heroes on it bounce this many blocks up. */
+  bounce?: { height: number };
   /** Heroes may sleep in it at night. */
   sleep?: boolean;
   power?: PowerCard;
@@ -258,6 +268,52 @@ export const BUILDINGS: Record<BuildingId, BuildingCard> = {
     traffic: { reach: 9 },
     power: { take: 1 },
   },
+  // stage C1: the villages' prizes, one per race
+  garland: {
+    id: 'garland',
+    name: 'Гірлянда',
+    size: [3, 1],
+    solid: [
+      { dx: 0, dz: 0, h: 3 },
+      { dx: 2, dz: 0, h: 3 },
+    ],
+    count: 0,
+    sprite: 'b-garland',
+    firstLine: 'first_garland',
+    power: { take: 1, light: 6 },
+  },
+  carousel: {
+    id: 'carousel',
+    name: 'Карусель',
+    size: [3, 3],
+    solid: [],
+    count: 0,
+    sprite: 'b-carousel',
+    firstLine: 'first_carousel',
+    ride: true,
+    power: { take: 2 },
+  },
+  searchlight: {
+    id: 'searchlight',
+    name: 'Прожектор',
+    size: [1, 1],
+    solid: [{ dx: 0, dz: 0, h: 2 }],
+    count: 0,
+    sprite: 'b-searchlight',
+    firstLine: 'first_searchlight',
+    beam: { reach: 14, freeze: 3 },
+    power: { take: 2 },
+  },
+  trampoline: {
+    id: 'trampoline',
+    name: 'Батут',
+    size: [2, 2],
+    solid: [],
+    count: 0,
+    sprite: 'b-trampoline',
+    firstLine: 'first_trampoline',
+    bounce: { height: 8 },
+  },
 };
 
 /** A lighthouse by the water (world/landmarks.ts) in the power network. */
@@ -280,6 +336,10 @@ export const KIT_ORDER: BuildingId[] = [
   'djconsole',
   'tesla',
   'trafficlight',
+  'garland',
+  'carousel',
+  'searchlight',
+  'trampoline',
 ];
 
 /** The boombox's music (the smallest speaker): how far it carries and how close monsters dance. */

@@ -12,6 +12,7 @@ import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import { CHUNK_SIZE, SEA_LEVEL, WORLD_HEIGHT, type Biome } from '../contracts';
 import { B } from './blocks';
 import { hash2, mulberry32 } from './rng';
+import { findVillages, PLAZA, squareDist, toLocal, VILLAGE_EDGE, VILLAGE_HALF, type Race, type VillageSite } from './villages';
 
 export const BIOME_MEADOW = 0;
 export const BIOME_FOREST = 1;
@@ -31,6 +32,11 @@ const RIVER_W = 0.03;
 const RIVER_BANK = 0.024;
 /** Trees stay out of this radius around (0,0): the house goes there. */
 const HOME_CLEAR = 10;
+/** A village's floor and its plaza (with the path to the gate); 0 keeps the land's own top. */
+const VILLAGE_FLOOR: Record<Race, number> = { elves: 0, gnomes: 0, robots: 0, aliens: B.SAND };
+const VILLAGE_PAVE: Record<Race, number> = { elves: B.PLANKS, gnomes: B.COBBLE, robots: B.STONE, aliens: B.STONE };
+/** The aliens' crater: a rim this high just outside the floor. */
+const RIM_H = 2.2;
 
 export interface ColumnSample {
   /** Float height before flooring. */
@@ -43,6 +49,10 @@ export interface ColumnSample {
   hill: number;
   forest: number;
   biome: number;
+  /** 1 on a village's floor, falling to 0 across its slope. */
+  village: number;
+  /** A village floor's own top block (0: the land's). */
+  vtop: number;
 }
 
 const smoothstep = (e0: number, e1: number, x: number): number => {
@@ -73,8 +83,11 @@ export class Terrain {
   private gWet = new Float32Array(G * G);
   private gHill = new Float32Array(G * G);
   private gBiome = new Uint8Array(G * G);
-  private s: ColumnSample = { hf: 0, h: 0, wet: 0, lake: 0, hill: 0, forest: 0, biome: 0 };
-  private s2: ColumnSample = { hf: 0, h: 0, wet: 0, lake: 0, hill: 0, forest: 0, biome: 0 };
+  private gTop = new Uint8Array(G * G);
+  private s: ColumnSample = { hf: 0, h: 0, wet: 0, lake: 0, hill: 0, forest: 0, biome: 0, village: 0, vtop: 0 };
+  private s2: ColumnSample = { hf: 0, h: 0, wet: 0, lake: 0, hill: 0, forest: 0, biome: 0, village: 0, vtop: 0 };
+  /** The four villages (world/villages.ts); their squares are flattened in `sample`. */
+  villages: VillageSite[] = [];
 
   constructor(seed: number) {
     this.seed = seed | 0;
@@ -96,6 +109,15 @@ export class Terrain {
       this.rOff = [Math.floor(rand() * 20000) - 10000, Math.floor(rand() * 20000) - 10000];
       if (this.riverAway(RIVER_HOME_CLEAR)) break;
     }
+    // found on the raw land (no villages yet), then flattened from here on
+    this.villages = findVillages({ raw: (x, z) => this.sample(x, z, this.s2) });
+  }
+
+  /** The village whose square (with its slope) holds (x, z), if any. */
+  villageAt(x: number, z: number): VillageSite | null {
+    const R = VILLAGE_HALF + VILLAGE_EDGE;
+    for (const v of this.villages) if (Math.abs(x - v.x) <= R && Math.abs(z - v.z) <= R) return v;
+    return null;
   }
 
   /** Full column sample into `out`. */
@@ -120,6 +142,25 @@ export class Terrain {
     // keep the home meadow dry
     if (homeT > 0) hf = hf + (Math.max(hf, 12.2) - hf) * homeT;
 
+    // a village's square: flat, with a soft slope back to the land (the aliens' sits in a crater)
+    let village = 0;
+    let vtop = 0;
+    const v = this.villages.length ? this.villageAt(x, z) : null;
+    if (v) {
+      const dist = squareDist(v, x, z);
+      village = 1 - smoothstep(VILLAGE_HALF + 0.5, VILLAGE_HALF + 0.5 + VILLAGE_EDGE, dist);
+      hf += (v.y + 0.5 - hf) * village;
+      if (v.race === 'aliens') {
+        hf += RIM_H * smoothstep(VILLAGE_HALF + 0.5, VILLAGE_HALF + 2, dist) * Math.exp(-(((dist - VILLAGE_HALF - 3.5) / 2.4) ** 2));
+        if (dist < VILLAGE_HALF + 7) vtop = B.SAND;
+      }
+      if (village > 0.97) {
+        const [lx, lz] = toLocal(v, x, z);
+        const paved = Math.max(Math.abs(lx), Math.abs(lz)) <= PLAZA || (Math.abs(lx) <= 1 && lz > 0);
+        vtop = paved ? VILLAGE_PAVE[v.race] : VILLAGE_FLOOR[v.race];
+      }
+    }
+
     const forest = this.nF(x / 160, z / 160) + 0.25 * this.nF(x / 40 + 9.1, z / 40 + 3.3) - homeT * 2;
 
     let h = Math.floor(hf);
@@ -138,6 +179,8 @@ export class Terrain {
     out.hill = hill;
     out.forest = forest;
     out.biome = biome;
+    out.village = village;
+    out.vtop = vtop;
     return out;
   }
 
@@ -180,7 +223,7 @@ export class Terrain {
     const x0 = cx * CS;
     const z0 = cz * CS;
     const s = this.s;
-    const { gH, gHf, gWet, gHill, gBiome } = this;
+    const { gH, gHf, gWet, gHill, gBiome, gTop } = this;
 
     for (let gz = 0; gz < G; gz++) {
       for (let gx = 0; gx < G; gx++) {
@@ -191,6 +234,7 @@ export class Terrain {
         gWet[i] = s.wet;
         gHill[i] = s.hill;
         gBiome[i] = s.biome;
+        gTop[i] = s.vtop;
       }
     }
 
@@ -233,6 +277,10 @@ export class Terrain {
         } else if (biome === BIOME_HILLS && h >= SNOW_LINE - 4 && (r & 7) === 0) {
           top = B.STONE;
         }
+        if (gTop[gi] && h >= SEA_LEVEL) {
+          top = gTop[gi];
+          if (top === B.SAND) fill = B.SAND;
+        }
 
         const col = (lz << 4) | lx;
         out[col] = B.STONE; // y = 0
@@ -255,6 +303,8 @@ export class Terrain {
     if (tx * tx + tz * tz < HOME_CLEAR * HOME_CLEAR) return null;
     const roll = ((r >>> 8) & 0xffff) / 65536;
     this.sample(tx, tz, s);
+    // villages keep their squares and slopes clear (crowns reach two blocks out)
+    if (s.village > 0 || this.villageAt(tx + 2, tz + 2) || this.villageAt(tx - 2, tz - 2)) return null;
     let p = 0;
     switch (s.biome) {
       case BIOME_FOREST:

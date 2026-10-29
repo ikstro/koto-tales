@@ -306,6 +306,12 @@ function siteWet(ctx: Ctx, [x, z]: [number, number]): boolean {
   return false;
 }
 
+/** Villages keep their land: no lair within this of one. */
+const VILLAGE_KEEP = 64;
+function nearVillage(ctx: Ctx, [x, z]: [number, number]): boolean {
+  return (ctx.world.villages?.() ?? []).some((v) => Math.hypot(v.x - x, v.z - z) < VILLAGE_KEEP);
+}
+
 function chooseSite(ctx: Ctx, level: number): [number, number] {
   const { world } = ctx;
   const home = ctx.house ? ctx.house.centre : new THREE.Vector3();
@@ -320,8 +326,8 @@ function chooseSite(ctx: Ctx, level: number): [number, number] {
       const a = (i / 8) * Math.PI * 2;
       if (wet(Math.round(x + Math.sin(a) * 14), Math.round(z + Math.cos(a) * 14))) n++;
     }
-    // lighthouses keep their shore: the lair stays well away
-    return n <= 1 && !(world.lighthousesNear?.(x, z, 48) ?? []).some((l) => Math.hypot(l.x + 1.5 - x, l.z + 1.5 - z) < 48);
+    // lighthouses keep their shore and villages their land: the lair stays well away
+    return n <= 1 && !(world.lighthousesNear?.(x, z, 48) ?? []).some((l) => Math.hypot(l.x + 1.5 - x, l.z + 1.5 - z) < 48) && !nearVillage(ctx, [x, z]);
   };
   const [x, z] = pickSite(world.seed, level, home, good);
   const spot = world.findSpawn(x, z);
@@ -425,7 +431,7 @@ export function initBoss(ctx: Ctx): void {
 function spawn(ctx: Ctx, atStart: boolean): void {
   const s = ctx.save.boss;
   // no lair yet, or the world moved under one not eaten yet (a river runs there now)
-  if (!s.site || (!s.eatenAt && siteWet(ctx, s.site))) s.site = chooseSite(ctx, s.level);
+  if (!s.site || (!s.eatenAt && (siteWet(ctx, s.site) || nearVillage(ctx, s.site)))) s.site = chooseSite(ctx, s.level);
   const tune = tuneOf(ctx);
   const maxHp = bossMaxHp(s.level, tune.bossHp);
   const p = ctx.params;

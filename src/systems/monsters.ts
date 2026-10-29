@@ -11,6 +11,7 @@ import { playingSpeakers } from './kit';
 import { inLight } from './power';
 import { redLight } from './defense';
 import { tuneOf } from './tune';
+import { inVillage } from './villages';
 
 const spottedKinds = new Set<MonsterKind>();
 let spawnTimer = 0;
@@ -56,6 +57,8 @@ function trySpawn(ctx: Ctx): void {
     const y = ctx.world.groundHeight(bx, bz);
     if (y <= SEA_LEVEL || ctx.world.isWater(bx, y, bz)) continue;
     if (homeDistance(ctx, new THREE.Vector3(x, y, z)) < SPAWN.houseSafeRadius + 4) continue;
+    // villages are safe like home (their own defence waves come from systems/villages.ts)
+    if (inVillage(ctx, x, z)) continue;
     // the boss's wasteland is its own: no regular monsters spawn there
     if (ctx.boss?.inZone(x, z, 2)) continue;
     // nor where powered lamps and lighthouses shine at night
@@ -64,7 +67,7 @@ function trySpawn(ctx: Ctx): void {
   }
 }
 
-function spawnAt(ctx: Ctx, kind: MonsterKind, x: number, z: number): Monster {
+export function spawnAt(ctx: Ctx, kind: MonsterKind, x: number, z: number): Monster {
   const tune = tuneOf(ctx);
   const m = new Monster(kind, ctx.models.character(MONSTERS[kind].model));
   m.hp = Math.max(1, Math.ceil(m.card.hp * tune.monsterHp * (isNight(ctx) ? tune.night : 1)));
@@ -122,7 +125,8 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
     const home = ctx.house ? homeDistance(ctx, m.pos) : Infinity;
     const music = speakers.some((sp) => Math.hypot(sp.centre.x - m.pos.x, sp.centre.z - m.pos.z) < sp.dance);
     // a red traffic light close by: it stops and waits (no chasing, no biting)
-    const red = !music && redLight(m.pos.x, m.pos.z);
+    if (m.frozen > 0) m.frozen -= dt;
+    const red = !music && (redLight(m.pos.x, m.pos.z) || m.frozen > 0);
     const seen = ctx.playing && !ctx.sleeping && !music && !red ? nearestHero(ctx, m) : null;
     let tx = 0;
     let tz = 0;

@@ -41,6 +41,7 @@ export class Explored {
   private set: Set<string>;
   private lastCx = Number.NaN;
   private lastCz = Number.NaN;
+  private lastR = 0;
   /** Bumped whenever a chunk is added, so views know to redraw. */
   version = 0;
 
@@ -69,13 +70,14 @@ export class Explored {
   }
 
   /** The player is at world (x, z): his chunk and its neighbours become explored. Cheap when he stays in one chunk. */
-  visit(x: number, z: number): number {
+  visit(x: number, z: number, radius = EXPLORE_RADIUS): number {
     const cx = chunkOf(x);
     const cz = chunkOf(z);
-    if (cx === this.lastCx && cz === this.lastCz) return 0;
+    if (cx === this.lastCx && cz === this.lastCz && radius <= this.lastR) return 0;
     this.lastCx = cx;
     this.lastCz = cz;
-    return this.add(squareAround(cx, cz, EXPLORE_RADIUS));
+    this.lastR = radius;
+    return this.add(squareAround(cx, cz, radius));
   }
 
   /** Chunk bounds of everything explored: [cx0, cz0, cx1, cz1] inclusive, or null. */

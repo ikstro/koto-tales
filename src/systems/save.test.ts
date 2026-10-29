@@ -86,6 +86,14 @@ describe('save', () => {
     expect(s.song).toBe(0);
   });
 
+  it('migrates v8 → v9: no village met yet', () => {
+    const v8 = { ...freshSave(), v: 8 } as Record<string, unknown>;
+    delete v8.villages;
+    const s = migrate(v8);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.villages).toEqual({});
+  });
+
   it('keeps the boss as it was left (health, lanterns, beaten day)', () => {
     const boss = { level: 2, site: [150, -20] as [number, number], hp: 12, lanterns: ['1,2,3', '4,5,6'], defeatedDay: null, eatenAt: [150, -20] as [number, number], bites: 5 };
     const s = migrate({ ...freshSave(), day: 7, boss } as unknown as Record<string, unknown>);

@@ -16,6 +16,7 @@ import { bossStartSpot, initBoss } from './systems/boss';
 import { buildHouse } from './systems/house';
 import { initKit } from './systems/kit';
 import { initLandmarks } from './systems/landmarks';
+import { initVillages } from './systems/villages';
 import { initPower } from './systems/power';
 import { initPickups } from './systems/pickups';
 import { freshSave, loadSave, persistStorage, reconcileTerrain } from './systems/save';
@@ -110,6 +111,8 @@ async function boot(): Promise<void> {
   initPickups(ctx);
   ctx.house = buildHouse(ctx);
   initPower(ctx);
+  // before the kit: the villages' ground is kept, buildings standing there go back to the box
+  initVillages(ctx);
   initKit(ctx);
   initLandmarks(ctx);
   if (params.demo) placeDemo(ctx);

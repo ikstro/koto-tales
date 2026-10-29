@@ -10,7 +10,9 @@ import { castBolt, fireArrow, nearestMonster } from './combat';
 import { isInside } from './house';
 import { playingSpeakers } from './kit';
 import { onDanceFloor } from './disco';
+import { riding } from './prizes';
 import { tuneOf } from './tune';
+import { inVillage } from './villages';
 
 const tmp = new THREE.Vector3();
 /** Seconds the player has stood still (near the music, the party starts dancing). */
@@ -143,7 +145,7 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
   // Hearts come back on their own, quickly at home.
   if (player.hearts < HERO_STATS.maxHearts && player.sinceHit > HERO_STATS.regenDelay) {
     player.regenTimer += dt;
-    const every = ctx.house && isInside(ctx.house, player.pos) ? HERO_STATS.regenEveryAtHome : tuneOf(ctx).regenEvery;
+    const every = (ctx.house && isInside(ctx.house, player.pos)) || inVillage(ctx, player.pos.x, player.pos.z) || riding(player) ? HERO_STATS.regenEveryAtHome : tuneOf(ctx).regenEvery;
     if (player.regenTimer >= every) {
       player.regenTimer = 0;
       player.hearts += 1;

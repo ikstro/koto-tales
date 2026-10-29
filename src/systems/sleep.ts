@@ -8,6 +8,7 @@ import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { isInside } from './house';
 import { tentNear } from './kit';
+import { guestNear } from './villages';
 
 /**
  * Sleep (DESIGN.md «Sleep»): from evening till dawn, inside the house or next to one of
@@ -32,10 +33,17 @@ const isNightTime = (t: number) => t >= EVENING && t < DAWN;
 
 let hintedDay = -1;
 
-/** Where the party could sleep right now, if anywhere. */
-export function sleepPlace(ctx: Ctx): { where: 'home' } | { where: 'tent'; centre: THREE.Vector3 } | null {
+type Place =
+  | { where: 'home' }
+  | { where: 'tent'; centre: THREE.Vector3 }
+  | { where: 'guest'; centre: THREE.Vector3; spots: Record<string, { pos: THREE.Vector3; yaw: number }>; wake: THREE.Vector3 };
+
+/** Where the party could sleep right now, if anywhere: home, a tent, a village's guest house. */
+export function sleepPlace(ctx: Ctx): Place | null {
   if (!ctx.playing || ctx.sleeping || !isNightTime(ctx.clock.t)) return null;
   if (ctx.house && isInside(ctx.house, ctx.player.pos)) return { where: 'home' };
+  const guest = guestNear(ctx);
+  if (guest) return { where: 'guest', ...guest };
   const tent = tentNear(ctx);
   return tent ? { where: 'tent', centre: tent.centre } : null;
 }
@@ -70,6 +78,10 @@ async function sleep(ctx: Ctx, place: NonNullable<ReturnType<typeof sleepPlace>>
       const s = TENT_SPOTS[id];
       r.position.set(place.centre.x + s.dx, place.centre.y + s.dy, place.centre.z + s.dz);
       r.rotation.y = s.yaw;
+    } else if (place.where === 'guest') {
+      const s = place.spots[id];
+      r.position.copy(s.pos);
+      r.rotation.y = s.yaw;
     }
     r.visible = true;
     h.model.play('sleep');
@@ -93,7 +105,7 @@ async function sleep(ctx: Ctx, place: NonNullable<ReturnType<typeof sleepPlace>>
     h.hearts = HERO_STATS.maxHearts;
     h.invulnerable = 2;
   }
-  const centre = home ? house.centre : place.where === 'tent' ? place.centre : ctx.player.pos;
+  const centre = home ? house.centre : place.where !== 'home' ? place.centre : ctx.player.pos;
   for (const m of ctx.monsters) if (Math.hypot(m.pos.x - centre.x, m.pos.z - centre.z) < 18) m.alive = false;
   await wait(300);
   ctx.hud.stars(false);
@@ -107,7 +119,13 @@ async function sleep(ctx: Ctx, place: NonNullable<ReturnType<typeof sleepPlace>>
   }
   sfx.play('wake');
   await wait(1500);
-  const at = home ? house.wake : place.where === 'tent' ? place.centre.clone().add(new THREE.Vector3(0, 0, 2.4)) : ctx.player.pos;
+  const at = home
+    ? house.wake
+    : place.where === 'tent'
+      ? place.centre.clone().add(new THREE.Vector3(0, 0, 2.4))
+      : place.where === 'guest'
+        ? place.wake
+        : ctx.player.pos;
   let i = 0;
   for (const h of ctx.heroes.values()) {
     const side = h === ctx.player ? 0 : i++ === 0 ? -1 : 1;

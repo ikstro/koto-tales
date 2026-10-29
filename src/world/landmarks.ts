@@ -15,6 +15,8 @@ export const LIGHTHOUSE_REGION = 128;
 export const BRIDGE_CELL = 56;
 /** No lighthouse closer to home than this: home is the house's place. */
 const HOME_CLEAR = 60;
+/** Nor this close to a village's centre (its square and slope). */
+const VILLAGE_CLEAR = 34;
 
 export interface LighthouseSite {
   /** Stable id, saved when it is lit: `L<rx>,<rz>`. */
@@ -42,7 +44,7 @@ export interface BridgeSite {
   y: number;
 }
 
-const s: ColumnSample = { hf: 0, h: 0, wet: 0, lake: 0, hill: 0, forest: 0, biome: 0 };
+const s: ColumnSample = { hf: 0, h: 0, wet: 0, lake: 0, hill: 0, forest: 0, biome: 0, village: 0, vtop: 0 };
 const isWater = (t: Terrain, x: number, z: number) => t.sample(x, z, s).h < SEA_LEVEL;
 /** Walking height of dry ground (null over water). */
 function floorAt(t: Terrain, x: number, z: number): number | null {
@@ -99,6 +101,7 @@ export function lighthouseIn(t: Terrain, rx: number, rz: number): LighthouseSite
   for (let z = rz * R + 8; z < rz * R + R - 8; z += 4) {
     for (let x = rx * R + 8; x < rx * R + R - 8; x += 4) {
       if (Math.hypot(x, z) < HOME_CLEAR) continue;
+      if (t.villages.some((v) => Math.hypot(v.x - x, v.z - z) < VILLAGE_CLEAR)) continue;
       const cf = floorAt(t, x + 1, z + 1);
       if (cf === null || cf > SEA_LEVEL + 4) continue;
       if (!DIRS.some(([dx, dz]) => isWater(t, x + 1 + dx * 4, z + 1 + dz * 4))) continue;

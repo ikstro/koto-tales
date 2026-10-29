@@ -673,3 +673,12 @@ body {
 .bm-view .sp {
   pointer-events: none;
 }
+
+/* the bubble over a village elder: pinned to the world by systems/villages.ts */
+.vbubble {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}

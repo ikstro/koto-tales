@@ -19,6 +19,8 @@ import { updateLandmarks } from '../systems/landmarks';
 import { djNear, initDisco, updateDisco } from '../systems/disco';
 import { exposeDefense, updateDefense } from '../systems/defense';
 import { updatePower } from '../systems/power';
+import { updatePrizes } from '../systems/prizes';
+import { updateVillages } from '../systems/villages';
 import { updateLanterns } from '../render/lanterns';
 import { cutaway } from '../render/skins/cutaway';
 import { music } from '../voice/music';
@@ -264,6 +266,7 @@ export class Game {
       updateKit(ctx, dt);
       updateDisco(ctx, dt);
       updateDefense(ctx, dt);
+      updatePrizes(ctx, dt);
       updateProgress(ctx);
       updateSleep(ctx);
       ctx.hud.setPrompt(ctx.sleeping ? null : sleepPlace(ctx) ? 'moon' : canFold(ctx) ? 'fold' : null);
@@ -273,6 +276,7 @@ export class Game {
     updatePortals(ctx, dt);
     updatePower(ctx, dt);
     updateLandmarks(ctx, dt);
+    updateVillages(ctx, dt);
     updatePickups(ctx, dt);
     updateHouse(ctx, dt);
     updateDayNight(ctx, dt);

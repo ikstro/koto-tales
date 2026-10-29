@@ -377,6 +377,7 @@ export class Hud {
   private promptPiece: Piece;
   private notePiece: Piece;
   private noteOn = false;
+  private bubble: { el: HTMLDivElement; lit: HTMLImageElement[]; pic: Piece; shown: boolean } | null = null;
   private prompt: PromptKind | null = null;
   private kitItems: KitItem[] = [];
   private kitCells = new Map<string, { p: Piece; count: Counter | null }>();
@@ -1224,6 +1225,42 @@ export class Hud {
     this.noteOn = on;
     this.notePiece.el.classList.toggle('hidden', !on);
     if (on) this.notePiece.drop(0, 50);
+  }
+
+  /**
+   * The bubble over a village elder's head (screen px of the point above the head): the task's
+   * picture on a stud ring that lights as it comes along. Pinned to the world, it never covers the hero.
+   */
+  setBubble(b: { x: number; y: number; picture: string; lit: number } | null): void {
+    if (!b) {
+      if (this.bubble?.shown) {
+        this.bubble.el.style.display = 'none';
+        this.bubble.shown = false;
+      }
+      return;
+    }
+    if (!this.bubble) {
+      const el = div('vbubble', this.root);
+      this.root.insertBefore(el, this.root.firstChild);
+      const ring = new Piece(el, 'ring', 0, 0);
+      const lit = [...Array(8)].map((_, i) => ring.layer(`ring-lit-${i}` as SpriteName, 'sp lit'));
+      const pic = new Piece(el, 'zombie', 0, -TOP, 'tile6-sh');
+      this.bubble = { el, lit, pic, shown: false };
+      pic.drop(0, 40);
+    }
+    const u = this.bubble;
+    if (!u.shown) {
+      u.el.style.display = '';
+      u.shown = true;
+    }
+    setSprite(u.pic.img, (b.picture in SPRITES ? b.picture : 'zombie') as SpriteName);
+    u.lit.forEach((l, i) => (l.style.visibility = i < b.lit ? '' : 'hidden'));
+    const k = this.gAct.s * 0.85;
+    // kept whole on the screen when the elder stands near its edge
+    const m = 72 * k;
+    const x = Math.min(window.innerWidth - m, Math.max(m, b.x));
+    const y = Math.min(window.innerHeight - m, Math.max(m + TOP * k, b.y));
+    u.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${k.toFixed(3)})`;
   }
 
   /** Stars over the dark fade (the night passing while the heroes sleep). */

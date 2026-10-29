@@ -13,9 +13,13 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { CharacterModel, IModels, ItemId, ModelRef, Rig, RigType, Skin } from '../contracts';
 import { animate } from './animate';
 import { buildItem } from './items';
+import { buildAlien1, buildAlien2, buildAlien3, buildAlienElder, buildAlienKid } from './parts/alien';
+import { buildElf1, buildElf2, buildElf3, buildElfElder, buildElfKid } from './parts/elf';
+import { buildGnome1, buildGnome2, buildGnome3, buildGnomeElder, buildGnomeKid } from './parts/gnome';
 import { build as landEater } from './parts/landEater';
 import { build as lyosha } from './parts/lyosha';
 import { build as pupsia } from './parts/pupsia';
+import { buildRobot1, buildRobot2, buildRobot3, buildRobotElder, buildRobotKid } from './parts/robot';
 import { build as skeleton } from './parts/skeleton';
 import { build as solomiia } from './parts/solomiia';
 import { build as spider } from './parts/spider';
@@ -29,6 +33,26 @@ export const PART_BUILDERS: Record<string, (skin: Skin) => Rig> = {
   skeleton,
   spider,
   landEater,
+  elf_elder: buildElfElder,
+  elf_1: buildElf1,
+  elf_2: buildElf2,
+  elf_3: buildElf3,
+  elf_kid: buildElfKid,
+  gnome_elder: buildGnomeElder,
+  gnome_1: buildGnome1,
+  gnome_2: buildGnome2,
+  gnome_3: buildGnome3,
+  gnome_kid: buildGnomeKid,
+  robot_elder: buildRobotElder,
+  robot_1: buildRobot1,
+  robot_2: buildRobot2,
+  robot_3: buildRobot3,
+  robot_kid: buildRobotKid,
+  alien_elder: buildAlienElder,
+  alien_1: buildAlien1,
+  alien_2: buildAlien2,
+  alien_3: buildAlien3,
+  alien_kid: buildAlienKid,
 };
 
 const RIG_PARTS: Record<RigType, string[]> = {

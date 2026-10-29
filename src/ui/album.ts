@@ -1,5 +1,7 @@
 import { ITEMS, ITEM_ORDER } from '../content/items';
 import { MONSTERS, MONSTER_ORDER } from '../content/monsters';
+import { RACE_CARDS } from '../content/villages';
+import { RACES } from '../world/villages';
 import type { SaveData } from '../systems/save';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
@@ -50,6 +52,11 @@ export class Album {
     }
     // places: a lighthouse the child lit (×N lit)
     entries.push({ img: `${import.meta.env.BASE_URL}hud/map-lighthouse-lit.png`, got: found.has('lighthouse'), line: 'lighthouse_lit', count: save.lit.length });
+    // the villages: the race's sticker after the first night in its guest house (×N nights)
+    for (const race of RACES) {
+      const card = RACE_CARDS[race];
+      entries.push({ img: `${import.meta.env.BASE_URL}hud/${card.sticker}.png`, got: found.has(`v:${race}`), line: card.hello, count: save.villages[race]?.nights ?? 0 });
+    }
 
     const cols = W >= H ? 6 : 4;
     const rows = Math.ceil(entries.length / cols);

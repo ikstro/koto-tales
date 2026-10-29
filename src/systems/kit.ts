@@ -221,10 +221,11 @@ export function initKit(ctx: Ctx): void {
   // the doorstep and the campfire stay free: the way into the house is never blocked
   const c = ctx.house?.campfire.root.position;
   if (c) for (let dx = -2; dx <= 2; dx++) for (let dz = -3; dz <= 2; dz++) reserved.add(`${Math.floor(c.x) + dx},${Math.floor(c.z) + dz}`);
-  // the world moved (a river now flows there, the ground rose over the floor): back into the box
+  // the world moved (a river now flows there, the ground rose over the floor or fell away,
+  // a village stands there now): back into the box
   ctx.save.placed = ctx.save.placed.filter((rec) => {
     const card = BUILDINGS[rec.id];
-    if (card.block !== undefined || standsOk(ctx, rec)) return true;
+    if (card.block !== undefined || (standsOk(ctx, rec) && !onReserved(rec))) return true;
     ctx.save.kit[rec.id] = (ctx.save.kit[rec.id] ?? 0) + 1;
     return false;
   });
@@ -242,17 +243,26 @@ export function initKit(ctx: Ctx): void {
   };
 }
 
-/** Whether a saved building still has dry ground under it, no higher than its floor. */
+/** Whether a saved building still has dry ground under it, no higher than its floor and not fallen away (a plinth fills one step). */
 export function standsOk(world: Pick<IWorld, 'groundHeight' | 'isWater'> | Ctx, rec: PlacedBuilding): boolean {
   const w = 'world' in world ? world.world : world;
   const [sw, sd] = dims(BUILDINGS[rec.id], rec.rot);
+  let top = -Infinity;
   for (let x = rec.x; x < rec.x + sw; x++) {
     for (let z = rec.z; z < rec.z + sd; z++) {
       const g = w.groundHeight(x, z);
       if (g > rec.y || w.isWater(x, g, z) || w.isWater(x, g - 1, z)) return false;
+      top = Math.max(top, g);
     }
   }
-  return true;
+  return top >= rec.y - 1;
+}
+
+/** A saved building on ground kept for something else (a village's houses). */
+function onReserved(rec: PlacedBuilding): boolean {
+  const [sw, sd] = dims(BUILDINGS[rec.id], rec.rot);
+  for (let x = rec.x; x < rec.x + sw; x++) for (let z = rec.z; z < rec.z + sd; z++) if (reserved.has(`${x},${z}`)) return true;
+  return false;
 }
 
 /** How many of a building the child owns (in the box and standing). */

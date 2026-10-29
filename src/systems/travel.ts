@@ -126,8 +126,21 @@ async function through(ctx: Ctx, from: 'home' | 'field'): Promise<void> {
   busy = false;
 }
 
+/** Takes the party to stand in front of a place (a village's portal), as through a gate. */
+export async function travelTo(ctx: Ctx, pos: THREE.Vector3, yaw: number): Promise<void> {
+  if (busy) return;
+  busy = true;
+  await travel(ctx, { pos, yaw });
+  busy = false;
+}
+
+/** The arch next to the house, once the box has given the portal. */
+export function homeGate(): { pos: THREE.Vector3; yaw: number } | null {
+  return home;
+}
+
 /** Fade out, move the party in front of `to`, let the world load, fade in. */
-async function travel(ctx: Ctx, to: Gate): Promise<void> {
+async function travel(ctx: Ctx, to: { pos: THREE.Vector3; yaw: number }): Promise<void> {
   if (ctx.sleeping) return;
   ctx.sleeping = true;
   sfx.play('switch', { pitch: 0.8 });
@@ -152,8 +165,8 @@ async function travel(ctx: Ctx, to: Gate): Promise<void> {
   }
   // monsters that were around the far end have wandered off
   for (const m of ctx.monsters) if (Math.hypot(m.pos.x - tx, m.pos.z - tz) < 14) m.alive = false;
-  home!.armed = false;
-  field!.armed = false;
+  if (home) home.armed = false;
+  if (field) field.armed = false;
   events.emit('hero:teleport', {});
   const t0 = performance.now();
   while (!ctx.world.isIdle?.() && performance.now() - t0 < 1500) await wait(60);
@@ -164,7 +177,7 @@ async function travel(ctx: Ctx, to: Gate): Promise<void> {
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-function inGate(g: Gate, p: THREE.Vector3): boolean {
+export function inGate(g: { pos: THREE.Vector3; yaw: number }, p: THREE.Vector3): boolean {
   const dx = p.x - g.pos.x;
   const dz = p.z - g.pos.z;
   // into the gate's own axes

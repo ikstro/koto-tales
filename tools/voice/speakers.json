@@ -3,5 +3,11 @@
   "lyosha": { "voice": "uk-UA-PolinaNeural", "rate": 1.08, "pitch": "+8%" },
   "solomiia": { "voice": "uk-UA-PolinaNeural", "rate": 1.05, "pitch": "+18%" },
   "pupsia": { "voice": "uk-UA-PolinaNeural", "rate": 0.88, "pitch": "-12%" },
-  "monster": { "voice": "uk-UA-OstapNeural", "rate": 0.9, "pitch": "-30%" }
+  "monster": { "voice": "uk-UA-OstapNeural", "rate": 0.9, "pitch": "-30%" },
+  "elf": { "voice": "uk-UA-PolinaNeural", "rate": 1.02, "pitch": "+22%" },
+  "elf_kid": { "voice": "uk-UA-PolinaNeural", "rate": 1.1, "pitch": "+34%" },
+  "gnome": { "voice": "uk-UA-OstapNeural", "rate": 0.94, "pitch": "-16%" },
+  "robot": { "voice": "uk-UA-OstapNeural", "rate": 0.9, "pitch": "+4%" },
+  "alien": { "voice": "uk-UA-OstapNeural", "rate": 1.06, "pitch": "+30%" },
+  "alien_kid": { "voice": "uk-UA-PolinaNeural", "rate": 1.12, "pitch": "+38%" }
 }

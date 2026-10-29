@@ -14,6 +14,7 @@ import {
   glowMaterial, stepped,
 } from './buildingParts';
 import { createBigSpeaker, createDanceFloor, createDiscoBall, createDjConsole, createTesla, createTrafficLight } from './disco';
+import { createCarousel, createGarland, createSearchlight, createTrampoline } from './prizes';
 
 /** How a building's power network is doing (systems/power.ts), for its lights and motion. */
 export interface PowerView {
@@ -46,6 +47,10 @@ export interface BuildingTick {
   song?: number;
   /** Heroes' feet (world) — a dance floor lights the tiles under them. */
   feet?: THREE.Vector3[];
+  /** A searchlight: where its head points (yaw in the model's own space, radians, 0 = +Z). */
+  aim?: number;
+  /** A trampoline: how far its mat is pressed down now, 0..1. */
+  bounce?: number;
 }
 
 export interface BuildingModel {
@@ -55,6 +60,8 @@ export interface BuildingModel {
   socket?: THREE.Vector3;
   /** A tesla tower's ball, where its lightning starts (model space). */
   tip?: THREE.Vector3;
+  /** A carousel's seats: riders are put at their world positions every frame. */
+  seats?: THREE.Object3D[];
 }
 
 export function createBuilding(skin: Skin, id: BuildingId): BuildingModel {
@@ -87,6 +94,14 @@ export function createBuilding(skin: Skin, id: BuildingId): BuildingModel {
       return createTesla(skin);
     case 'trafficlight':
       return createTrafficLight(skin);
+    case 'garland':
+      return createGarland(skin);
+    case 'carousel':
+      return createCarousel(skin);
+    case 'searchlight':
+      return createSearchlight(skin);
+    case 'trampoline':
+      return createTrampoline(skin);
     default:
       return createLanternGhost();
   }
@@ -300,7 +315,7 @@ export interface PortalModel {
 let swirlTex: THREE.CanvasTexture | null = null;
 
 /** A warm magic swirl: cream heart, mustard and coral arms (the golden-hour palette, no neon). */
-function swirlTexture(): THREE.CanvasTexture {
+export function swirlTexture(): THREE.CanvasTexture {
   if (swirlTex) return swirlTex;
   const s = 256;
   const c = document.createElement('canvas');

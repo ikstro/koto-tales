@@ -9,7 +9,26 @@
  */
 import * as THREE from 'three';
 
-export type FaceId = 'lyosha' | 'solomiia' | 'pupsia' | 'zombie' | 'skeleton' | 'spider';
+export type FaceId =
+  | 'lyosha'
+  | 'solomiia'
+  | 'pupsia'
+  | 'zombie'
+  | 'skeleton'
+  | 'spider'
+  | 'elf'
+  | 'elf_elder'
+  | 'gnome'
+  | 'gnome_elder'
+  | 'gnome_kid'
+  | 'robot'
+  | 'robot_elder'
+  | 'robot_kid'
+  | 'alien'
+  | 'alien_lilac'
+  | 'alien_mint'
+  | 'alien_elder'
+  | 'alien_kid';
 
 export const ATLAS_W = 16;
 export const ATLAS_H = 8;
@@ -30,6 +49,182 @@ interface FaceDef {
   /** Rows replaced when the eyes are shut. */
   closed: Record<number, string>;
 }
+
+/** Big dark almond eyes on a bare head; `rows` may override the face rows (kids, elders). */
+function alienDef(skin: string, shade: string, extra: Partial<FaceDef> = {}): FaceDef {
+  return {
+    // skin, shade, antenna ball cream, ball coral
+    swatches: [skin, shade, '#ffe3a3', '#e0583f'],
+    pal: { K: '#1c1830', W: '#f4f0ff', M: '#5a3a5e', d: shade, P: '#e69aa0' },
+    open: [
+      '........',
+      '........',
+      '.KK..KK.',
+      'KWK..KWK',
+      'KKK..KKK',
+      '.KK..KK.',
+      '...MM...',
+      '........',
+    ],
+    closed: { 2: '........', 3: '........', 4: 'KKK..KKK', 5: '........' },
+    ...extra,
+  };
+}
+
+const DEFS_FOLK: Record<string, FaceDef> = {
+  elf: {
+    // skin, ear shade
+    swatches: ['#f3d0a8', '#e0b58c'],
+    pal: { K: '#2b2a22', G: '#3f7a34', W: '#fffaf0', h: '#a8793a', P: '#f1a88e', M: '#c0605a' },
+    open: [
+      '........',
+      '........',
+      '.hh..hh.',
+      '.GW..WG.',
+      '.GK..KG.',
+      'P......P',
+      '...MM...',
+      '........',
+    ],
+    closed: { 3: '........', 4: '.KK..KK.' },
+  },
+  elf_elder: {
+    swatches: ['#f0cba4', '#dcb088'],
+    pal: { K: '#2b2a22', G: '#4a7a8a', W: '#fffaf0', h: '#e6e8ea', P: '#eaa088', M: '#b85a54', l: '#d9ae88' },
+    open: [
+      '........',
+      '........',
+      '.hh..hh.',
+      '.GW..WG.',
+      '.GK..KG.',
+      'l......l',
+      '...MM...',
+      '........',
+    ],
+    closed: { 3: '........', 4: '.KK..KK.' },
+  },
+  gnome: {
+    // skin, shade
+    swatches: ['#eec0a0', '#d9a07e'],
+    pal: { K: '#2b2420', W: '#fff8ee', b: '#8a6a4a', N: '#e07a62' },
+    open: [
+      '........',
+      '........',
+      '.bb..bb.',
+      '.WK..KW.',
+      '...NN...',
+      '..NNNN..',
+      '........',
+      '........',
+    ],
+    closed: { 3: '.KK..KK.' },
+  },
+  gnome_elder: {
+    swatches: ['#ebb99a', '#d49a78'],
+    pal: { K: '#2b2420', W: '#fff8ee', b: '#f0eee8', N: '#dd7860' },
+    open: [
+      '........',
+      '.bb..bb.',
+      '.bb..bb.',
+      '.WK..KW.',
+      '...NN...',
+      '..NNNN..',
+      '........',
+      '........',
+    ],
+    closed: { 3: '.KK..KK.' },
+  },
+  gnome_kid: {
+    swatches: ['#f2c8a8', '#dca686'],
+    pal: { K: '#2b2420', W: '#fff8ee', b: '#b08a60', N: '#e8907e', P: '#ee9a88', M: '#b0524a' },
+    open: [
+      '........',
+      '........',
+      '.bb..bb.',
+      '.WK..KW.',
+      '.KK..KK.',
+      'P..NN..P',
+      '..M..M..',
+      '...MM...',
+    ],
+    closed: { 3: '........', 4: '.KK..KK.' },
+  },
+  robot: {
+    // screen dark, rim light
+    swatches: ['#26373a', '#9aa4ac'],
+    pal: { E: '#ffe3a3', M: '#ffe3a3' },
+    open: [
+      '........',
+      '........',
+      '.EE..EE.',
+      '.EE..EE.',
+      '........',
+      '........',
+      '.M....M.',
+      '..MMMM..',
+    ],
+    closed: { 2: '........' },
+  },
+  robot_elder: {
+    swatches: ['#2e2a22', '#a8723a'],
+    pal: { E: '#f0a23a', M: '#d98a30' },
+    open: [
+      '........',
+      '........',
+      '.EE..EE.',
+      '.EE..EE.',
+      '........',
+      '.M.MM.M.',
+      '..MMMM..',
+      '........',
+    ],
+    closed: { 2: '........' },
+  },
+  robot_kid: {
+    swatches: ['#26373a', '#9aa4ac'],
+    pal: { E: '#ffe3a3', K: '#26373a', M: '#ffe3a3' },
+    open: [
+      '........',
+      '........',
+      '.EE..EE.',
+      'EKE..EKE',
+      '.EE..EE.',
+      '........',
+      '.M....M.',
+      '..MMMM..',
+    ],
+    closed: { 2: '........', 3: 'EEE..EEE', 4: '........' },
+  },
+  alien: alienDef('#86c274', '#6aa85c'),
+  alien_lilac: alienDef('#b79ad0', '#9a7cb8'),
+  alien_mint: alienDef('#7fc4b0', '#5ea896'),
+  alien_elder: alienDef('#a3b58a', '#869a70', {
+    pal: { K: '#1c1830', W: '#f4f0ff', M: '#5a3a5e', d: '#869a70', P: '#e69aa0' },
+    open: [
+      '........',
+      '.dd..dd.',
+      '.KK..KK.',
+      'KWK..KWK',
+      'KKK..KKK',
+      '.KK..KK.',
+      '...MM...',
+      '........',
+    ],
+  }),
+  alien_kid: alienDef('#86c274', '#6aa85c', {
+    open: [
+      '........',
+      '.KK..KK.',
+      'KWK..KWK',
+      'KKK..KKK',
+      'KKK..KKK',
+      '.KK..KK.',
+      'P..MM..P',
+      '........',
+    ],
+    closed: { 1: '........', 2: '........', 3: '........', 4: 'KKK..KKK', 5: '........' },
+  }),
+};
 
 const DEFS: Record<FaceId, FaceDef> = {
   lyosha: {
@@ -128,6 +323,10 @@ const DEFS: Record<FaceId, FaceDef> = {
     ],
     closed: { 2: '........', 3: '........', 4: '.KK..KK.' },
   },
+  ...(DEFS_FOLK as Record<
+    'elf' | 'elf_elder' | 'gnome' | 'gnome_elder' | 'gnome_kid' | 'robot' | 'robot_elder' | 'robot_kid' | 'alien' | 'alien_lilac' | 'alien_mint' | 'alien_elder' | 'alien_kid',
+    FaceDef
+  >),
 };
 
 export interface FaceAtlas {
