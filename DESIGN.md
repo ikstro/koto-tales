@@ -142,3 +142,12 @@ Four villages, one per race, from the seed (`src/world/villages.ts`): elves in a
 ## Voice frequency
 - Пупся is chatty on purpose (the owner's call): she keeps the child company. Rules in `src/systems/pacing.ts` (tested) only stop her talking over herself: a thought every ~2–3 minutes, waiting for any playing line to end; the night tip every night.
 - Boss fight: the stone hint whenever arrows bounce off the armour (at most every 25 s); the mouth hint after the armour breaks and when shots hit the closed mouth (at most every 35 s); the stomp warning once per session; one line per lantern. A boss card that popped up counts as the hint it explained.
+
+## Performance (no freezes)
+A frame that stalls is felt as the game breaking. The rules, measured by `npm run perf` (the real start, then a fixed route: a walk, every village, the portal home, the map; it lists freezes, the worst frame and every shader built mid-play):
+- **No light that comes and goes.** A change in the number of real lights rebuilds every material. Only the sun, the sky, the house lamp and the campfire are lights, all there from the start; everything else glows with a halo and a pool on the ground (portals, lanterns, lamps).
+- **Prepared before shown.** A new object whose shaders were never built is built in the background and stays hidden until ready, a split second late instead of a frozen frame (`src/render/shaderGate.ts`). While the title is up, the other quality look is prepared too.
+- **The look changes only at quiet moments.** The quality control steps down at once when frames are slow, but steps up only behind a pause, the big map or a dark fade (`src/core/quality.ts`). The rendered picture is capped at 3.6 million pixels.
+- **Built once, kept.** Villages, lighthouses and bridges out of range are put aside, not thrown away (the nearest 10 lighthouses and 20 bridges; farther ones are let go); a village's first build is spread over frames, a piece a frame.
+- **Budgets per frame.** New land, its meshes, coins and dressing are made a step at a time within a few milliseconds a frame (`src/world/World.ts`).
+- `?stats=1` shows the worst frame of the last 5 s, freezes (over 100 ms) and the shader count.

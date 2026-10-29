@@ -2,8 +2,11 @@
  * The voxel world: chunk data (generated on demand, plus the kid's edits),
  * streaming of chunk meshes around a focus point, block queries and edits.
  *
- * Meshing is budgeted per `update` call (≤2 new chunks or ~8 ms, plus a few
- * edited chunks), so walking never stalls a frame. All chunk meshes share the
+ * Streaming is cut into small units — one chunk of terrain, one mesh, one
+ * decoration, one chunk's pickups — and each `update` runs units only while
+ * their usual cost still fits its time budget (~5 ms), so walking never stalls
+ * a frame. A chunk is meshed only once its own and its 8 neighbours' terrain
+ * exist, so meshing never generates terrain itself. All chunk meshes share the
  * two materials of the active skin.
  */
 import * as THREE from 'three';
@@ -35,13 +38,25 @@ for (const k of Object.keys(BLOCKS)) SOLID[Number(k)] = BLOCKS[Number(k)].solid 
 /** One number per cell (x, z within ±2^20, y within 0..63). */
 const barrierKey = (x: number, y: number, z: number) => ((Math.floor(x) + 1048576) * 2097152 + (Math.floor(z) + 1048576)) * 64 + Math.floor(y);
 
-/** Chunks meshed per update (new ones) and the time budget for them. */
+/**
+ * Streaming time per update. A unit of work starts only when the time spent so
+ * far plus its usual cost fits; the first unit of an update always runs.
+ */
+const BUDGET_MS = 5;
+/** After a jump of several chunks (a teleport, behind a fade) the area fills with a bigger budget for a while. */
+const BURST_MS = 30;
+const BURST_WINDOW_MS = 2000;
+const JUMP_CHUNKS = 2;
+/** New chunk meshes per update (each is a GPU upload on the next draw), normally and during a burst. */
 const MESH_PER_UPDATE = 2;
-const MESH_BUDGET_MS = 8;
-/** Edited chunks remeshed per update, regardless of the time budget. */
-const DIRTY_PER_UPDATE = 4;
-/** Decorations rebuilt per update. */
+const MESH_PER_BURST = 12;
+/** Decorations rebuilt per update at most, within the time budget. */
 const DECO_PER_UPDATE = 3;
+/** The worst streaming update is remembered this long (stats.streamMaxMs). */
+const STAT_WINDOW_MS = 5000;
+
+/** Units of streaming work, each with its own learned cost. */
+type Unit = 'gen' | 'mesh' | 'deco' | 'pick';
 /** Chunks within this Chebyshev distance of the focus get skin decorations. */
 const DECO_DIST = 2;
 
@@ -73,8 +88,22 @@ export class World implements IWorld {
   onChunkGenerated: ((info: ChunkInfo) => void) | null = null;
   onChunkUnloaded: ((cx: number, cz: number) => void) | null = null;
 
-  /** Debug counters. */
-  readonly stats = { meshed: 0, meshMs: 0, lastMeshMs: 0, loaded: 0, dataChunks: 0 };
+  /**
+   * Debug counters. streamMs: streaming time of the last update; streamMaxMs: the
+   * worst of the last ~5 s. generated: terrain chunks made by streaming;
+   * generatedOutside: made on demand by gameplay queries (unbudgeted).
+   */
+  readonly stats = {
+    meshed: 0,
+    meshMs: 0,
+    lastMeshMs: 0,
+    loaded: 0,
+    dataChunks: 0,
+    streamMs: 0,
+    streamMaxMs: 0,
+    generated: 0,
+    generatedOutside: 0,
+  };
 
   private scene: THREE.Scene;
   private skin: Skin;
@@ -93,6 +122,16 @@ export class World implements IWorld {
   private focusCz = Number.NaN;
   private allLoaded = false;
   private decoQueue = new Set<number>();
+  /** Meshed chunks whose pickups (onChunkGenerated) have not run yet. */
+  private pickQueue = new Set<number>();
+  /** This update's start, budget and units run so far; learned cost of each unit, ms. */
+  private t0 = 0;
+  private budget = BUDGET_MS;
+  private units = 0;
+  private cost: Record<Unit, number> = { gen: 1, mesh: 1, deco: 2, pick: 0.2 };
+  private burstUntil = 0;
+  private streaming = false;
+  private streamMaxAt = 0;
   private daylight = 1;
   private lastKey = -1;
   private lastData: Uint8Array | null = null;
@@ -107,6 +146,8 @@ export class World implements IWorld {
     this.renderDistance = 0;
     this.offsets = new Int16Array(0);
     this.setRenderDistance(opts.renderDistance);
+    // read-only probe for the page (perf runs, devtools): window.__kotoWorld.stats
+    if (typeof window !== 'undefined') (window as unknown as { __kotoWorld: { stats: World['stats'] } }).__kotoWorld = { stats: this.stats };
   }
 
   /** Changes the radius kept meshed; chunks beyond it unload on the next update. */
@@ -135,9 +176,15 @@ export class World implements IWorld {
   // ─── streaming ──────────────────────────────────────────────────────────
 
   update(focus: THREE.Vector3): void {
+    const t0 = performance.now();
+    this.t0 = t0;
+    this.units = 0;
+    this.streaming = true;
     const fcx = Math.floor(focus.x / CS);
     const fcz = Math.floor(focus.z / CS);
     if (fcx !== this.focusCx || fcz !== this.focusCz) {
+      // NaN (first update, new render distance) is not a jump
+      if (Math.max(Math.abs(fcx - this.focusCx), Math.abs(fcz - this.focusCz)) > JUMP_CHUNKS) this.burstUntil = t0 + BURST_WINDOW_MS;
       this.focusCx = fcx;
       this.focusCz = fcz;
       this.allLoaded = false;
@@ -145,19 +192,57 @@ export class World implements IWorld {
       this.evictData();
       for (const [k, e] of this.chunks) if (e.decoDist !== this.decoTarget(e)) this.decoQueue.add(k);
     }
+    const burst = t0 < this.burstUntil;
+    this.budget = burst ? BURST_MS : BUDGET_MS;
 
     // 1. chunks the kid changed
-    let n = 0;
     for (const k of this.dirty) {
-      this.dirty.delete(k);
       const e = this.chunks.get(k);
-      if (e) this.buildMesh(e);
-      if (++n >= DIRTY_PER_UPDATE) break;
+      if (!e) {
+        this.dirty.delete(k);
+        continue;
+      }
+      if (!this.prepare(e.cx, e.cz)) break;
+      this.dirty.delete(k);
+      this.buildMesh(e);
     }
 
-    // 2. new chunks, nearest first
+    // 2. pickups of chunks meshed earlier (coins and items appear for every chunk, in meshing order)
+    for (const k of this.pickQueue) {
+      if (!this.fits('pick')) break;
+      this.pickQueue.delete(k);
+      const e = this.chunks.get(k);
+      if (!e || this.generatedOnce.has(k)) continue;
+      const t = performance.now();
+      this.generatedOnce.add(k);
+      this.fireGenerated(e.cx, e.cz);
+      this.done('pick', performance.now() - t);
+    }
+
+    // 3. decorations near the focus, nearest first
+    if (!this.skin.decorate) this.decoQueue.clear();
+    for (let d = 0; d < DECO_PER_UPDATE && this.decoQueue.size > 0 && this.fits('deco'); d++) {
+      let best = -1;
+      let bestD = Infinity;
+      for (const k of this.decoQueue) {
+        const e = this.chunks.get(k);
+        const dist = e ? Math.max(Math.abs(e.cx - fcx), Math.abs(e.cz - fcz)) : -1;
+        if (dist < bestD) {
+          best = k;
+          bestD = dist;
+        }
+      }
+      this.decoQueue.delete(best);
+      const e = this.chunks.get(best);
+      if (!e) continue;
+      const t = performance.now();
+      this.redecorate(e);
+      this.done('deco', performance.now() - t);
+    }
+
+    // 4. new chunks, nearest first: their terrain and the neighbours' one chunk at a time, then the mesh
     if (!this.allLoaded) {
-      const t0 = performance.now();
+      const cap = burst ? MESH_PER_BURST : MESH_PER_UPDATE;
       let made = 0;
       let missing = false;
       const off = this.offsets;
@@ -166,7 +251,7 @@ export class World implements IWorld {
         const cz = fcz + off[i + 1];
         const k = ckey(cx, cz);
         if (this.chunks.has(k)) continue;
-        if (made >= MESH_PER_UPDATE || performance.now() - t0 > MESH_BUDGET_MS) {
+        if (made >= cap || !this.prepare(cx, cz)) {
           missing = true;
           break;
         }
@@ -174,31 +259,61 @@ export class World implements IWorld {
         this.chunks.set(k, e);
         this.buildMesh(e);
         made++;
-        if (!this.generatedOnce.has(k)) {
-          this.generatedOnce.add(k);
-          this.fireGenerated(cx, cz);
-        }
+        if (!this.generatedOnce.has(k)) this.pickQueue.add(k);
         if (this.decoTarget(e) !== -1) this.decoQueue.add(k);
       }
       if (!missing) this.allLoaded = true;
       this.stats.loaded = this.chunks.size;
     }
 
-    // 3. decorations near the focus
-    if (this.decoQueue.size > 0 && this.skin.decorate) {
-      let d = 0;
-      for (const k of this.decoQueue) {
-        this.decoQueue.delete(k);
-        const e = this.chunks.get(k);
-        if (e) this.redecorate(e);
-        if (++d >= DECO_PER_UPDATE) break;
-      }
-    } else if (!this.skin.decorate) this.decoQueue.clear();
+    this.streaming = false;
+    if (burst && this.isIdle()) this.burstUntil = 0;
+    const now = performance.now();
+    const ms = now - t0;
+    const s = this.stats;
+    s.streamMs = ms;
+    if (ms >= s.streamMaxMs || now - this.streamMaxAt > STAT_WINDOW_MS) {
+      s.streamMaxMs = ms;
+      this.streamMaxAt = now;
+    }
   }
 
   /** True when every chunk in range is meshed and nothing is waiting. */
   isIdle(): boolean {
-    return this.allLoaded && this.dirty.size === 0 && (this.decoQueue.size === 0 || !this.skin.decorate);
+    return (
+      this.allLoaded &&
+      this.dirty.size === 0 &&
+      this.pickQueue.size === 0 &&
+      (this.decoQueue.size === 0 || !this.skin.decorate)
+    );
+  }
+
+  /** May one more unit of this kind start in this update? The first one always may. */
+  private fits(u: Unit): boolean {
+    return this.units === 0 || performance.now() - this.t0 + this.cost[u] <= this.budget;
+  }
+
+  /** Counts a finished unit and learns its cost (a slowly moving average). */
+  private done(u: Unit, ms: number): void {
+    this.units++;
+    this.cost[u] += (ms - this.cost[u]) * 0.2;
+  }
+
+  /**
+   * Brings chunk (cx, cz) towards a mesh within this update's budget: generates
+   * the missing terrain of it and its 8 neighbours, one chunk per unit. True when
+   * all nine are there and a mesh still fits.
+   */
+  private prepare(cx: number, cz: number): boolean {
+    for (;;) {
+      let m = -1;
+      for (let i = 0; i < 9 && m < 0; i++) if (!this.data.has(ckey(cx + (i % 3) - 1, cz + Math.floor(i / 3) - 1))) m = i;
+      if (m < 0) return this.fits('mesh');
+      if (!this.fits('gen')) return false;
+      const t = performance.now();
+      this.chunkData(cx + (m % 3) - 1, cz + Math.floor(m / 3) - 1);
+      this.done('gen', performance.now() - t);
+    }
   }
 
   setSkin(skin: Skin): void {
@@ -230,6 +345,7 @@ export class World implements IWorld {
     this.data.clear();
     this.pool.length = 0;
     this.decoQueue.clear();
+    this.pickQueue.clear();
     this.dirty.clear();
   }
 
@@ -263,6 +379,7 @@ export class World implements IWorld {
         this.chunks.delete(k);
         this.dirty.delete(k);
         this.decoQueue.delete(k);
+        this.pickQueue.delete(k);
         this.onChunkUnloaded?.(e.cx, e.cz);
       }
     }
@@ -317,6 +434,7 @@ export class World implements IWorld {
     this.stats.meshed++;
     this.stats.meshMs += dt;
     this.stats.lastMeshMs = dt;
+    this.done('mesh', dt);
   }
 
   private makeMesh(
@@ -411,6 +529,8 @@ export class World implements IWorld {
       if (ed) for (const [i, id] of ed) d[i] = id;
       this.data.set(k, d);
       this.stats.dataChunks = this.data.size;
+      if (this.streaming) this.stats.generated++;
+      else this.stats.generatedOutside++;
     }
     this.lastKey = k;
     this.lastData = d;

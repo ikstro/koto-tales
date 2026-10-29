@@ -59,6 +59,8 @@ async function boot(): Promise<void> {
   const loading = startLoader(ui);
 
   const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game') as HTMLCanvasElement, antialias: true, powerPreference: 'high-performance' });
+  // reading back every shader's log waits for the driver to finish it: only while developing
+  renderer.debug.checkShaderErrors = import.meta.env.DEV;
   const quality = new Quality(renderer, params.tier, params.fps);
   const skin = createSkin(params.skin);
   skin.setTier(quality.tier);
@@ -123,7 +125,11 @@ async function boot(): Promise<void> {
   if (near) [params.x, params.z] = [near.x, near.z];
 
   const game = new Game(ctx, quality);
-  game.onFirstFrame = bootSucceeded;
+  game.onFirstFrame = () => {
+    bootSucceeded();
+    // while the title is up: the shaders of the other look, so a quality switch does not stall
+    if (quality.adaptive) void skin.prepareTiers?.(renderer, scene, camera);
+  };
   game.start();
   voice.preload?.(HERO_ORDER.map((id) => HEROES[id].lines.hi));
 

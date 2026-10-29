@@ -185,6 +185,8 @@ export interface Skin {
   setTier(tier: QualityTier): void;
   /** Tier 1 only: 'cheap' = a lighter post pass for weak GPUs (same look, fewer samples). */
   setPostQuality?(q: 'full' | 'cheap'): void;
+  /** Builds in the background the shaders the other tier and post pass draw the scene with, so a later switch does not stall. */
+  prepareTiers?(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera): Promise<void>;
   dispose(): void;
 }
 

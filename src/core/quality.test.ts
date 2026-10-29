@@ -58,12 +58,26 @@ describe('quality controller', () => {
     expect(at(c)).toBe('-1@30');
   });
 
-  it('steps up only after 20 s of good frames', () => {
+  it('earns a step up after 20 s of good frames and takes it only at a quiet moment', () => {
     const c = new QualityController(rungOf(1));
     feed(c, 16.7, 3); // warm-up
+    expect(c.stepUp()).toBe(false);
     expect(feed(c, 16.7, 17)).toEqual([]);
-    expect(feed(c, 16.7, 5)).toEqual(['up']);
+    expect(feed(c, 16.7, 5)).toEqual(['ready']);
+    // still playing: the look does not change under the child
+    expect(feed(c, 16.7, 30)).toEqual([]);
+    expect(at(c)).toBe('1@60');
+    expect(c.stepUp()).toBe(true);
     expect(at(c)).toBe('2@60');
+    expect(c.stepUp()).toBe(false);
+  });
+
+  it('a slow window takes back an earned step up', () => {
+    const c = new QualityController(rungOf(1));
+    feed(c, 16.7, 3);
+    expect(feed(c, 16.7, 22)).toEqual(['ready']);
+    feed(c, 25, 3.1);
+    expect(c.stepUp()).toBe(false);
   });
 
   it('one slow window resets the good run', () => {
@@ -78,20 +92,22 @@ describe('quality controller', () => {
   it('a step up that fails makes the next try wait twice as long', () => {
     const c = new QualityController(rungOf(1));
     feed(c, 16.7, 3);
-    expect(feed(c, 16.7, 22)).toEqual(['up']);
+    expect(feed(c, 16.7, 22)).toEqual(['ready']);
+    expect(c.stepUp()).toBe(true);
     // L2 is too much for this device: slow at once
     expect(feed(c, 24, 4.2)).toEqual(['down']);
     expect(at(c)).toBe('1@60');
     // 20 s is no longer enough …
     expect(feed(c, 16.7, 22)).toEqual([]);
     // … 40 s is
-    expect(feed(c, 16.7, 22)).toEqual(['up']);
+    expect(feed(c, 16.7, 22)).toEqual(['ready']);
   });
 
   it('remembers a step up only once it has held for two windows', () => {
     const c = new QualityController(rungOf(1));
     feed(c, 16.7, 3);
-    expect(feed(c, 16.7, 22)).toEqual(['up']);
+    expect(feed(c, 16.7, 22)).toEqual(['ready']);
+    c.stepUp();
     expect(feed(c, 16.7, 8)).toEqual(['stable']);
   });
 

@@ -68,6 +68,8 @@ export class Game {
   private rendered = 0;
   /** Smoothed CPU time of one drawn frame (simulation + draw submission), ms. */
   private workMs = 0;
+  /** Freezes while playing (a drawn frame more than 100 ms after the last) and the worst frame of the last 5 s. */
+  private hitch = { freezes: 0, worst: 0, worstAt: 0 };
   onFirstFrame: (() => void) | null = null;
 
   constructor(
@@ -120,8 +122,14 @@ export class Game {
       },
       get perf() {
         const info = ctx.renderer.info.render;
-        return { level: quality.level, fps: quality.fps, adaptive: quality.adaptive, rendered: game.rendered, workMs: +game.workMs.toFixed(2), calls: info.calls, tris: info.triangles, pixelRatio: ctx.renderer.getPixelRatio() };
+        return {
+          level: quality.level, fps: quality.fps, adaptive: quality.adaptive, rendered: game.rendered, workMs: +game.workMs.toFixed(2),
+          calls: info.calls, tris: info.triangles, pixelRatio: ctx.renderer.getPixelRatio(),
+          freezes: game.hitch.freezes, worst: Math.round(game.hitch.worst), programs: ctx.renderer.info.programs?.length ?? 0,
+        };
       },
+      /** The shader programs alive, by material type (or shader name) and what made them differ. */
+      shaders: () => (ctx.renderer.info.programs ?? []).map((p) => `${p.name} ${p.cacheKey.length > 160 ? p.cacheKey.slice(-160) : p.cacheKey}`),
       /** Draw calls of the next drawn frame, by pass and by what is drawn. */
       probe: () => probeDrawCalls(ctx.renderer, ctx.scene, () => game.rendered),
     };
@@ -133,6 +141,7 @@ export class Game {
     this.ctx.renderer.setSize(w, h, false);
     this.ctx.camera.aspect = w / h;
     this.ctx.camera.updateProjectionMatrix();
+    this.quality.resize();
   }
 
   start(): void {
@@ -143,6 +152,15 @@ export class Game {
       const ms = this.quality.cap.tick(now);
       if (ms === null) return;
       this.rendered++;
+      // a hidden tab (no frames for seconds) is not a freeze
+      if (this.ctx.playing && ms < 5000) {
+        const h = this.hitch;
+        if (ms > 100) h.freezes++;
+        if (ms >= h.worst || now - h.worstAt > 5000) {
+          h.worst = ms;
+          h.worstAt = now;
+        }
+      }
       const t0 = performance.now();
       this.frame(Math.min(0.05, ms / 1000), ms);
       this.workMs += (performance.now() - t0 - this.workMs) * 0.05;
@@ -196,8 +214,13 @@ export class Game {
     ctx.hud.onPause = (paused) => {
       this.paused = paused;
       ctx.input.clearPresses();
-      if (paused) this.persist();
+      if (paused) {
+        this.persist();
+        this.quality.quiet();
+      }
     };
+    // a step up in quality waits for a moment like this, never mid-play
+    ctx.hud.onDark = () => this.quality.quiet();
     // The big map pauses the game the same way the pause menu does.
     ctx.map.onPause = ctx.hud.onPause;
     ctx.map.start(ctx);
@@ -322,7 +345,10 @@ export class Game {
     if (this.stats) {
       this.fps += ((dt > 0 ? 1 / dt : 60) - this.fps) * 0.05;
       const info = ctx.renderer.info.render;
-      this.stats.textContent = `${this.fps.toFixed(0)} fps · ${info.calls} calls · ${(info.triangles / 1000).toFixed(0)}k tris · L${this.quality.level} @${this.quality.fps}`;
+      const h = this.hitch;
+      this.stats.textContent =
+        `${this.fps.toFixed(0)} fps · ${info.calls} calls · ${(info.triangles / 1000).toFixed(0)}k tris · L${this.quality.level} @${this.quality.fps}` +
+        ` · worst ${Math.round(h.worst)} ms · freezes ${h.freezes} · ${ctx.renderer.info.programs?.length ?? 0} shaders`;
     }
   }
 

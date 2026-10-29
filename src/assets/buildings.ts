@@ -355,7 +355,9 @@ const SPARKS = 6;
 
 /**
  * A portal arch: teal pillars with mint bands, a stepped top with a mustard keystone,
- * a cream doorstep, and a turning warm swirl inside with sparks circling it.
+ * a cream doorstep, and a turning warm swirl inside with sparks circling it. Its warm light
+ * is a soft halo round the swirl and a pool on the ground, never a real light: portals come
+ * and go, and a scene's light count changing rebuilds every shader (a freeze).
  */
 export function createPortal(skin: Skin): PortalModel {
   const root = new THREE.Group();
@@ -384,12 +386,20 @@ export function createPortal(skin: Skin): PortalModel {
   sparks.frustumCulled = false;
   root.add(sparks);
 
-  const glow = new THREE.PointLight(0xffb24a, 2.2, 6, 1.6);
-  glow.position.set(0, 1.6, 0.6);
-  root.add(glow);
+  const haloMat = glowMaterial(0xffb24a, true);
+  const halo = new THREE.Mesh(fadeDisc(1.75), haloMat);
+  halo.rotation.x = Math.PI / 2;
+  halo.position.set(0, 1.62, -0.04);
+  const poolMat = glowMaterial(0xffb24a, true);
+  poolMat.polygonOffset = true;
+  poolMat.polygonOffsetFactor = -2;
+  const pool = new THREE.Mesh(fadeDisc(2.2), poolMat);
+  pool.scale.set(1, 1, 0.75);
+  pool.position.set(0, 0.17, 0.5);
+  root.add(halo, pool);
 
   root.traverse((o) => {
-    if ((o as THREE.Mesh).isMesh && o !== swirl) o.receiveShadow = true;
+    if ((o as THREE.Mesh).isMesh && o !== swirl && o !== halo && o !== pool) o.receiveShadow = true;
   });
 
   const m = new THREE.Matrix4();
@@ -408,7 +418,9 @@ export function createPortal(skin: Skin): PortalModel {
       swirl.rotation.z = -t * 1.6;
       const s = Math.max(0.001, open * (1 + Math.sin(t * 3) * 0.03));
       swirl.scale.set(s, s, 1);
-      glow.intensity = 2.2 * open;
+      haloMat.opacity = 0.32 * open;
+      poolMat.opacity = 0.5 * open;
+      halo.visible = pool.visible = open > 0.01;
       for (let i = 0; i < SPARKS; i++) {
         const a = t * 1.3 + (i / SPARKS) * Math.PI * 2;
         const r = 1.18 + Math.sin(t * 2 + i) * 0.08;

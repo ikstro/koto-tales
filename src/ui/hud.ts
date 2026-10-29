@@ -331,6 +331,8 @@ export class Hud {
   onKitOpen: (() => void) | null = null;
   onKitTask: (() => void) | null = null;
   onPause: ((paused: boolean) => void) | null = null;
+  /** The screen has gone dark (sleep, travel): a moment nobody sees a frame stall. */
+  onDark: (() => void) | null = null;
   onDifficulty: ((level: Difficulty) => void) | null = null;
   onSound: ((on: boolean) => void) | null = null;
   onExit: (() => void) | null = null;
@@ -1359,7 +1361,12 @@ export class Hud {
 
   fade(on: boolean): Promise<void> {
     this.faderEl.classList.toggle('on', on);
-    return new Promise((res) => setTimeout(res, 950));
+    return new Promise((res) =>
+      setTimeout(() => {
+        if (on) this.onDark?.();
+        res();
+      }, 950),
+    );
   }
 }
 

@@ -130,6 +130,8 @@ interface Folk {
   wait: number;
   house: number;
   dancing: boolean;
+  /** Where and how it stood when the village was raised: every return starts from here. */
+  start: { pos: THREE.Vector3; yaw: number; node: number; mode: FolkMode };
 }
 
 interface Item {
@@ -151,6 +153,8 @@ interface Shown {
   portal: { model: PortalModel; pos: THREE.Vector3; yaw: number; armed: boolean; outFor: number };
   site_: PowerSite | null;
   items: Item[];
+  /** Things to gather that were picked up or put away, kept for the next task. */
+  spare: VillagePiece[];
   wave: Set<Monster>;
   waveT: number;
   /** The task the elder last asked for (a new one is asked as soon as the hero is near), when it may be asked again, and the quiet before any next word. */
@@ -160,7 +164,11 @@ interface Shown {
   guest: { centre: THREE.Vector3; spots: { pos: THREE.Vector3; yaw: number }[]; wake: THREE.Vector3 };
 }
 
+/** Villages near the party, in the scene and acting; `kept` holds every one built (near or parked far away). */
 const shown = new Map<Race, Shown>();
+const kept = new Map<Race, Shown>();
+/** The village being built, a piece a frame. */
+let building: { race: Race; steps: Generator<void, Shown> } | null = null;
 let scanT = 0;
 let clock = 0;
 const tmp = new THREE.Vector3();
@@ -191,16 +199,31 @@ export function guestNear(ctx: Ctx): { centre: THREE.Vector3; spots: Record<Hero
   return null;
 }
 
-// ─── raising and dropping a village ──────────────────────────────────────────
+// ─── building, showing and parking a village ─────────────────────────────────
 
-function makeFolk(ctx: Ctx, id: string, role: FolkRole, pos: THREE.Vector3, yaw: number, house = -1): Folk {
+function makeFolk(ctx: Ctx, id: string, role: FolkRole, pos: THREE.Vector3, yaw: number, house = -1, node = 0): Folk {
   const model = ctx.models.character({ kind: 'parts', id });
-  model.root.position.copy(pos);
-  model.root.rotation.y = yaw;
   model.root.userData.casts = true;
-  ctx.scene.add(model.root);
-  model.update(0, 0);
-  return { role, model, pos: pos.clone(), yaw, mode: role === 'adult' ? 'stroll' : 'stay', node: 0, path: [], wait: Math.random() * 3, house, dancing: false };
+  const mode: FolkMode = role === 'adult' ? 'stroll' : 'stay';
+  const f: Folk = { role, model, pos: pos.clone(), yaw, mode, node, path: [], wait: 0, house, dancing: false, start: { pos: pos.clone(), yaw, node, mode } };
+  resetFolk(f);
+  return f;
+}
+
+/** Back to where it stood when the village was raised, as if just made. */
+function resetFolk(f: Folk): void {
+  f.pos.copy(f.start.pos);
+  f.yaw = f.start.yaw;
+  f.node = f.start.node;
+  f.mode = f.start.mode;
+  f.path = [];
+  f.wait = Math.random() * 3;
+  if (f.dancing) f.model.play('idle');
+  f.dancing = false;
+  f.model.root.visible = true;
+  f.model.root.position.copy(f.pos);
+  f.model.root.rotation.y = f.yaw;
+  f.model.update(0, 0);
 }
 
 function piecesModel(ctx: Ctx, race: Race, p: Piece): VillagePiece | null {
@@ -220,7 +243,12 @@ function piecesModel(ctx: Ctx, race: Race, p: Piece): VillagePiece | null {
   }
 }
 
-function raise(ctx: Ctx, site: VillageSite): Shown {
+/**
+ * Builds a village's models once, a piece (or one of the folk) a step: the runner takes one
+ * step a frame, so its first sight never lands in one frame. It is born parked (out of the
+ * scene); `show` brings it in.
+ */
+function* build(ctx: Ctx, site: VillageSite): Generator<void, Shown> {
   const card = RACE_CARDS[site.race];
   const yaw = villageYaw(site);
   const pieces: Shown['pieces'] = [];
@@ -237,8 +265,8 @@ function raise(ctx: Ctx, site: VillageSite): Shown {
       model.root.position.copy(at);
       model.root.rotation.y = py;
       model.root.userData.casts = true;
-      ctx.scene.add(model.root);
       portal = { model, pos: at.clone(), yaw: py, armed: false, outFor: 0 };
+      yield;
       continue;
     }
     const model = piecesModel(ctx, site.race, p);
@@ -247,7 +275,6 @@ function raise(ctx: Ctx, site: VillageSite): Shown {
     model.root.rotation.y = py;
     model.root.userData.casts = true;
     cutawayModel(model.root);
-    ctx.scene.add(model.root);
     pieces.push({ piece: p, model });
     if (p.kind === 'heart') heart = model;
     if (p.kind === 'guest') {
@@ -255,40 +282,61 @@ function raise(ctx: Ctx, site: VillageSite): Shown {
       const spots = (model.spots ?? [-1.4, 0, 1.4].map((x) => ({ x, y: 0.4, z: -0.2, yaw: 0 }))).map((s) => ({ pos: toWorld(s.x, s.y, s.z), yaw: py + s.yaw }));
       guest = { centre: toWorld(0, 0, 1.6), spots, wake: toWorld(0, 0, 3) };
     }
+    yield;
   }
-  for (const [x, y, z] of cells) ctx.world.setBarrier?.(x, y, z, true);
 
   const elderPos = wpos(site, ...ELDER_SPOT);
   const folk: Folk[] = [];
   const elder = makeFolk(ctx, card.folk.elder, 'elder', elderPos, yaw);
   folk.push(elder);
-  card.folk.adults.forEach((id, i) => {
-    const f = makeFolk(ctx, id, 'adult', wpos(site, ...NODES[i * 2]), yaw, i);
-    f.node = i * 2;
-    folk.push(f);
-  });
+  for (const [i, id] of card.folk.adults.entries()) {
+    yield;
+    folk.push(makeFolk(ctx, id, 'adult', wpos(site, ...NODES[i * 2]), yaw, i, i * 2));
+  }
+  yield;
   const kid = makeFolk(ctx, card.folk.kid, 'kid', wpos(site, ...KID_SPOT), yaw + Math.PI);
   folk.push(kid);
 
   const centre = wpos(site, 0, 0);
-  const s: Shown = {
+  return {
     site, card, centre, pieces, heart: heart!, cells, folk, elder, kid, portal: portal!, site_: null,
-    items: [], wave: new Set(), waveT: 0, told: '', repeatAt: 0, quietUntil: 0, guest: guest!,
+    items: [], spare: [], wave: new Set(), waveT: 0, told: '', repeatAt: 0, quietUntil: 0, guest: guest!,
   };
-  syncPower(ctx, s);
-  resume(ctx, s);
-  return s;
 }
 
-function drop(ctx: Ctx, s: Shown): void {
+/**
+ * Coming near: a built village goes into the scene just as it was first raised — the folk at
+ * their places, the portal unarmed, the elder ready to speak, a task under way set out again.
+ */
+function show(ctx: Ctx, s: Shown): void {
+  for (const { model } of s.pieces) ctx.scene.add(model.root);
+  ctx.scene.add(s.portal.model.root);
+  for (const f of s.folk) {
+    resetFolk(f);
+    ctx.scene.add(f.model.root);
+  }
+  for (const [x, y, z] of s.cells) ctx.world.setBarrier?.(x, y, z, true);
+  s.portal.armed = false;
+  s.portal.outFor = 0;
+  s.wave = new Set();
+  s.waveT = 0;
+  s.told = '';
+  s.repeatAt = 0;
+  s.quietUntil = 0;
+  syncPower(ctx, s);
+  resume(ctx, s);
+  shown.set(s.site.race, s);
+}
+
+/** Going far: the village leaves the scene, its ground and the power networks, but keeps its models for the way back. */
+function park(ctx: Ctx, s: Shown): void {
+  shown.delete(s.site.race);
   for (const { model } of s.pieces) ctx.scene.remove(model.root);
   ctx.scene.remove(s.portal.model.root);
-  for (const f of s.folk) {
-    ctx.scene.remove(f.model.root);
-    f.model.dispose();
-  }
+  for (const f of s.folk) ctx.scene.remove(f.model.root);
   for (const [x, y, z] of s.cells) ctx.world.setBarrier?.(x, y, z, false);
   if (s.site_) removeSite(s.site_.key);
+  s.site_ = null;
   clearItems(ctx, s);
   setMapMarker(`vk:${s.site.race}`, null);
 }
@@ -345,7 +393,7 @@ function setUp(ctx: Ctx, s: Shown, t: TaskNow): void {
     clearItems(ctx, s);
     for (let i = 0; i < t.goal - v.got; i++) {
       const pos = spotAround(ctx, s, SCATTER[0], SCATTER[1]);
-      const model = createVillageItem(ctx.skin, s.site.race);
+      const model = s.spare.pop() ?? createVillageItem(ctx.skin, s.site.race);
       model.root.position.copy(pos);
       ctx.scene.add(model.root);
       s.items.push({ model, pos, key: `vi:${s.site.race}:${i}` });
@@ -358,6 +406,7 @@ function clearItems(ctx: Ctx, s: Shown): void {
   for (const it of s.items) {
     ctx.scene.remove(it.model.root);
     setMapMarker(it.key, null);
+    s.spare.push(it.model);
   }
   s.items = [];
 }
@@ -470,6 +519,7 @@ function updateTask(ctx: Ctx, s: Shown, dt: number): void {
         ctx.scene.remove(it.model.root);
         setMapMarker(it.key, null);
         s.items.splice(s.items.indexOf(it), 1);
+        s.spare.push(it.model);
         ctx.effects.poof(it.pos.clone().setY(it.pos.y + 0.8), 0xffd23a, 16);
         sfx.play('pickup');
         v.got++;
@@ -785,19 +835,22 @@ export function initVillages(ctx: Ctx): void {
 
 function scan(ctx: Ctx): void {
   const p = ctx.playing ? ctx.player.pos : (ctx.house?.centre ?? ctx.camera.position);
+  let next: { v: VillageSite; d: number } | null = null;
   for (const v of sites(ctx)) {
     const d = Math.hypot(v.x - p.x, v.z - p.z);
     const s = shown.get(v.race);
-    if (!s && d < SHOW) shown.set(v.race, raise(ctx, v));
-    else if (s && d > HIDE) {
-      drop(ctx, s);
-      shown.delete(v.race);
-    }
+    if (!s && d < SHOW) {
+      const k = kept.get(v.race);
+      if (k) show(ctx, k);
+      else if (!building && (!next || d < next.d)) next = { v, d };
+    } else if (s && d > HIDE) park(ctx, s);
     if (ctx.playing && d < SEEN_AT && !ctx.save.said.includes(RACE_CARDS[v.race].seen)) {
       ctx.save.said.push(RACE_CARDS[v.race].seen);
       voice.say(RACE_CARDS[v.race].seen, { priority: 7 });
     }
   }
+  // the nearest one not built yet starts building (it is shown once whole)
+  if (next) building = { race: next.v.race, steps: build(ctx, next.v) };
   for (const s of shown.values()) syncPower(ctx, s);
   marks(ctx);
 }
@@ -808,6 +861,15 @@ export function updateVillages(ctx: Ctx, dt: number): void {
   if (scanT <= 0) {
     scanT = SCAN;
     scan(ctx);
+  }
+  if (building) {
+    const step = building.steps.next();
+    if (step.done) {
+      kept.set(building.race, step.value);
+      building = null;
+      // look round at once: shown if still near, or the next one starts
+      scanT = 0;
+    }
   }
   bubble = null;
   const night = 1 - ctx.clock.daylight;

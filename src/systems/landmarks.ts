@@ -8,7 +8,7 @@ import { cutawayModel } from '../render/skins/cutaway';
 import { setMapMarker } from '../ui/map';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
-import { bridgeCells, type BridgeSite, type LighthouseSite } from '../world/landmarks';
+import { bridgeCells, LIGHTHOUSE_REGION, type BridgeSite, type LighthouseSite } from '../world/landmarks';
 import { reserveCells } from './kit';
 import { addSite, offView, removeSite, type PowerSite } from './power';
 
@@ -20,14 +20,25 @@ import { addSite, offView, removeSite, type PowerSite } from './power';
  * its beams over the water at night and keeps monsters off its shore; the first time,
  * a fanfare and a sticker. Lit ones are marks on the map, the nearest with an arrow; while
  * the kit box asks for a lighthouse, the nearest dark one gets the arrow.
+ *
+ * A model is built once and parked (out of the scene, its cells and power site taken out)
+ * when the hero goes far; coming back puts it in again. Only the nearest few parked ones
+ * are kept; farther ones are let go. Where lighthouses stand is worked out a region a
+ * scan (world/landmarks.ts caches it), nearest first, so walking into new land never
+ * works out a whole row of regions in one frame.
  */
 
 const SHOW = 150;
 const BRIDGE_SHOW = 110;
 const MARKS = 320;
 const SCAN = 1.5;
+/** While regions wait to be worked out, the next scan comes this soon. */
+const SCAN_SOON = 0.3;
 const TOWER_H = 10;
 const SEEN_AT = 30;
+/** How many lighthouses and bridges are kept built (shown or parked); the farthest parked ones beyond go. */
+const KEEP_TOWERS = 10;
+const KEEP_BRIDGES = 20;
 
 interface Lighthouse {
   site: LighthouseSite;
@@ -35,34 +46,41 @@ interface Lighthouse {
   boat: { root: THREE.Group; update(dt: number): void } | null;
   power: PowerSite;
   cells: [number, number, number][];
+  shown: boolean;
+}
+
+interface Bridge {
+  site: BridgeSite;
+  root: THREE.Group;
+  cells: [number, number, number][];
+  shown: boolean;
 }
 
 const towers = new Map<string, Lighthouse>();
-const bridges = new Map<string, { root: THREE.Group; cells: [number, number, number][] }>();
+const bridges = new Map<string, Bridge>();
 const reservedIds = new Set<string>();
+/** Lighthouse regions already worked out (`rx,rz`). */
+const regions = new Set<string>();
 let marked = new Set<string>();
 let scanT = 0;
 
 const centreOf = (l: LighthouseSite) => new THREE.Vector3(l.x + 1.5, l.y, l.z + 1.5);
 
-function raiseTower(ctx: Ctx, l: LighthouseSite): Lighthouse {
+function buildTower(ctx: Ctx, l: LighthouseSite): Lighthouse {
   const model = createLighthouse(ctx.skin);
   const c = centreOf(l);
   model.root.position.copy(c);
   model.root.rotation.y = l.yaw;
   model.root.userData.casts = true;
   cutawayModel(model.root);
-  ctx.scene.add(model.root);
   let boat: Lighthouse['boat'] = null;
   if (l.boat) {
     boat = createBoat(ctx.skin);
     boat.root.position.set(l.boat[0], SEA_LEVEL + 1, l.boat[1]);
     boat.root.rotation.y = l.yaw + Math.PI / 2;
-    ctx.scene.add(boat.root);
   }
   const cells: [number, number, number][] = [];
   for (let x = l.x; x < l.x + 3; x++) for (let z = l.z; z < l.z + 3; z++) for (let y = l.y; y < l.y + TOWER_H; y++) cells.push([x, y, z]);
-  for (const [x, y, z] of cells) ctx.world.setBarrier?.(x, y, z, true);
   const power: PowerSite = {
     key: l.id,
     socket: model.socket.clone().applyAxisAngle(THREE.Object3D.DEFAULT_UP, l.yaw).add(c),
@@ -70,28 +88,97 @@ function raiseTower(ctx: Ctx, l: LighthouseSite): Lighthouse {
     charge: 0,
     view: offView(),
   };
-  addSite(power);
-  return { site: l, model, boat, power, cells };
+  return { site: l, model, boat, power, cells, shown: false };
 }
 
-function dropTower(ctx: Ctx, t: Lighthouse): void {
+/** Into the scene, its tower solid, a fresh site in the power networks (dark until a network reaches it). */
+function showTower(ctx: Ctx, t: Lighthouse): void {
+  t.shown = true;
+  ctx.scene.add(t.model.root);
+  if (t.boat) ctx.scene.add(t.boat.root);
+  for (const [x, y, z] of t.cells) ctx.world.setBarrier?.(x, y, z, true);
+  t.power.charge = 0;
+  t.power.view = offView();
+  addSite(t.power);
+}
+
+function parkTower(ctx: Ctx, t: Lighthouse): void {
+  t.shown = false;
   ctx.scene.remove(t.model.root);
   if (t.boat) ctx.scene.remove(t.boat.root);
   for (const [x, y, z] of t.cells) ctx.world.setBarrier?.(x, y, z, false);
   removeSite(t.power.key);
 }
 
-function raiseBridge(ctx: Ctx, b: BridgeSite): { root: THREE.Group; cells: [number, number, number][] } {
+/**
+ * A parked lighthouse let go: its own glowing parts (lamp, beams, halo: own materials and the
+ * geometry made for them) are freed; the Kit's tower geometry and the skin's materials are shared.
+ */
+function disposeTower(t: Lighthouse): void {
+  t.model.root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    const mat = mesh.material as THREE.Material | undefined;
+    if (!mesh.isMesh || !mat?.userData.own) return;
+    mesh.geometry.dispose();
+    mat.dispose();
+  });
+}
+
+function buildBridge(ctx: Ctx, b: BridgeSite): Bridge {
   const root = createBridge(ctx.skin, b.len);
   const along = b.len / 2;
   if (b.axis === 'x') root.position.set(b.x + along, b.y + 1, b.z + 0.5);
   else root.position.set(b.x + 0.5, b.y + 1, b.z + along);
   root.rotation.y = b.axis === 'x' ? Math.PI / 2 : 0;
   root.userData.casts = true;
-  ctx.scene.add(root);
-  const cells = bridgeCells(b);
-  for (const [x, y, z] of cells) ctx.world.setBarrier?.(x, y, z, true);
-  return { root, cells };
+  return { site: b, root, cells: bridgeCells(b), shown: false };
+}
+
+function showBridge(ctx: Ctx, b: Bridge, on: boolean): void {
+  b.shown = on;
+  if (on) ctx.scene.add(b.root);
+  else ctx.scene.remove(b.root);
+  for (const [x, y, z] of b.cells) ctx.world.setBarrier?.(x, y, z, on);
+}
+
+/** Keeps at most `cap` built: the farthest parked ones beyond it are let go. */
+function trim<T extends { shown: boolean }>(kept: Map<string, T>, cap: number, dist: (t: T) => number, letGo: (t: T) => void): void {
+  if (kept.size <= cap) return;
+  const parked = [...kept].filter(([, t]) => !t.shown).sort((a, b) => dist(b[1]) - dist(a[1]));
+  for (const [id, t] of parked.slice(0, kept.size - cap)) {
+    letGo(t);
+    kept.delete(id);
+  }
+}
+
+/**
+ * Lighthouses in the regions overlapping a square of `radius` around p, from the regions
+ * worked out so far plus at most one new one (the nearest); the first scan, behind the
+ * title, works them all out. Returns the sites and how many regions still wait.
+ */
+function lighthousesAround(ctx: Ctx, p: THREE.Vector3, radius: number): { all: LighthouseSite[]; waiting: number } {
+  const R = LIGHTHOUSE_REGION;
+  // a region's lighthouse: asking at its middle with radius 0 touches that region only
+  const inRegion = (rx: number, rz: number) => ctx.world.lighthousesNear?.(rx * R + R / 2, rz * R + R / 2, 0)[0] ?? null;
+  const all: LighthouseSite[] = [];
+  const todo: { rx: number; rz: number; d: number }[] = [];
+  for (let rz = Math.floor((p.z - radius) / R); rz <= Math.floor((p.z + radius) / R); rz++) {
+    for (let rx = Math.floor((p.x - radius) / R); rx <= Math.floor((p.x + radius) / R); rx++) {
+      if (!regions.has(`${rx},${rz}`)) {
+        todo.push({ rx, rz, d: Math.hypot(rx * R + R / 2 - p.x, rz * R + R / 2 - p.z) });
+        continue;
+      }
+      const l = inRegion(rx, rz);
+      if (l) all.push(l);
+    }
+  }
+  const now = regions.size === 0 ? todo : todo.sort((a, b) => a.d - b.d).slice(0, 1);
+  for (const { rx, rz } of now) {
+    regions.add(`${rx},${rz}`);
+    const l = inRegion(rx, rz);
+    if (l) all.push(l);
+  }
+  return { all, waiting: todo.length - now.length };
 }
 
 /** Keeps the kit off a landmark's ground (its footprint and a step around it). */
@@ -110,7 +197,7 @@ export function initLandmarks(ctx: Ctx): void {
       return [...ctx.save.lit];
     },
     get shown() {
-      return [...towers.values()].map((t) => ({ id: t.site.id, on: t.power.view.on, low: t.power.view.low }));
+      return [...towers.values()].filter((t) => t.shown).map((t) => ({ id: t.site.id, on: t.power.view.on, low: t.power.view.low }));
     },
   };
 }
@@ -119,33 +206,32 @@ export function initLandmarks(ctx: Ctx): void {
 function scan(ctx: Ctx): void {
   const p = ctx.playing ? ctx.player.pos : (ctx.house?.centre ?? ctx.camera.position);
   const world = ctx.world;
-  const all = world.lighthousesNear?.(p.x, p.z, MARKS) ?? [];
+  const { all, waiting } = lighthousesAround(ctx, p, MARKS);
+  if (waiting) scanT = Math.min(scanT, SCAN_SOON);
   const keep = new Set<string>();
   for (const l of all) {
     if (Math.hypot(l.x + 1.5 - p.x, l.z + 1.5 - p.z) > SHOW) continue;
     keep.add(l.id);
-    if (!towers.has(l.id)) towers.set(l.id, raiseTower(ctx, l));
+    let t = towers.get(l.id);
+    if (!t) towers.set(l.id, (t = buildTower(ctx, l)));
+    if (!t.shown) showTower(ctx, t);
     const cells: [number, number][] = [];
     for (let x = l.x - 1; x < l.x + 4; x++) for (let z = l.z - 1; z < l.z + 4; z++) cells.push([x, z]);
     reserve(l.id, cells);
   }
-  for (const [id, t] of towers) {
-    if (keep.has(id)) continue;
-    dropTower(ctx, t);
-    towers.delete(id);
-  }
+  for (const [id, t] of towers) if (t.shown && !keep.has(id)) parkTower(ctx, t);
+  trim(towers, KEEP_TOWERS, (t) => Math.hypot(t.site.x - p.x, t.site.z - p.z), disposeTower);
   const keepB = new Set<string>();
   for (const b of world.bridgesNear?.(p.x, p.z, BRIDGE_SHOW) ?? []) {
     keepB.add(b.id);
-    if (!bridges.has(b.id)) bridges.set(b.id, raiseBridge(ctx, b));
+    let k = bridges.get(b.id);
+    if (!k) bridges.set(b.id, (k = buildBridge(ctx, b)));
+    if (!k.shown) showBridge(ctx, k, true);
     reserve(b.id, bridgeCells(b).map(([x, , z]) => [x, z]));
   }
-  for (const [id, b] of bridges) {
-    if (keepB.has(id)) continue;
-    ctx.scene.remove(b.root);
-    for (const [x, y, z] of b.cells) ctx.world.setBarrier?.(x, y, z, false);
-    bridges.delete(id);
-  }
+  for (const [id, b] of bridges) if (b.shown && !keepB.has(id)) showBridge(ctx, b, false);
+  // a bridge owns nothing but its objects (the Kit's geometry and the skin's materials are shared)
+  trim(bridges, KEEP_BRIDGES, (b) => Math.hypot(b.site.x - p.x, b.site.z - p.z), () => {});
   marks(ctx, all, p);
 }
 
@@ -196,6 +282,7 @@ export function updateLandmarks(ctx: Ctx, dt: number): void {
   }
   const night = 1 - ctx.clock.daylight;
   for (const t of towers.values()) {
+    if (!t.shown) continue;
     const v = t.power.view;
     t.model.update(dt, { lit: v.on, low: v.low, night });
     t.boat?.update(dt);

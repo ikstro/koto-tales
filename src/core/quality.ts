@@ -80,12 +80,13 @@ export const DEFAULT_OPTIONS: ControllerOptions = {
   warmupS: 3,
 };
 
-export type QualityEvent = 'down' | 'up' | 'stable' | null;
+export type QualityEvent = 'down' | 'up' | 'ready' | 'stable' | null;
 
 /**
  * Pure decision logic (no DOM, no three): fed the time between drawn frames,
- * it steps down after one slow window (or two that judder below ~55 fps) and
- * up after a long run of good ones.
+ * it steps down after one slow window (or two that judder below ~55 fps); after a
+ * long run of good ones a step up is `ready`, taken only at a quiet moment (`stepUp`:
+ * paused, the big map, a dark fade), since changing the look can stall a frame.
  * A step up that fails within its first two windows makes the next try wait
  * twice as long, so a device on the edge does not flip back and forth.
  */
@@ -102,6 +103,8 @@ export class QualityController {
   /** Milliseconds since the last step up; Infinity when the rung was not reached by stepping up. */
   private sinceUp = Infinity;
   private stableSent = true;
+  /** A step up has been earned and waits for a quiet moment. */
+  upReady = false;
   private readonly failures: number[] = LADDER.map(() => 0);
 
   constructor(start: number, opts: Partial<ControllerOptions> = {}) {
@@ -143,6 +146,7 @@ export class QualityController {
 
     if (slow) {
       this.goodTime = 0;
+      this.upReady = false;
       if (!next) return null;
       // a fresh step up that did not hold: wait longer before trying it again
       if (this.sinceUp <= (this.o.settleS + 2 * this.o.windowS) * 1000 + 1) this.failures[this.rung]++;
@@ -154,19 +158,33 @@ export class QualityController {
         this.stableSent = true;
         return 'stable';
       }
-      if (this.rung > 0) {
+      if (this.rung > 0 && !this.upReady) {
         const wait = this.o.upAfterS * 1000 * 2 ** Math.min(3, this.failures[this.rung - 1]);
-        if (this.goodTime >= wait) return this.change(this.rung - 1, 'up');
+        if (this.goodTime >= wait) {
+          this.upReady = true;
+          return 'ready';
+        }
       }
       return null;
     }
     this.goodTime = 0;
+    this.upReady = false;
     return null;
+  }
+
+  /** Takes the step up earned by good frames (call at a quiet moment); false when none is due. */
+  stepUp(): boolean {
+    if (!this.upReady || this.rung === 0) return false;
+    this.change(this.rung - 1, 'up');
+    return true;
   }
 
   private change(rung: number, ev: 'up' | 'down'): QualityEvent {
     this.rung = rung;
+    this.upReady = false;
     this.goodTime = 0;
+    // frames of the old look say nothing about the new one (a step up lands mid-window)
+    this.resetWindow();
     this.slowRun = 0;
     this.settle = this.o.settleS * 1000;
     this.sinceUp = ev === 'up' ? 0 : Infinity;
@@ -181,6 +199,9 @@ export class QualityController {
     this.winTime = 0;
   }
 }
+
+/** At most this many pixels drawn: a big monitor at a high pixel ratio would draw 8 million, with 4× MSAA and the blur. */
+const MAX_PIXELS = 3.6e6;
 
 const KEY = 'koto-tales-quality';
 const OLD_KEY = 'koto-tales-tier';
@@ -273,15 +294,28 @@ export class Quality {
   sample(ms: number): void {
     if (!this.adaptive) return;
     const ev = this.ctl.sample(ms);
-    if (!ev) return;
-    if (ev !== 'up') store(this.ctl.current);
+    if (!ev || ev === 'ready') return;
+    store(this.ctl.current);
     if (ev !== 'stable') this.apply();
+  }
+
+  /** A quiet moment (paused, the big map, a dark fade): the time to take a step up the frames have earned. */
+  quiet(): void {
+    if (this.adaptive && this.ctl.stepUp()) this.apply();
+  }
+
+  /** The window changed size: the pixel budget may allow another ratio. */
+  resize(): void {
+    this.applyPixelRatio();
   }
 
   private applyPixelRatio(): void {
     const dpr = window.devicePixelRatio || 1;
     const max = this.spec.maxPixelRatio;
-    this.renderer.setPixelRatio(max < 1 ? max : Math.min(dpr, max));
+    const fit = Math.sqrt(MAX_PIXELS / Math.max(1, window.innerWidth * window.innerHeight));
+    const ratio = max < 1 ? Math.min(max, fit) : Math.min(dpr, max, fit);
+    // the same ratio again would still reallocate the canvas
+    if (Math.abs(ratio - this.renderer.getPixelRatio()) > 0.01) this.renderer.setPixelRatio(ratio);
   }
 
   private apply(): void {

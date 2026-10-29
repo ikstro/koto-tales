@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { ChunkGeometry, QualityTier, Skin, SkinId } from '../../contracts';
 import { BLOCKS, type FaceLook } from '../../world/blocks';
+import { createShaderGate } from '../shaderGate';
 import { injectCutaway } from './cutaway';
 import { TILE } from './pixelAtlas';
 
@@ -308,6 +309,8 @@ const TAPS_CHEAP = 6;
 /** MSAA samples of the scene target, full / cheap. */
 const SAMPLES = 4;
 const SAMPLES_CHEAP = 2;
+/** Top-level objects whose meshes are checked for shadow flags each frame. */
+const DEEP_PER_FRAME = 12;
 const tapConsts = (n: number) => {
   const out: string[] = [];
   for (let i = 0; i < n; i++) {
@@ -473,7 +476,8 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
   let envTex: THREE.Texture | null = null;
   let prevShadowMap = false;
   let prevToneMapping: THREE.ToneMapping = THREE.NoToneMapping;
-  let shadowCheck = 0;
+  let deepAt = 0;
+  let gate: ReturnType<typeof createShaderGate> | null = null;
 
   // post
   const target = new THREE.WebGLRenderTarget(1, 1, {
@@ -498,7 +502,7 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
       depthWrite: false,
     });
   const postFull = makePost(TAPS);
-  let postCheap: THREE.ShaderMaterial | null = null;
+  const postCheap = makePost(TAPS_CHEAP);
   const postQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postFull);
   postQuad.frustumCulled = false;
   const postScene = new THREE.Scene();
@@ -548,17 +552,20 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
     mesh.castShadow = casts;
     if (!m.transparent) mesh.receiveShadow = true;
   };
-  const flagShadows = (deep: boolean) => {
+  const flagShadows = () => {
     if (!scene) return;
-    for (const c of scene.children) {
+    const all = scene.children;
+    for (const c of all) {
       const casts = c.userData.casts === true;
       if (c.userData.toyCasts === casts) continue;
       c.userData.toyCasts = casts;
       c.traverse((o) => flagMesh(o, casts));
     }
-    if (!deep) return;
-    // meshes added later inside an object already seen
-    for (const c of scene.children) {
+    // meshes added later inside an object already seen: a few objects a frame, round
+    // the whole scene in about a second (all at once was a spike every second)
+    for (let i = 0; i < DEEP_PER_FRAME && all.length; i++) {
+      if (deepAt >= all.length) deepAt = 0;
+      const c = all[deepAt++];
       const casts = c.userData.casts === true;
       c.traverse((o) => {
         if (!o.userData.toyShadow) flagMesh(o, casts);
@@ -665,6 +672,7 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
     setupScene(s, r) {
       scene = s;
       renderer = r;
+      gate = createShaderGate(r);
       prevShadowMap = r.shadowMap.enabled;
       prevToneMapping = r.toneMapping;
       r.toneMapping = THREE.NoToneMapping;
@@ -691,19 +699,13 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
       sun.position.copy(sun.target.position).addScaledVector(style.sunDir, style.sunDist);
       sun.target.updateMatrixWorld();
       style.onUpdate?.(k, focus);
-      if (tier === 1) {
-        flagShadows(false);
-        const now = performance.now();
-        if (now - shadowCheck > 1000) {
-          shadowCheck = now;
-          flagShadows(true);
-        }
-      }
+      if (tier === 1) flagShadows();
     },
 
     render(r, s, camera) {
       if (tier === 0) {
         const hidden = style.tightCull ? cull(s, camera, 0) : null;
+        gate?.(s, camera);
         r.render(s, camera);
         if (hidden) for (const o of hidden) o.visible = true;
         return;
@@ -722,6 +724,7 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
       const prev = r.getRenderTarget();
       r.setRenderTarget(target);
       const hidden = style.tightCull ? cull(s, camera, style.tightCull.shadowReach) : null;
+      gate?.(s, camera);
       r.render(s, camera);
       if (hidden) for (const o of hidden) o.visible = true;
       r.setRenderTarget(prev);
@@ -737,14 +740,35 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
 
     setPostQuality(q) {
       const cheap = q === 'cheap';
-      if (cheap && !postCheap) postCheap = makePost(TAPS_CHEAP);
-      postQuad.material = cheap ? postCheap! : postFull;
+      postQuad.material = cheap ? postCheap : postFull;
       const samples = cheap ? SAMPLES_CHEAP : SAMPLES;
       if (target.samples !== samples) {
         // the multisampled buffers are made again on the next frame
         target.dispose();
         target.samples = samples;
       }
+    },
+
+    prepareTiers(r, s, camera) {
+      // three picks a program by the shadow state and by where the scene is drawn
+      // (straight to the screen at tier 0, into the post pass's target at tier 1):
+      // set up the other tier's state for the moment the work is handed to the driver
+      const other = tier === 1 ? 0 : 1;
+      const prev = r.getRenderTarget();
+      const mat = postQuad.material;
+      sun.castShadow = other === 1;
+      r.shadowMap.enabled = other === 1;
+      r.setRenderTarget(other === 1 ? target : null);
+      const waits = [r.compileAsync(s, camera)];
+      r.setRenderTarget(null);
+      for (const m of [postFull, postCheap]) {
+        postQuad.material = m;
+        waits.push(r.compileAsync(postScene, postCam));
+      }
+      postQuad.material = mat;
+      r.setRenderTarget(prev);
+      applyTier();
+      return Promise.all(waits).then(() => undefined);
     },
 
     dispose() {
@@ -762,7 +786,7 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
       envTex?.dispose();
       target.dispose();
       postFull.dispose();
-      postCheap?.dispose();
+      postCheap.dispose();
       postQuad.geometry.dispose();
       opaque.dispose();
       transparent.dispose();
