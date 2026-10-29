@@ -7,6 +7,7 @@ import { events } from '../core/events';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { isInside } from './house';
+import { TREEHOUSE_FLOOR } from '../assets/castlePrizes';
 import { tentNear } from './kit';
 import { guestNear } from './villages';
 
@@ -29,13 +30,20 @@ const TENT_SPOTS: Record<string, { dx: number; dy: number; dz: number; yaw: numb
   pupsia: { dx: 0, dy: 0.08, dz: 0.95, yaw: 0.4 },
 };
 
+/** Lying spots up in the tree house's hut (its floor is TREEHOUSE_FLOOR above the ground). */
+const TREE_SPOTS: Record<string, { dx: number; dy: number; dz: number; yaw: number }> = {
+  lyosha: { dx: -0.45, dy: TREEHOUSE_FLOOR + 0.06, dz: -0.2, yaw: 0 },
+  solomiia: { dx: 0.45, dy: TREEHOUSE_FLOOR + 0.06, dz: -0.2, yaw: 0 },
+  pupsia: { dx: -0.1, dy: TREEHOUSE_FLOOR + 0.04, dz: 0.62, yaw: 1.3 },
+};
+
 const isNightTime = (t: number) => t >= EVENING && t < DAWN;
 
 let hintedDay = -1;
 
 type Place =
   | { where: 'home' }
-  | { where: 'tent'; centre: THREE.Vector3 }
+  | { where: 'tent'; centre: THREE.Vector3; tree: boolean }
   | { where: 'guest'; centre: THREE.Vector3; spots: Record<string, { pos: THREE.Vector3; yaw: number }>; wake: THREE.Vector3 };
 
 /** Where the party could sleep right now, if anywhere: home, a tent, a village's guest house. */
@@ -45,7 +53,7 @@ export function sleepPlace(ctx: Ctx): Place | null {
   const guest = guestNear(ctx);
   if (guest) return { where: 'guest', ...guest };
   const tent = tentNear(ctx);
-  return tent ? { where: 'tent', centre: tent.centre } : null;
+  return tent ? { where: 'tent', centre: tent.centre, tree: !!tent.card.shelter } : null;
 }
 
 /** The first time each night the party is somewhere to sleep, Пупся says so. */
@@ -75,7 +83,7 @@ async function sleep(ctx: Ctx, place: NonNullable<ReturnType<typeof sleepPlace>>
       r.position.set(house.origin.x + s.dx, house.origin.y + s.dy, house.origin.z + s.dz);
       r.rotation.y = s.yaw;
     } else if (place.where === 'tent') {
-      const s = TENT_SPOTS[id];
+      const s = (place.tree ? TREE_SPOTS : TENT_SPOTS)[id];
       r.position.set(place.centre.x + s.dx, place.centre.y + s.dy, place.centre.z + s.dz);
       r.rotation.y = s.yaw;
     } else if (place.where === 'guest') {

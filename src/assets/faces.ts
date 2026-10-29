@@ -18,6 +18,7 @@ export type FaceId =
   | 'spider'
   | 'elf'
   | 'elf_elder'
+  | 'elf_queen'
   | 'gnome'
   | 'gnome_elder'
   | 'gnome_kid'
@@ -98,6 +99,22 @@ const DEFS_FOLK: Record<string, FaceDef> = {
       '.GW..WG.',
       '.GK..KG.',
       'l......l',
+      '...MM...',
+      '........',
+    ],
+    closed: { 3: '........', 4: '.KK..KK.' },
+  },
+  elf_queen: {
+    // skin, ear shade; lashes over green eyes, rosy cheeks
+    swatches: ['#f6d5b0', '#e3b890'],
+    pal: { K: '#2b2a22', G: '#3f8a5a', W: '#fffaf0', P: '#f4a0a0', M: '#d0607a' },
+    open: [
+      '........',
+      '........',
+      'KKK..KKK',
+      '.GW..WG.',
+      '.GK..KG.',
+      'P......P',
       '...MM...',
       '........',
     ],
@@ -324,7 +341,7 @@ const DEFS: Record<FaceId, FaceDef> = {
     closed: { 2: '........', 3: '........', 4: '.KK..KK.' },
   },
   ...(DEFS_FOLK as Record<
-    'elf' | 'elf_elder' | 'gnome' | 'gnome_elder' | 'gnome_kid' | 'robot' | 'robot_elder' | 'robot_kid' | 'alien' | 'alien_lilac' | 'alien_mint' | 'alien_elder' | 'alien_kid',
+    'elf' | 'elf_elder' | 'elf_queen' | 'gnome' | 'gnome_elder' | 'gnome_kid' | 'robot' | 'robot_elder' | 'robot_kid' | 'alien' | 'alien_lilac' | 'alien_mint' | 'alien_elder' | 'alien_kid',
     FaceDef
   >),
 };

@@ -17,6 +17,8 @@ export const BRIDGE_CELL = 56;
 const HOME_CLEAR = 60;
 /** Nor this close to a village's centre (its square and slope). */
 const VILLAGE_CLEAR = 34;
+/** Nor to a castle's (its bigger square and slope). */
+const CASTLE_CLEAR = 40;
 
 export interface LighthouseSite {
   /** Stable id, saved when it is lit: `L<rx>,<rz>`. */
@@ -102,6 +104,7 @@ export function lighthouseIn(t: Terrain, rx: number, rz: number): LighthouseSite
     for (let x = rx * R + 8; x < rx * R + R - 8; x += 4) {
       if (Math.hypot(x, z) < HOME_CLEAR) continue;
       if (t.villages.some((v) => Math.hypot(v.x - x, v.z - z) < VILLAGE_CLEAR)) continue;
+      if (t.castles.some((c) => Math.hypot(c.x - x, c.z - z) < CASTLE_CLEAR)) continue;
       const cf = floorAt(t, x + 1, z + 1);
       if (cf === null || cf > SEA_LEVEL + 4) continue;
       if (!DIRS.some(([dx, dz]) => isWater(t, x + 1 + dx * 4, z + 1 + dz * 4))) continue;

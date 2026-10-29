@@ -29,6 +29,8 @@ interface Look {
   hk: number;
   rounded?: boolean;
   old?: boolean;
+  /** The chief: a crown of five antennae with coloured bulbs, three chest lights, big shoulder pads. */
+  chief?: boolean;
   height: number;
 }
 
@@ -37,6 +39,7 @@ const LOOKS: Record<string, Look> = {
   robot_2: { id: 'robot_2', face: 'robot', body: '#c4c9ce', head: '#7f93a6', accent: '#e0583f', limb: '#8b95a0', foot: '#5a626b', panel: '#a3a9af', antennas: 1, k: 1, hk: 1, height: 1.5 },
   robot_3: { id: 'robot_3', face: 'robot', body: '#8b95a0', head: '#59b3ab', accent: '#eab02b', limb: '#c4c9ce', foot: '#4f565e', panel: '#6f7983', antennas: 2, k: 1, hk: 1, height: 1.5 },
   robot_elder: { id: 'robot_elder', face: 'robot_elder', body: '#c79a3e', head: '#b8793a', accent: '#59b3ab', limb: '#9a6a34', foot: '#6e4520', panel: '#a67c2e', antennas: 2, k: 1, hk: 1.04, old: true, height: 1.52 },
+  robot_chief: { id: 'robot_chief', face: 'robot', body: '#2f918b', head: '#d5d9dd', accent: '#eab02b', limb: '#8b95a0', foot: '#4f565e', panel: '#256f6a', antennas: 2, k: 1.18, hk: 1.08, chief: true, height: 1.85 },
   robot_kid: { id: 'robot_kid', face: 'robot_kid', body: '#e8b84a', head: '#c4c9ce', accent: '#e0583f', limb: '#8b95a0', foot: '#5a626b', panel: '#cf9d34', antennas: 1, k: 0.56, hk: 1.0, rounded: true, height: 0.95 },
 };
 
@@ -87,6 +90,14 @@ function make(skin: Skin, L: Look): Rig {
       .box([bw * 0.2, 0.05, 0.03], [bw * 0.22, bodyH * 0.9, bd / 2 + 0.008], L.accent)
       .box([0.07, 0.1, 0.03], [-bw * 0.4, bodyH * 0.2, bd / 2 + 0.008], L.accent);
   }
+  if (L.chief) {
+    // three chest lights on a dark strip, a mustard sash
+    body.box([bw * 0.7, 0.1, 0.03], [0, bodyH * 0.86, bd / 2 + 0.02], L.foot);
+    [{ c: '#ffd23a', glow: true }, { c: '#59e0b0', glow: true }, { c: '#ff6a4a', glow: true }].forEach((p, i) => {
+      body.box([0.065, 0.065, 0.04], [(i - 1) * bw * 0.22, bodyH * 0.86, bd / 2 + 0.035], p);
+    });
+    body.box([bw + 0.02, 0.06, bd + 0.02], [0, bodyH * 0.36, 0], L.accent, [0, 0, 0.35]);
+  }
   body.done();
 
   // head: a box (rounded: a chamfered stack), a dark screen with the face, ear bolts, antennae
@@ -112,22 +123,36 @@ function make(skin: Skin, L: Look): Rig {
     .box([0.06, 0.1, 0.1], [-hw / 2 - 0.03, y0 + hh * 0.5, 0], L.accent)
     .box([hw + 0.02, 0.02, hd + 0.02], [0, y0 + hh * 0.9, 0], L.panel);
   const top = y0 + hh;
-  const stalk = L.antennas === 2 ? 0.15 : 0.12;
-  const at = L.antennas === 2 ? [-hw * 0.28, hw * 0.28] : [0];
-  at.forEach((x, i) => {
-    const lean = L.old && i === 1 ? 0.35 : L.antennas === 2 ? (i === 0 ? 0.12 : -0.12) : 0;
-    head.box([0.03, stalk, 0.03], [x - Math.sin(lean) * stalk * 0.5, top + stalk / 2, -0.02], STEEL_DARK, [0, 0, lean]);
-    head.box([0.075, 0.075, 0.075], [x - Math.sin(lean) * stalk, top + stalk + 0.03, -0.02], BULB);
-  });
+  if (L.chief) {
+    // the antenna crown: a mustard band and five stalks fanning out, the middle one tallest
+    head.box([hw + 0.03, 0.06, hd + 0.03], [0, top - 0.02, 0], L.accent);
+    const bulbs = ['#ffd23a', '#59e0b0', '#ff6a4a', '#59e0b0', '#ffd23a'];
+    [-2, -1, 0, 1, 2].forEach((i) => {
+      const stalk = 0.22 - Math.abs(i) * 0.04;
+      const lean = -i * 0.22;
+      const x = i * hw * 0.2;
+      head.box([0.03, stalk, 0.03], [x - Math.sin(lean) * stalk * 0.5, top + stalk / 2, 0], STEEL_DARK, [0, 0, lean]);
+      head.box([0.07, 0.07, 0.07], [x - Math.sin(lean) * stalk, top + stalk + 0.03, 0], { c: bulbs[i + 2], glow: true });
+    });
+  } else {
+    const stalk = L.antennas === 2 ? 0.15 : 0.12;
+    const at = L.antennas === 2 ? [-hw * 0.28, hw * 0.28] : [0];
+    at.forEach((x, i) => {
+      const lean = L.old && i === 1 ? 0.35 : L.antennas === 2 ? (i === 0 ? 0.12 : -0.12) : 0;
+      head.box([0.03, stalk, 0.03], [x - Math.sin(lean) * stalk * 0.5, top + stalk / 2, -0.02], STEEL_DARK, [0, 0, lean]);
+      head.box([0.075, 0.075, 0.075], [x - Math.sin(lean) * stalk, top + stalk + 0.03, -0.02], BULB);
+    });
+  }
   head.done();
 
   // arms: a round shoulder, a steel upper arm, a forearm in the body colour and a claw hand
   for (const arm of [parts.armL, parts.armR]) {
     const aw = 0.11 * (0.4 + 0.6 * k) + 0.02;
     const len = bodyH * 0.72;
+    const pad = L.chief ? 0.1 : 0.05;
     kit
       .part(arm.name, arm)
-      .box([aw + 0.05, aw + 0.05, aw + 0.05], [0, 0.0, 0], L.accent)
+      .box([aw + pad, aw + pad * 0.6, aw + pad], [0, L.chief ? 0.02 : 0.0, 0], L.accent)
       .box([aw, len * 0.45, aw], [0, -len * 0.3, 0], L.limb)
       .box([aw + 0.02, len * 0.4, aw + 0.02], [0, -len * 0.7, 0], L.body)
       .box([aw + 0.02, 0.1 * k + 0.03, aw + 0.04], [0, -len - 0.03, 0.01], L.foot)
@@ -142,3 +167,4 @@ export const buildRobot1 = (skin: Skin): Rig => make(skin, LOOKS.robot_1);
 export const buildRobot2 = (skin: Skin): Rig => make(skin, LOOKS.robot_2);
 export const buildRobot3 = (skin: Skin): Rig => make(skin, LOOKS.robot_3);
 export const buildRobotKid = (skin: Skin): Rig => make(skin, LOOKS.robot_kid);
+export const buildRobotChief = (skin: Skin): Rig => make(skin, LOOKS.robot_chief);

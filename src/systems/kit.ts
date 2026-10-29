@@ -71,6 +71,34 @@ export function findSpot(world: GroundView, size: [number, number], fx: number, 
   return null;
 }
 
+/**
+ * Where the party lands for a tap at (x, z) on the map (the flying saucer): the nearest cell
+ * (within `radius`) with dry ground that is not a tree and not `blocked` (the house), returned as
+ * its centre and floor height.
+ */
+export function landingSpot(
+  world: Pick<IWorld, 'groundHeight' | 'getBlock' | 'isWater' | 'isSolid'>,
+  x: number,
+  z: number,
+  blocked: (x: number, z: number) => boolean = () => false,
+  radius = 12,
+): { x: number; y: number; z: number } | null {
+  const bx = Math.floor(x);
+  const bz = Math.floor(z);
+  const cells: [number, number, number][] = [];
+  for (let oz = -radius; oz <= radius; oz++) for (let ox = -radius; ox <= radius; ox++) if (ox * ox + oz * oz <= radius * radius) cells.push([bx + ox, bz + oz, Math.hypot(bx + ox + 0.5 - x, bz + oz + 0.5 - z)]);
+  cells.sort((a, b) => a[2] - b[2]);
+  for (const [cx, cz] of cells) {
+    const g = world.groundHeight(cx, cz);
+    if (g <= 0 || blocked(cx, cz)) continue;
+    if (SOFT.has(world.getBlock(cx, g - 1, cz)) || world.isWater(cx, g, cz)) continue;
+    // a building's walls (the child's, a lighthouse)
+    if (world.isSolid(cx, g, cz) || world.isSolid(cx, g + 1, cz)) continue;
+    return { x: cx + 0.5, y: g, z: cz + 0.5 };
+  }
+  return null;
+}
+
 /** The cell right in front of the hero for a lantern: at the feet, stacking up a wall to two high. */
 function lanternSpot(ctx: Ctx): Spot | null {
   const p = ctx.player.pos;
@@ -170,7 +198,8 @@ function blockedCell(ctx: Ctx, x: number, z: number): boolean {
   if (f && x >= f.x0 - 1 && x < f.x1 + 1 && z >= f.z0 - 1 && z < f.z1 + 1) return true;
   if (reserved.has(`${x},${z}`)) return true;
   for (const s of standing) {
-    if (s.folding) continue;
+    // the robot walks about: its cell is never kept
+    if (s.folding || s.card.follow) continue;
     const [x0, z0, x1, z1] = footprint(s);
     if (x >= x0 && x < x1 && z >= z0 && z < z1) return true;
   }
@@ -181,6 +210,25 @@ function barrierCells(s: Standing): [number, number, number][] {
   const out: [number, number, number][] = [];
   for (const c of s.card.solid) for (let k = 0; k < c.h; k++) out.push([s.rec.x + c.dx, s.rec.y + k, s.rec.z + c.dz]);
   return out;
+}
+
+/** Uneven ground: a plinth of teal plates under the whole footprint (replaces the old one after a move). */
+function fitPlinth(ctx: Ctx, s: Standing): void {
+  const root = s.model!.root;
+  const old = root.getObjectByName('plinth');
+  if (old) root.remove(old);
+  const { rec } = s;
+  const [w, d] = dims(s.card, rec.rot);
+  let lowest = rec.y;
+  for (let x = rec.x; x < rec.x + w; x++) for (let z = rec.z; z < rec.z + d; z++) lowest = Math.min(lowest, ctx.world.groundHeight(x, z));
+  if (lowest >= rec.y) return;
+  const h = rec.y - lowest;
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), ctx.skin.partMaterial('#2f918b'));
+  plinth.name = 'plinth';
+  plinth.position.y = -h / 2;
+  plinth.receiveShadow = true;
+  plinth.castShadow = true;
+  root.add(plinth);
 }
 
 function raise(ctx: Ctx, rec: PlacedBuilding, fresh: boolean): Standing {
@@ -195,19 +243,9 @@ function raise(ctx: Ctx, rec: PlacedBuilding, fresh: boolean): Standing {
     model.root.rotation.y = (rec.rot * Math.PI) / 2;
     model.root.userData.casts = true;
     cutawayModel(model.root);
-    // uneven ground: a plinth of teal plates under the whole footprint
-    let lowest = rec.y;
-    for (let x = rec.x; x < rec.x + w; x++) for (let z = rec.z; z < rec.z + d; z++) lowest = Math.min(lowest, ctx.world.groundHeight(x, z));
-    if (lowest < rec.y) {
-      const h = rec.y - lowest;
-      const plinth = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), ctx.skin.partMaterial('#2f918b'));
-      plinth.position.y = -h / 2;
-      plinth.receiveShadow = true;
-      plinth.castShadow = true;
-      model.root.add(plinth);
-    }
-    ctx.scene.add(model.root);
     s.model = model;
+    if (!card.follow) fitPlinth(ctx, s);
+    ctx.scene.add(model.root);
     for (const [x, y, z] of barrierCells(s)) ctx.world.setBarrier?.(x, y, z, true);
     s.site = siteFor(ctx, rec, card, model, centre);
     if (s.site) addSite(s.site);
@@ -225,7 +263,8 @@ export function initKit(ctx: Ctx): void {
   // a village stands there now): back into the box
   ctx.save.placed = ctx.save.placed.filter((rec) => {
     const card = BUILDINGS[rec.id];
-    if (card.block !== undefined || (standsOk(ctx, rec) && !onReserved(rec))) return true;
+    // the robot is out with the party wherever it stood (systems/prizes.ts brings it along)
+    if (card.block !== undefined || card.follow || (standsOk(ctx, rec) && !onReserved(rec))) return true;
     ctx.save.kit[rec.id] = (ctx.save.kit[rec.id] ?? 0) + 1;
     return false;
   });
@@ -237,6 +276,14 @@ export function initKit(ctx: Ctx): void {
     place: () => ctx.input.press('kit:place'),
     fold: () => ctx.input.press('prompt:fold'),
     add: (id: BuildingId, n = 1) => addToKit(ctx, id, n),
+    /** One more into the box; with `place`, chosen and put up in front of the hero at once. */
+    give: (id: BuildingId, place = false) => {
+      addToKit(ctx, id, 1);
+      if (place) {
+        pick(ctx, id);
+        ctx.input.press('kit:place');
+      }
+    },
     get state() {
       return { selected, spot, kit: { ...ctx.save.kit }, placed: ctx.save.placed.map((p) => ({ ...p })) };
     },
@@ -386,11 +433,18 @@ export function nearestStanding(ctx: Ctx, only?: (c: BuildingCard) => boolean): 
   let best: Standing | null = null;
   let bestD = Infinity;
   for (const s of standing) {
-    if (s.folding || (only && !only(s.card))) continue;
+    // a saucer up in the air is not standing anywhere
+    if (s.folding || s.extra.lift || (only && !only(s.card))) continue;
     const [w, d] = dims(s.card, s.rec.rot);
     const reach = Math.max(w, d) / 2 + 1.8;
-    const dist = Math.hypot(p.x - s.centre.x, p.z - s.centre.z);
-    if (dist < reach && Math.abs(p.y - s.centre.y) < 2.5 && dist < bestD) {
+    let dist = Math.hypot(p.x - s.centre.x, p.z - s.centre.z);
+    if (s.card.follow) {
+      // the robot walks behind the party: only when the hero walks up to it and faces it, and after any building
+      const facing = (Math.sin(ctx.player.yaw) * (s.centre.x - p.x) + Math.cos(ctx.player.yaw) * (s.centre.z - p.z)) / Math.max(dist, 0.01);
+      if (dist > 1.8 || facing < 0.6) continue;
+      dist += 100;
+    }
+    if (dist < reach + (s.card.follow ? 100 : 0) && Math.abs(p.y - s.centre.y) < 2.5 && dist < bestD) {
       best = s;
       bestD = dist;
     }
@@ -405,7 +459,12 @@ export function canFold(ctx: Ctx): boolean {
 
 function fold(ctx: Ctx): void {
   const s = nearestStanding(ctx);
-  if (!s) return;
+  if (s) packAway(ctx, s);
+}
+
+/** Packs a standing building back into the box (the fold piece; a saucer with nowhere to land). */
+export function packAway(ctx: Ctx, s: Standing): void {
+  if (s.folding) return;
   s.folding = true;
   s.age = 0;
   const i = ctx.save.placed.indexOf(s.rec);
@@ -426,6 +485,39 @@ function fold(ctx: Ctx): void {
   ctx.hud.kitBump();
   pushHud(ctx);
   events.emit('building:folded', { id: s.card.id });
+}
+
+/** The nearest free spot for a building around (x, z) with the floor near `y`, by the kit's rules (around the point along `yaw`). */
+export function spotNear(ctx: Ctx, id: BuildingId, x: number, z: number, y: number, yaw: number): Spot | null {
+  return findSpot(ctx.world, BUILDINGS[id].size, x, z, y, yaw, (cx, cz) => blockedCell(ctx, cx, cz) || underHero(ctx, cx, cz));
+}
+
+/** Moves a standing building to a new spot (the saucer landing): barriers, plinth and save follow; it drops in again. */
+export function relocate(ctx: Ctx, s: Standing, to: Spot): void {
+  for (const [x, y, z] of barrierCells(s)) ctx.world.setBarrier?.(x, y, z, false);
+  Object.assign(s.rec, { x: to.x, y: to.y, z: to.z, rot: to.rot });
+  const [w, d] = dims(s.card, to.rot);
+  s.centre.set(to.x + w / 2, to.y, to.z + d / 2);
+  s.age = 0;
+  if (s.model) {
+    s.model.root.position.copy(s.centre);
+    s.model.root.rotation.y = (to.rot * Math.PI) / 2;
+    fitPlinth(ctx, s);
+  }
+  for (const [x, y, z] of barrierCells(s)) ctx.world.setBarrier?.(x, y, z, true);
+}
+
+/** Moves the walking robot: its feet at `pos` (the save keeps the cell it stands on). */
+export function moveFollower(s: Standing, pos: THREE.Vector3, yaw: number): void {
+  s.centre.copy(pos);
+  s.rec.x = Math.floor(pos.x);
+  s.rec.z = Math.floor(pos.z);
+  s.rec.y = Math.round(pos.y);
+  const root = s.model?.root;
+  if (!root) return;
+  root.position.x = pos.x;
+  root.position.z = pos.z;
+  root.rotation.y = yaw;
 }
 
 /** Whether a standing building works: up (not folding) and, if it needs power, its network has enough. */
@@ -454,8 +546,8 @@ export function musicLevel(x: number, z: number): number {
 }
 const MUSIC_BIG = 20;
 
-/** Tents standing (sleep spots away from home). */
-export function tentNear(ctx: Ctx): { centre: THREE.Vector3 } | null {
+/** Tents and tree houses standing (sleep spots away from home). */
+export function tentNear(ctx: Ctx): Standing | null {
   return nearestStanding(ctx, (c) => !!c.sleep);
 }
 

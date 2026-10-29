@@ -36,6 +36,7 @@ export interface GameEvents {
   /** The party slept the night through, at home or in a tent. */
   'sleep:done': { where: 'home' | 'tent' | 'guest' };
   'village:task': { race: string; kind: string; friends: boolean };
+  'castle:freed': { race: string };
 }
 
 type Handler<T> = (payload: T) => void;

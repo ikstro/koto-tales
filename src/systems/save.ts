@@ -2,6 +2,7 @@ import { TERRAIN_VERSION, type HeroId, type ItemId, type MonsterKind } from '../
 import { BUILDINGS, KIT_ORDER, type BuildingId } from '../content/buildings';
 import type { Difficulty } from '../content/difficulty';
 import type { TaskKind } from '../content/progress';
+import type { CastleSave } from '../content/castles';
 import type { VillageSave } from '../content/villages';
 import type { Race } from '../world/villages';
 import { homeChunks } from './explore';
@@ -59,6 +60,8 @@ export interface SaveData {
   song: number;
   /** The four villages: met, tasks done, the one under way, nights in the guest house. */
   villages: Partial<Record<Race, VillageSave>>;
+  /** The four castles: met, tasks done, the one under way, the chest opened. */
+  castles: Partial<Record<Race, CastleSave>>;
 }
 
 /** A building put up from the kit: footprint min corner, the height its floor stands on, quarter turns. */
@@ -104,7 +107,7 @@ export const freshBoss = (): BossSave => ({ level: 1, site: null, hp: null, lant
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -138,6 +141,7 @@ export function freshSave(): SaveData {
     lit: [],
     song: 0,
     villages: {},
+    castles: {},
   };
 }
 
@@ -179,6 +183,8 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
   7: (d) => ({ ...d, v: 8, stats: { ...(d.stats as object), danced: 0 }, song: 0 }),
   // v9: the villages (TERRAIN_VERSION 3 flattens their squares; buildings standing there go back to the kit).
   8: (d) => ({ ...d, v: 9, villages: {} }),
+  // v10: the castles (TERRAIN_VERSION 4 flattens their squares; buildings standing there go back to the kit).
+  9: (d) => ({ ...d, v: 10, castles: {} }),
 };
 
 export function migrate(raw: Raw): SaveData {

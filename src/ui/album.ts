@@ -1,5 +1,6 @@
 import { ITEMS, ITEM_ORDER } from '../content/items';
 import { MONSTERS, MONSTER_ORDER } from '../content/monsters';
+import { CASTLE_CARDS } from '../content/castles';
 import { RACE_CARDS } from '../content/villages';
 import { RACES } from '../world/villages';
 import type { SaveData } from '../systems/save';
@@ -56,6 +57,11 @@ export class Album {
     for (const race of RACES) {
       const card = RACE_CARDS[race];
       entries.push({ img: `${import.meta.env.BASE_URL}hud/${card.sticker}.png`, got: found.has(`v:${race}`), line: card.hello, count: save.villages[race]?.nights ?? 0 });
+    }
+    // the castles: the castle's sticker once its chest is opened
+    for (const race of RACES) {
+      const card = CASTLE_CARDS[race];
+      entries.push({ img: `${import.meta.env.BASE_URL}hud/${card.sticker}.png`, got: found.has(`c:${race}`), line: card.hello, count: 0 });
     }
 
     const cols = W >= H ? 6 : 4;

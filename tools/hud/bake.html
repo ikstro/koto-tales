@@ -18,6 +18,8 @@ import { createSkin } from '/src/render/skins/index.ts';
 import { Models } from '/src/assets/models.ts';
 import { createBuilding, createPortal } from '/src/assets/buildings.ts';
 import { createVillageItem } from '/src/assets/villages.ts';
+import { createCastle, createCastleItem } from '/src/assets/castles.ts';
+import { createChest } from '/src/assets/props.ts';
 import { B } from '/src/world/blocks.ts';
 
 const U = 40, DPR = 2, LO = 1.5, TILT = THREE.MathUtils.degToRad(34);
@@ -822,6 +824,44 @@ function folkPrint(id, bg, yaw = 0.3, part = 0.6) {
   shoot('b-carousel', fittedBox(run('carousel').root, 3.2, 3.2, -0.4), 200, 200, { oy: 1.05 });
   shoot('b-searchlight', fittedBox(run('searchlight', 0, { aim: 0.5 }).root, 2.0, 3.0, -0.4), 200, 200, { oy: 1.0 });
   shoot('b-trampoline', fittedBox(run('trampoline').root, 3.0, 1.6, -0.4), 200, 200, { oy: 0.5 });
+  // the castles' prizes (stage C2)
+  shoot('b-treehouse', fittedBox(run('treehouse', 0.5).root, 3.0, 3.8, -0.4), 200, 200, { oy: 1.3 });
+  shoot('b-golem', fittedBox(run('golem').root, 2.4, 3.0, -0.4), 200, 200, { oy: 1.05 });
+  shoot('b-robohelper', fittedBox(run('robohelper').root, 1.8, 3.0, -0.4), 200, 200, { oy: 1.05 });
+  shoot('b-saucer', fittedBox(run('saucer').root, 3.2, 2.6, -0.4), 200, 200, { oy: 0.85 });
+}
+/** A flying saucer with a dome and rim lights, speed lines behind it: the «fly» piece next to the saucer. */
+const printSaucer = (col, light, glass) => (x, s) => {
+  x.lineJoin = 'round'; x.lineCap = 'round';
+  const cx = s / 2 + 44, cy = s / 2 + 18;
+  x.strokeStyle = col; x.lineWidth = 26;
+  for (const [dy, x0] of [[-46, 70], [10, 40], [66, 80]]) { x.beginPath(); x.moveTo(x0, cy + dy); x.lineTo(cx - 190, cy + dy); x.stroke(); }
+  x.save(); x.translate(cx, cy); x.rotate(-0.16);
+  x.fillStyle = glass; x.beginPath(); x.ellipse(0, -34, 78, 80, 0, Math.PI, 0); x.fill();
+  x.fillStyle = col; x.beginPath(); x.ellipse(0, 0, 160, 54, 0, 0, Math.PI * 2); x.fill();
+  x.fillRect(-60, -40, 120, 20);
+  x.fillStyle = light; for (const lx of [-96, -32, 32, 96]) { x.beginPath(); x.arc(lx, 4, 17, 0, Math.PI * 2); x.fill(); }
+  x.fillStyle = col; x.fillRect(-6, -150, 12, 50); x.beginPath(); x.arc(0, -156, 16, 0, Math.PI * 2); x.fill();
+  x.restore();
+};
+shoot('fly', roundTile(1, C.navy, printSaucer(CREAM, C.coral, '#8ff0e0'), 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('map-saucer', roundTile(0.62, '#8f6fc8', printSaucer(CREAM, C.coral, '#8ff0e0'), 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
+
+// --- the castles (systems/castles.ts): map marks, album stickers, the elves' seed, the chest piece
+{
+  const RACE = { elves: '#3fa142', gnomes: C.coral, robots: C.teal, aliens: '#8f6fc8' };
+  const still = (o) => { const glows = []; o.traverse((m) => { if (m.isMesh && m.material.blending === THREE.AdditiveBlending) glows.push(m); }); glows.forEach((m) => m.parent.remove(m)); return o; };
+  for (const [race, col] of Object.entries(RACE)) {
+    const c = createCastle(skin, race);
+    for (let i = 0; i < 8; i++) c.update(0.5, { night: 0, alive: 1, open: 1, on: true, low: false, beat: 0 });
+    const print = modelPrint(still(c.root), col, -0.55, 0.6);
+    shoot('cmap-' + race, roundTile(0.62, col, print, 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
+    shoot('castle-' + race, roundTile(1, col, print), 110, 110, { shadow: 'tile-sh', dpr: LO });
+  }
+  const seed = createCastleItem(skin, 'elves'); seed.update(0.5, { night: 0, on: true, low: false, beat: 0 });
+  shoot('item-castle-elves', roundTile(1, C.navy, modelPrint(still(seed.root), C.navy, -0.4, 0.75), 0.6), 130, 130, { shadow: 'tile6-sh' });
+  const chest = createChest(skin);
+  shoot('chest', roundTile(1, C.mustard, modelPrint(chest.root, C.mustard, -0.5, 0.72), 0.6), 130, 130, { shadow: 'tile6-sh' });
 }
 
 document.getElementById('out').textContent = JSON.stringify({ sprites: out, nine });

@@ -15,6 +15,7 @@ import {
 } from './buildingParts';
 import { createBigSpeaker, createDanceFloor, createDiscoBall, createDjConsole, createTesla, createTrafficLight } from './disco';
 import { createCarousel, createGarland, createSearchlight, createTrampoline } from './prizes';
+import { createGolem, createRobohelper, createSaucer, createTreehouse } from './castlePrizes';
 
 /** How a building's power network is doing (systems/power.ts), for its lights and motion. */
 export interface PowerView {
@@ -51,6 +52,14 @@ export interface BuildingTick {
   aim?: number;
   /** A trampoline: how far its mat is pressed down now, 0..1. */
   bounce?: number;
+  /** A golem: seconds since its slam began (Infinity: standing). Its facing comes in `aim`. */
+  slam?: number;
+  /** The robot helper: walking speed, seconds since it fired, seconds since it was put down. */
+  walk?: number;
+  shot?: number;
+  wake?: number;
+  /** The flying saucer: how far it has lifted off, 0 (standing) … 1 (up, beam on). */
+  lift?: number;
 }
 
 export interface BuildingModel {
@@ -102,6 +111,14 @@ export function createBuilding(skin: Skin, id: BuildingId): BuildingModel {
       return createSearchlight(skin);
     case 'trampoline':
       return createTrampoline(skin);
+    case 'treehouse':
+      return createTreehouse(skin);
+    case 'golem':
+      return createGolem(skin);
+    case 'robohelper':
+      return createRobohelper(skin);
+    case 'saucer':
+      return createSaucer(skin);
     default:
       return createLanternGhost();
   }

@@ -94,6 +94,14 @@ describe('save', () => {
     expect(s.villages).toEqual({});
   });
 
+  it('migrates v9 → v10: no castle met yet', () => {
+    const v9 = { ...freshSave(), v: 9 } as Record<string, unknown>;
+    delete v9.castles;
+    const s = migrate(v9);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.castles).toEqual({});
+  });
+
   it('keeps the boss as it was left (health, lanterns, beaten day)', () => {
     const boss = { level: 2, site: [150, -20] as [number, number], hp: 12, lanterns: ['1,2,3', '4,5,6'], defeatedDay: null, eatenAt: [150, -20] as [number, number], bites: 5 };
     const s = migrate({ ...freshSave(), day: 7, boss } as unknown as Record<string, unknown>);

@@ -32,7 +32,8 @@ interface Gate {
 
 /** The arch stands in the front yard, left of the campfire, facing the camera. */
 const ARCH = { dx: 0.5, dz: 9.5 };
-const ARRIVE = 2.2;
+/** How far in front of a gate (or a landing point) the party steps out. */
+export const ARRIVE = 2.2;
 /** Close to home there is no need to jump. */
 const NEAR_HOME = 22;
 

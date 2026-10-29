@@ -9,5 +9,9 @@
   "gnome": { "voice": "uk-UA-OstapNeural", "rate": 0.94, "pitch": "-16%" },
   "robot": { "voice": "uk-UA-OstapNeural", "rate": 0.9, "pitch": "+4%" },
   "alien": { "voice": "uk-UA-OstapNeural", "rate": 1.06, "pitch": "+30%" },
-  "alien_kid": { "voice": "uk-UA-PolinaNeural", "rate": 1.12, "pitch": "+38%" }
+  "alien_kid": { "voice": "uk-UA-PolinaNeural", "rate": 1.12, "pitch": "+38%" },
+  "elf_queen": { "voice": "uk-UA-PolinaNeural", "rate": 0.97, "pitch": "+12%" },
+  "gnome_king": { "voice": "uk-UA-OstapNeural", "rate": 0.9, "pitch": "-24%" },
+  "robot_chief": { "voice": "uk-UA-OstapNeural", "rate": 0.86, "pitch": "-6%" },
+  "alien_captain": { "voice": "uk-UA-OstapNeural", "rate": 1.0, "pitch": "+20%" }
 }

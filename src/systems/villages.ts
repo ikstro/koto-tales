@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { CharacterModel, HeroId, MonsterKind } from '../contracts';
+import type { CharacterModel, HeroId } from '../contracts';
 import type { Monster } from '../actors/entities';
 import { createPortal, type PortalModel } from '../assets/buildings';
 import {
@@ -16,11 +16,14 @@ import { cutawayModel } from '../render/skins/cutaway';
 import { setMapMarker } from '../ui/map';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
-import { sideCos, sideSin, VILLAGE_HALF, villageYaw, type Race, type VillageSite } from '../world/villages';
-import { addToKit, owned, playingSpeakers, reserveCells } from './kit';
-import { spawnAt } from './monsters';
+import { VILLAGE_HALF, villageYaw, type Race, type VillageSite } from '../world/villages';
+import { inFreedCastle } from './castles';
+import { addToKit, owned, reserveCells } from './kit';
 import { addSite, offView, removeSite, type PowerSite } from './power';
 import { hasAbility } from './progress';
+import {
+  faceTo, followHero, giveCoins, musicNear, offerBubble, runWave, sitePos as wpos, spotAround as spotNear, turnXZ, walkTo, type WaveRule,
+} from './tasks';
 import { homeGate, inGate, travelTo } from './travel';
 
 /**
@@ -44,29 +47,12 @@ const BUBBLE_AT = 34;
 /** Where a lost little one wanders off to, and things to gather lie (from the centre). */
 const LOST = [40, 68];
 const SCATTER = [17, 44];
-/** The defence wave comes from this far and keeps going while the hero is this close. */
-const WAVE_FROM = [19, 25];
-const WAVE_NEAR = 70;
-const WAVE_AT_ONCE = 3;
 /** Music this close to the centre counts for the disco (and sets the folk dancing). */
 const DISCO_AT = 15;
 const POWER_TAKE = 2;
+const WAVE: WaveRule = { from: [19, 25], near: 70, atOnce: 3, line: 'village_wave' };
 
 // ─── geometry ────────────────────────────────────────────────────────────────
-
-/** World position of village-local (lx, lz) (from the centre cell's middle), feet at the floor. */
-function wpos(v: VillageSite, lx: number, lz: number, out = new THREE.Vector3()): THREE.Vector3 {
-  const c = sideCos(v.side);
-  const s = sideSin(v.side);
-  return out.set(v.x + 0.5 + lx * c + lz * s, v.y + 1, v.z + 0.5 - lx * s + lz * c);
-}
-
-/** Turns (x, z) by quarter turns, the way three.js turns a model (rotation.y). */
-function turnXZ(x: number, z: number, turn: number): [number, number] {
-  const c = sideCos(turn & 3);
-  const s = sideSin(turn & 3);
-  return [x * c + z * s, -x * s + z * c];
-}
 
 /** A piece's cells (world x, z) with how tall each is solid. */
 function pieceCells(v: VillageSite, p: Piece): { x: number; z: number; h: number }[] {
@@ -184,9 +170,9 @@ function taskNow(ctx: Ctx, race: Race): TaskNow | null {
   return villageTask(RACE_CARDS[race], v, has(ctx), ctx.save.day);
 }
 
-/** Whether (x, z) is in a village (safe, hearts come back fast). */
+/** Whether (x, z) is in a village or at a freed castle (safe, hearts come back fast). */
 export function inVillage(ctx: Ctx, x: number, z: number): boolean {
-  return sites(ctx).some((v) => Math.hypot(v.x + 0.5 - x, v.z + 0.5 - z) < VILLAGE_SAFE);
+  return sites(ctx).some((v) => Math.hypot(v.x + 0.5 - x, v.z + 0.5 - z) < VILLAGE_SAFE) || inFreedCastle(ctx, x, z);
 }
 
 /** The guest house the hero stands at (for systems/sleep.ts), if any. */
@@ -366,19 +352,7 @@ function resume(ctx: Ctx, s: Shown): void {
 // ─── tasks ───────────────────────────────────────────────────────────────────
 
 /** A dry spot `r0..r1` from the centre, outside the square. */
-function spotAround(ctx: Ctx, s: Shown, r0: number, r1: number): THREE.Vector3 {
-  for (let k = 0; k < 40; k++) {
-    const a = Math.random() * Math.PI * 2;
-    const r = r0 + Math.random() * (r1 - r0);
-    const x = Math.floor(s.centre.x + Math.sin(a) * r);
-    const z = Math.floor(s.centre.z + Math.cos(a) * r);
-    const g = ctx.world.groundHeight(x, z);
-    if (ctx.world.isWater(x, g, z) || ctx.world.isWater(x, g - 1, z)) continue;
-    if (Math.abs(ctx.world.groundHeight(x + 1, z) - g) > 1 || Math.abs(ctx.world.groundHeight(x, z + 1) - g) > 1) continue;
-    return new THREE.Vector3(x + 0.5, g, z + 0.5);
-  }
-  return wpos(s.site, 0, VILLAGE_HALF + 6);
-}
+const spotAround = (ctx: Ctx, s: Shown, r0: number, r1: number) => spotNear(ctx, s.centre, r0, r1, wpos(s.site, 0, VILLAGE_HALF + 6));
 
 /** Begins a task's world part: the little one wanders off, things lie about. */
 function setUp(ctx: Ctx, s: Shown, t: TaskNow): void {
@@ -419,20 +393,13 @@ function markItems(ctx: Ctx, s: Shown): void {
   for (const it of s.items) setMapMarker(it.key, { pos: it.pos, icon: s.card.item, pointer: it === near });
 }
 
-function coins(ctx: Ctx, n: number, at: THREE.Vector3): void {
-  ctx.save.coins += n;
-  events.emit('coins:changed', { coins: ctx.save.coins });
-  ctx.effects.coinBurst(at.clone().setY(at.y + 1.2), Math.min(12, n));
-  sfx.play('coin');
-}
-
 function complete(ctx: Ctx, s: Shown, t: TaskNow): void {
   const v = saveOf(ctx, s.site.race);
   v.got = 0;
   v.cur = null;
   for (const f of s.folk) if (f.model.root.visible) f.model.play('cheer');
   ctx.player.model.play('cheer');
-  coins(ctx, t.daily ? VILLAGE_COINS.daily : VILLAGE_COINS.task, s.elder.pos);
+  giveCoins(ctx, t.daily ? VILLAGE_COINS.daily : VILLAGE_COINS.task, s.elder.pos);
   if (t.daily) v.daily = ctx.save.day;
   else v.done.push(t.kind);
   voice.say(s.card.thanks, { priority: 8, interrupt: true });
@@ -493,8 +460,11 @@ function updateTask(ctx: Ctx, s: Shown, dt: number): void {
   const key = t ? `${t.kind}:${t.daily}:${t.blocked}` : '';
   if (dElder < TALK_AT && clock >= s.quietUntil && !voice.isSpeaking() && (!v.met || (t && (key !== s.told || clock >= s.repeatAt)))) talk(ctx, s, t);
   // the bubble: the task's picture and how far it has come
-  if (t && v.cur === t.kind && dElder < BUBBLE_AT) bubble = { s, picture: taskPicture(s.card, t.kind), lit: Math.min(8, Math.floor((v.got / t.goal) * 8 + 1e-6)) };
-  else if (t && t.blocked && dElder < BUBBLE_AT) bubble = { s, picture: taskPicture(s.card, t.kind), lit: 0 };
+  if (t && dElder < BUBBLE_AT && (v.cur === t.kind || t.blocked)) {
+    const lit = t.blocked ? 0 : Math.min(8, Math.floor((v.got / t.goal) * 8 + 1e-6));
+    const f = s.elder;
+    offerBubble({ at: f.pos.clone().setY(f.pos.y + f.model.height + 0.9), picture: taskPicture(s.card, t.kind), lit, d: dElder });
+  }
 
   if (!t || t.blocked || v.cur !== t.kind) return;
   switch (t.kind) {
@@ -547,32 +517,13 @@ function updateTask(ctx: Ctx, s: Shown, dt: number): void {
   }
 }
 
-function discoNear(s: Shown): boolean {
-  return playingSpeakers().some((sp) => Math.hypot(sp.centre.x - s.centre.x, sp.centre.z - s.centre.z) < DISCO_AT);
-}
+const discoNear = (s: Shown) => musicNear(s.centre, DISCO_AT);
 
 /** The defence: monsters come at the village a few at a time; every one beaten counts. */
 function defend(ctx: Ctx, s: Shown, t: TaskNow, dt: number): void {
   const v = saveOf(ctx, s.site.race);
-  for (const m of [...s.wave]) {
-    if (m.alive && ctx.monsters.includes(m)) continue;
-    s.wave.delete(m);
-    if (m.hp <= 0) v.got++;
-  }
-  if (v.got >= t.goal) {
-    complete(ctx, s, t);
-    return;
-  }
-  const near = Math.hypot(ctx.player.pos.x - s.centre.x, ctx.player.pos.z - s.centre.z) < WAVE_NEAR;
-  if (!near || ctx.sleeping) return;
-  if (s.waveT === 0 && s.wave.size === 0) voice.say('village_wave', { priority: 7 });
-  s.waveT += dt;
-  if (s.wave.size >= Math.min(WAVE_AT_ONCE, t.goal - v.got) || s.waveT < 1.6) return;
-  s.waveT = 0.01;
-  const night = ctx.clock.daylight < 0.35;
-  const kinds: MonsterKind[] = night ? ['zombie', 'skeleton', 'spider'] : ['zombie'];
-  const at = spotAround(ctx, s, WAVE_FROM[0], WAVE_FROM[1]);
-  s.wave.add(spawnAt(ctx, kinds[Math.floor(Math.random() * kinds.length)], at.x, at.z));
+  v.got += runWave(ctx, s, s.centre, t.goal - v.got, WAVE, dt);
+  if (v.got >= t.goal) complete(ctx, s, t);
 }
 
 /** A wave is on: the grown-ups wait indoors. */
@@ -582,28 +533,6 @@ const waveOn = (ctx: Ctx, s: Shown) => {
 };
 
 // ─── the folk ────────────────────────────────────────────────────────────────
-
-function face(f: Folk, tx: number, tz: number, dt: number, k = 6): void {
-  const want = Math.atan2(tx - f.pos.x, tz - f.pos.z);
-  let d = want - f.yaw;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  f.yaw += d * Math.min(1, dt * k);
-}
-
-/** Walks towards (x, z) at `speed`; true when there. */
-function walk(ctx: Ctx, f: Folk, x: number, z: number, speed: number, dt: number): boolean {
-  const dx = x - f.pos.x;
-  const dz = z - f.pos.z;
-  const d = Math.hypot(dx, dz);
-  if (d < 0.15) return true;
-  const step = Math.min(d, speed * dt);
-  f.pos.x += (dx / d) * step;
-  f.pos.z += (dz / d) * step;
-  f.pos.y = ctx.world.groundHeight(Math.floor(f.pos.x), Math.floor(f.pos.z));
-  face(f, x, z, dt, 10);
-  return false;
-}
 
 function updateFolk(ctx: Ctx, s: Shown, dt: number): void {
   const night = 1 - ctx.clock.daylight > 0.75;
@@ -633,7 +562,7 @@ function updateFolk(ctx: Ctx, s: Shown, dt: number): void {
           const to = wpos(s.site, ...NODES[n], tmp);
           speed = f.mode === 'home' ? 2.6 : 1.5;
           if (music && f.mode === 'stroll') speed = 0;
-          else if (walk(ctx, f, to.x, to.z, speed, dt)) {
+          else if (walkTo(ctx, f, to.x, to.z, speed, dt)) {
             f.node = n;
             f.path.shift();
             if (!f.path.length) f.wait = 2 + Math.random() * 4;
@@ -648,27 +577,21 @@ function updateFolk(ctx: Ctx, s: Shown, dt: number): void {
       }
     } else if (f.role === 'elder') {
       // faces the hero when near, else the gate
-      if (Math.hypot(p.x - f.pos.x, p.z - f.pos.z) < 12) face(f, p.x, p.z, dt, 4);
+      if (Math.hypot(p.x - f.pos.x, p.z - f.pos.z) < 12) faceTo(f, p.x, p.z, dt, 4);
       else {
         const g = wpos(s.site, ELDER_SPOT[0], ELDER_SPOT[1] + 5, tmp);
-        face(f, g.x, g.z, dt, 2);
+        faceTo(f, g.x, g.z, dt, 2);
       }
     } else {
       // the little one
       if (f.mode === 'lost') {
-        face(f, p.x, p.z, dt, 2);
+        faceTo(f, p.x, p.z, dt, 2);
       } else if (f.mode === 'follow') {
-        const d = Math.hypot(p.x - f.pos.x, p.z - f.pos.z);
-        if (d > 28) {
-          f.pos.set(p.x - Math.sin(ctx.player.yaw) * 1.6, p.y, p.z - Math.cos(ctx.player.yaw) * 1.6);
-        } else if (d > 2.2) {
-          speed = Math.min(6.5, d * 2);
-          walk(ctx, f, p.x, p.z, speed, dt);
-        } else face(f, p.x, p.z, dt, 4);
+        speed = followHero(ctx, f, dt);
       } else if (f.mode === 'back') {
         const to = wpos(s.site, ...KID_SPOT, tmp);
         speed = 2.4;
-        if (walk(ctx, f, to.x, to.z, speed, dt)) f.mode = 'stay';
+        if (walkTo(ctx, f, to.x, to.z, speed, dt)) f.mode = 'stay';
       }
     }
     // music on the square: everyone visible dances
@@ -683,26 +606,6 @@ function updateFolk(ctx: Ctx, s: Shown, dt: number): void {
   }
 }
 
-// ─── the bubble over the elder ───────────────────────────────────────────────
-
-let bubble: { s: Shown; picture: string; lit: number } | null = null;
-
-function pushBubble(ctx: Ctx): void {
-  if (!bubble || !ctx.playing || ctx.sleeping) {
-    ctx.hud.setBubble(null);
-    return;
-  }
-  const f = bubble.s.elder;
-  tmp.copy(f.pos).setY(f.pos.y + f.model.height + 0.9).project(ctx.camera);
-  if (tmp.z > 1) {
-    ctx.hud.setBubble(null);
-    return;
-  }
-  const x = (tmp.x * 0.5 + 0.5) * window.innerWidth;
-  const y = (-tmp.y * 0.5 + 0.5) * window.innerHeight;
-  ctx.hud.setBubble({ x, y, picture: bubble.picture, lit: bubble.lit });
-}
-
 // ─── the map, the portal, the morning gift ───────────────────────────────────
 
 /** Villages seen (their centre chunk explored) or met are marks; a tap on a met one jumps there. */
@@ -715,14 +618,25 @@ function marks(ctx: Ctx): void {
   }
 }
 
+function gateOf(v: VillageSite): { pos: THREE.Vector3; yaw: number } {
+  const portal = LAYOUT.find((p) => p.kind === 'portal')!;
+  return { pos: wpos(v, portal.at[0], portal.at[1]), yaw: pieceYaw(v, portal) };
+}
+
 function jump(ctx: Ctx, v: VillageSite): void {
   if (!saveOf(ctx, v.race).met) return;
   if (!hasAbility(ctx, 'portal')) {
     voice.say('portal_soon', { priority: 7, interrupt: true });
     return;
   }
-  const portal = LAYOUT.find((p) => p.kind === 'portal')!;
-  void travelTo(ctx, wpos(v, portal.at[0], portal.at[1]), pieceYaw(v, portal));
+  const gate = gateOf(v);
+  void travelTo(ctx, gate.pos, gate.yaw);
+}
+
+/** A flight to (x, z) on a village's square lands in front of its portal (the saucer), not in its walls. */
+export function villageLanding(ctx: Ctx, x: number, z: number): { pos: THREE.Vector3; yaw: number } | null {
+  const v = sites(ctx).find((s) => Math.max(Math.abs(s.x + 0.5 - x), Math.abs(s.z + 0.5 - z)) <= VILLAGE_HALF + 1);
+  return v ? gateOf(v) : null;
 }
 
 function updatePortal(ctx: Ctx, s: Shown, dt: number): void {
@@ -754,7 +668,7 @@ function gift(ctx: Ctx): void {
     ctx.save.found.push(sticker);
     sfx.play('sticker');
   }
-  coins(ctx, VILLAGE_COINS.gift, best.elder.pos);
+  giveCoins(ctx, VILLAGE_COINS.gift, best.elder.pos);
   best.elder.model.play('happy');
   setTimeout(() => voice.say(best!.card.gift, { priority: 8, interrupt: true }), 900);
 }
@@ -871,7 +785,6 @@ export function updateVillages(ctx: Ctx, dt: number): void {
       scanT = 0;
     }
   }
-  bubble = null;
   const night = 1 - ctx.clock.daylight;
   for (const s of shown.values()) {
     const v = saveOf(ctx, s.site.race);
@@ -893,5 +806,4 @@ export function updateVillages(ctx: Ctx, dt: number): void {
     updateFolk(ctx, s, dt);
     if (ctx.playing && !ctx.sleeping) updateTask(ctx, s, dt);
   }
-  pushBubble(ctx);
 }

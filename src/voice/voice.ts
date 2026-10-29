@@ -65,7 +65,7 @@ function out(): GainNode {
 
 /** Robots buzz (ring modulation), aliens echo: added as their lines play (DESIGN.md «Villages»). */
 function connect(c: AudioContext, src: AudioBufferSourceNode, speaker: Speaker | undefined): void {
-  if (speaker === 'robot') {
+  if (speaker === 'robot' || speaker === 'robot_chief') {
     const ring = c.createGain();
     ring.gain.value = 0;
     const osc = c.createOscillator();
@@ -82,7 +82,7 @@ function connect(c: AudioContext, src: AudioBufferSourceNode, speaker: Speaker |
     return;
   }
   src.connect(out());
-  if (speaker === 'alien' || speaker === 'alien_kid') {
+  if (speaker === 'alien' || speaker === 'alien_kid' || speaker === 'alien_captain') {
     const delay = c.createDelay(1);
     delay.delayTime.value = 0.17;
     const back = c.createGain();

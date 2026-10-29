@@ -148,6 +148,8 @@ export class GameMap {
   private taps: { x: number; y: number; fn: () => void }[] = [];
   private view = { cx: 0, cz: 0, ppb: 4, vw: 0, vh: 0, s: 1, pd: 1, bounds: [0, 0, 0, 0] as [number, number, number, number] };
   private raf = 0;
+  /** Fly mode (the saucer): a tap on any explored spot picks where to land. */
+  private flyPick: ((x: number, z: number) => void) | null = null;
 
   constructor(
     parent: HTMLElement,
@@ -400,6 +402,40 @@ export class GameMap {
 
   // ─── big map ───
 
+  /**
+   * The big map in fly mode (the saucer): the saucer piece sits in its corner; a tap on any
+   * explored spot closes the map and hands over that spot; under the clouds a tap only clicks.
+   * Coral ✕ or a tap outside cancels. Returns whether the map opened.
+   */
+  openFly(onPick: (x: number, z: number) => void): boolean {
+    if (this.isOpen) return false;
+    this.open();
+    if (!this.isOpen) return false;
+    this.flyPick = onPick;
+    const panel = this.root.firstElementChild as HTMLElement | null;
+    if (panel) {
+      const badge = new Piece(panel, 'fly', 40, 34, 'tile6-sh');
+      badge.el.classList.add('prompt');
+      badge.drop(160, 40);
+    }
+    return true;
+  }
+
+  get flying(): boolean {
+    return this.flyPick !== null;
+  }
+
+  /** `setMapMarker` for systems that only hold the map (no import of this module). */
+  setMarker(id: string, m: MapMarker | null): void {
+    setMapMarker(id, m);
+  }
+
+  /** World point under a tap on the big map view (design px of the view). */
+  private viewToWorld(x: number, y: number): [number, number] {
+    const v = this.view;
+    return [v.cx - v.vw / 2 / v.ppb + x / v.ppb, v.cz - v.vh / 2 / v.ppb + y / v.ppb];
+  }
+
   open(): void {
     const ctx = this.ctx;
     if (!ctx || !this.explored || this.isOpen || this.hud.isPaused || !ctx.playing || ctx.sleeping) return;
@@ -481,6 +517,7 @@ export class GameMap {
     this.big = null;
     this.bigLayer = null;
     this.bigMarks = [];
+    this.flyPick = null;
     sfx.play('click');
     this.onPause?.(false);
     this.miniTimer = 0;
@@ -535,6 +572,18 @@ export class GameMap {
       const r = el.getBoundingClientRect();
       const x = (e.clientX - r.left) / this.view.s;
       const y = (e.clientY - r.top) / this.view.s;
+      const fly = this.flyPick;
+      if (fly) {
+        // fly mode: anywhere explored is a landing place; the clouds only click
+        const [wx, wz] = this.viewToWorld(x, y);
+        if (!this.explored?.has(chunkOf(wx), chunkOf(wz))) {
+          sfx.play('click', { pitch: 0.7 });
+          return;
+        }
+        this.close();
+        fly(wx, wz);
+        return;
+      }
       let best: (() => void) | null = null;
       let bestD = 56;
       for (const t of this.taps) {

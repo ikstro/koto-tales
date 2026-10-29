@@ -319,7 +319,7 @@ export interface KitItem {
 }
 
 /** A piece that breathes by the action pieces when something can be done here. */
-export type PromptKind = 'moon' | 'fold';
+export type PromptKind = 'moon' | 'fold' | 'chest';
 
 export class Hud {
   readonly root = div('hud hidden');
@@ -379,6 +379,9 @@ export class Hud {
   private promptPiece: Piece;
   private notePiece: Piece;
   private noteOn = false;
+  private flyPiece: Piece;
+  private flyOn = false;
+  private flyShown = false;
   private bubble: { el: HTMLDivElement; lit: HTMLImageElement[]; pic: Piece; shown: boolean } | null = null;
   private prompt: PromptKind | null = null;
   private kitItems: KitItem[] = [];
@@ -524,6 +527,9 @@ export class Hud {
     // the DJ's note sits where the ✕ does while placing (never both at once)
     this.notePiece = this.gAct.add('note', -372, -206, 'tile6-sh');
     this.notePiece.el.classList.add('prompt', 'hidden');
+    // the saucer's «fly» piece shares that place too (the note wins when both are near)
+    this.flyPiece = this.gAct.add('fly', -372, -206, 'tile6-sh');
+    this.flyPiece.el.classList.add('prompt', 'hidden');
     this.gAct.seal();
     this.press(
       bow,
@@ -539,6 +545,7 @@ export class Hud {
     this.press(this.cancelPiece, this.cancelPiece.target(96), () => input.press('kit:cancel'), { ui: true });
     this.press(this.promptPiece, this.promptPiece.target(110), () => this.prompt && input.press(`prompt:${this.prompt}`), { ui: true });
     this.press(this.notePiece, this.notePiece.target(110), () => this.noteOn && input.press('prompt:note'), { ui: true });
+    this.press(this.flyPiece, this.flyPiece.target(110), () => this.flyShown && input.press('prompt:fly'), { ui: true });
 
     // Taps outside an open fan / kit plate close it.
     this.catcher = div('catcher hidden', r);
@@ -1211,7 +1218,7 @@ export class Hud {
     this.kitGlow.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 700, easing: 'ease-out' });
   }
 
-  /** The breathing prompt above the action pieces (moon: sleep; fold: pack a building away). */
+  /** The breathing prompt above the action pieces (moon: sleep; fold: pack a building away; chest: open a castle's chest). */
   setPrompt(kind: PromptKind | null): void {
     if (kind === this.prompt) return;
     this.prompt = kind;
@@ -1227,6 +1234,22 @@ export class Hud {
     this.noteOn = on;
     this.notePiece.el.classList.toggle('hidden', !on);
     if (on) this.notePiece.drop(0, 50);
+    this.syncFly();
+  }
+
+  /** The «fly» piece breathing next to the flying saucer (a tap: the big map, to pick where to land). */
+  setFly(on: boolean): void {
+    if (on === this.flyOn) return;
+    this.flyOn = on;
+    this.syncFly();
+  }
+
+  private syncFly(): void {
+    const show = this.flyOn && !this.noteOn;
+    if (show === this.flyShown) return;
+    this.flyShown = show;
+    this.flyPiece.el.classList.toggle('hidden', !show);
+    if (show) this.flyPiece.drop(0, 50);
   }
 
   /**

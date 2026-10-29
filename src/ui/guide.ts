@@ -11,7 +11,7 @@ import { SPRITES, type SpriteName } from './hudSprites';
  * Captions are short and only for parents — the pictures and the voice do the explaining.
  */
 
-export type GuideCard = 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'portal' | 'sleep' | 'power' | 'lighthouse' | 'disco' | 'defense' | 'village' | 'boss';
+export type GuideCard = 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'portal' | 'sleep' | 'power' | 'lighthouse' | 'disco' | 'defense' | 'village' | 'castle' | 'boss';
 
 interface CardSpec {
   id: GuideCard;
@@ -226,6 +226,21 @@ const CARDS: CardSpec[] = [
       a.put('folk-elves', -125, -8, 1.05, 'tile-sh');
       a.put('item-elves', 0, -8, 0.85, 'tile6-sh');
       a.put('b-garland', 120, 4, 1.1);
+    },
+  },
+  {
+    id: 'castle',
+    line: 'guide_castle',
+    caption: 'Замок',
+    span: 2,
+    art: (a) => {
+      // 1. monsters round the castle → 2. the castle alive, the gate open → 3. the prize from the chest up top
+      a.put('mark-monster', -300, 4, 1.5);
+      a.put('mark-monster', -235, -10, 1.2);
+      step(a, -150, -14);
+      a.put('castle-elves', -20, 0, 1.25, 'tile-sh');
+      step(a, 100, -14);
+      a.put('b-treehouse', 220, 4, 1.1);
     },
   },
   {

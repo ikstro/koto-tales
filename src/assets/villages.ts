@@ -1654,3 +1654,9 @@ export function createVillageItem(skin: Skin, race: Race): VillagePiece {
     },
   };
 }
+
+// ─── shared with the castles (castles.ts) ───────────────────────────────────
+
+export { Build, oct, place, tint, along, mergeCached, fx, finishShadows, domePt, pool, halo, gearGeo, HP };
+export { LEAF, LEAF2, LEAF_D, BARK, BARK_D, WOODL, WOODL_D, PINK, STONE, STONE_D, STONE_L, BRICK, BRICK_D, IRON, TEAL_D, GLASS };
+export { ALIEN_CREAM, LILAC, LILAC_D, MINT_L, MINT_D, RACE_GLOW, RACE_GLOW_HEX, RACE_POOL };

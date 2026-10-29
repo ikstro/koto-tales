@@ -14,6 +14,12 @@ describe('power', () => {
     expect(wires(nodes, nets[0])).toHaveLength(3);
   });
 
+  it('a big machine reaches further than a building', () => {
+    const castle: PowerNode = { x: 0, y: 12, z: 0, card: { take: 3, reach: 10 }, charge: 0 };
+    expect(networks([castle, at('pole', 9)])).toHaveLength(1);
+    expect(networks([at('windmill', 0), at('pole', 9)])).toHaveLength(2);
+  });
+
   it('a windmill lights a lighthouse; three lamps are too much for it', () => {
     const lh = [at('windmill', 0), lighthouse(5)];
     expect(tick(lh, all(lh), 1, 0.25)).toMatchObject({ on: true, low: false });

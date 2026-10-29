@@ -19,6 +19,15 @@ export const VILLAGE_EDGE = 8;
 /** The paved plaza around the heart, in blocks from the centre. */
 export const PLAZA = 5;
 
+/** A square turned by quarter turns around its centre cell (a village's or a castle's). */
+export interface SquareSite {
+  /** Centre cell. */
+  x: number;
+  z: number;
+  /** Quarter turns: the gate (local +Z) faces (sin, cos) of side·π/2. */
+  side: 0 | 1 | 2 | 3;
+}
+
 export interface VillageSite {
   race: Race;
   /** Centre cell. */
@@ -65,15 +74,15 @@ const SPREAD = 6;
 export const sideCos = (side: number) => [1, 0, -1, 0][side];
 export const sideSin = (side: number) => [0, 1, 0, -1][side];
 
-/** World cell of local (lx, lz) in a village. */
-export function toWorld(v: VillageSite, lx: number, lz: number): [number, number] {
+/** World cell of local (lx, lz) in a square (village or castle). */
+export function toWorld(v: SquareSite, lx: number, lz: number): [number, number] {
   const c = sideCos(v.side);
   const s = sideSin(v.side);
   return [v.x + lx * c + lz * s, v.z - lx * s + lz * c];
 }
 
 /** Local (lx, lz) of a world cell. */
-export function toLocal(v: VillageSite, x: number, z: number): [number, number] {
+export function toLocal(v: SquareSite, x: number, z: number): [number, number] {
   const c = sideCos(v.side);
   const s = sideSin(v.side);
   const dx = x - v.x;
@@ -82,13 +91,13 @@ export function toLocal(v: VillageSite, x: number, z: number): [number, number] 
 }
 
 /** The gate's yaw (radians, 0 = +Z). */
-export const villageYaw = (v: VillageSite) => (v.side * Math.PI) / 2;
+export const villageYaw = (v: SquareSite) => (v.side * Math.PI) / 2;
 
 /** Distance from the centre in «square» terms: up to HALF inside the floor, then HALF + the way to its edge (round corners outside). */
-export function squareDist(v: VillageSite, x: number, z: number): number {
+export function squareDist(v: SquareSite, x: number, z: number, half = VILLAGE_HALF): number {
   const dx = Math.abs(x - v.x);
   const dz = Math.abs(z - v.z);
-  const H = VILLAGE_HALF;
+  const H = half;
   if (dx <= H && dz <= H) return Math.max(dx, dz);
   return H + Math.hypot(Math.max(0, dx - H), Math.max(0, dz - H));
 }
@@ -136,37 +145,50 @@ function findOne(g: RawGround, race: Race, taken: VillageSite[]): VillageSite | 
       hi = Math.max(hi, c.h);
     }
     if (same < 3 || wet || hi - lo > SPREAD) continue;
-    const fit = flatness(g, x, z);
+    const fit = squareFit(g, x, z, VILLAGE_HALF, VILLAGE_EDGE, SPREAD);
     if (!fit) continue;
     const score = fit.spread + away;
     if (score >= bestScore) continue;
     bestScore = score;
-    // the gate faces home (the nearest quarter turn)
-    const side = (((Math.round(Math.atan2(-x, -z) / (Math.PI / 2)) % 4) + 4) % 4) as VillageSite['side'];
-    best = { race, x, z, y: Math.max(SEA_LEVEL + 1, fit.y - rule.sink), side };
+    best = { race, x, z, y: Math.max(SEA_LEVEL + 1, fit.y - rule.sink), side: sideHome(x, z) };
   }
   return best;
 }
 
-/** Dry all over (with a margin for the slope), not too uneven: the middle height and the spread. */
-function flatness(g: RawGround, x: number, z: number): { y: number; spread: number } | null {
-  const H = VILLAGE_HALF;
+/** The gate faces home: the nearest quarter turn. */
+export const sideHome = (x: number, z: number) => (((Math.round(Math.atan2(-x, -z) / (Math.PI / 2)) % 4) + 4) % 4) as SquareSite['side'];
+
+/**
+ * A square of `half` around (x, z): dry all over (with a margin for the slope of `edge`), its heights
+ * within `spread` — the middle height and the spread, or null. Samples every `step` cells, the margin every `ring`.
+ */
+export function squareFit(
+  g: RawGround,
+  x: number,
+  z: number,
+  half: number,
+  edge: number,
+  spread: number,
+  step = 3,
+  ring = 6,
+): { y: number; spread: number } | null {
+  const H = half;
   const hs: number[] = [];
   let lo = Infinity;
   let hi = -Infinity;
-  for (let dz = -H; dz <= H; dz += 3) {
-    for (let dx = -H; dx <= H; dx += 3) {
+  for (let dz = -H; dz <= H; dz += step) {
+    for (let dx = -H; dx <= H; dx += step) {
       const c = g.raw(x + dx, z + dz);
       if (c.wet > 0.01 || c.h < SEA_LEVEL + 1) return null;
       lo = Math.min(lo, c.h);
       hi = Math.max(hi, c.h);
-      if (hi - lo > SPREAD) return null;
+      if (hi - lo > spread) return null;
       hs.push(c.h);
     }
   }
   // the slope around stays dry too
-  const R = H + VILLAGE_EDGE;
-  for (let k = -R; k <= R; k += 6) {
+  const R = H + edge;
+  for (let k = -R; k <= R; k += ring) {
     for (const [dx, dz] of [[k, -R], [k, R], [-R, k], [R, k]]) {
       const c = g.raw(x + dx, z + dz);
       if (c.wet > 0.01 || c.h < SEA_LEVEL + 1) return null;

@@ -24,6 +24,8 @@ interface Look {
   k: number;
   hk: number;
   cape?: string;
+  /** The captain: a peaked cap with a gold badge, a badge on the chest, gold shoulder boards. */
+  captain?: { cap: string; gold: string };
   height: number;
 }
 
@@ -32,6 +34,10 @@ const LOOKS: Record<string, Look> = {
   alien_2: { id: 'alien_2', face: 'alien_lilac', suit: '#e6e9ec', trim: '#2f918b', ball: '#e0583f', boots: '#5a626b', antennas: 2, k: 1, hk: 1, height: 1.3 },
   alien_3: { id: 'alien_3', face: 'alien_mint', suit: '#d6dbe0', trim: '#eab02b', ball: '#ffd23a', boots: BOOT, antennas: 2, k: 1, hk: 1, height: 1.3 },
   alien_elder: { id: 'alien_elder', face: 'alien_elder', suit: '#b4bcc4', trim: '#eab02b', ball: '#ffe3a3', boots: '#4f565e', antennas: 3, k: 1.14, hk: 1.02, cape: '#7a5a8a', height: 1.5 },
+  alien_captain: {
+    id: 'alien_captain', face: 'alien_mint', suit: '#3a5f9e', trim: '#eab02b', ball: '#ffd23a', boots: '#2e3a52', antennas: 2,
+    k: 1.12, hk: 1.04, captain: { cap: '#2e4a7e', gold: '#eab02b' }, height: 1.62,
+  },
   alien_kid: { id: 'alien_kid', face: 'alien_kid', suit: '#e6e9ec', trim: '#eab02b', ball: '#e0583f', boots: BOOT, antennas: 2, k: 0.62, hk: 0.98, height: 0.9 },
 };
 
@@ -69,6 +75,11 @@ function make(skin: Skin, L: Look): Rig {
       .box([bw + 0.08, bodyH * 1.05, 0.04], [0, bodyH * 0.42, -bd / 2 - 0.03], L.cape)
       .box([bw + 0.1, 0.05, bd + 0.08], [0, bodyH - 0.01, 0], L.cape);
   }
+  if (L.captain) {
+    // a gold diamond badge on the chest and two rows of buttons
+    body.box([0.08, 0.08, 0.02], [bw * 0.22, bodyH * 0.68, bd / 2 + 0.02], L.captain.gold, [0, 0, Math.PI / 4]);
+    for (const y of [0.45, 0.62, 0.79]) body.box([0.03, 0.03, 0.02], [-bw * 0.18, bodyH * y, bd / 2 + 0.012], L.captain.gold);
+  }
   body.done();
 
   // head: bulb dome, cheeks, antennae with little balls
@@ -83,28 +94,42 @@ function make(skin: Skin, L: Look): Rig {
     .box([0.1 * hk, 0.06, 0.07], [hw / 2 + 0.025, hh * 0.38, 0], { s: 1 })
     .box([0.1 * hk, 0.06, 0.07], [-hw / 2 - 0.025, hh * 0.38, 0], { s: 1 });
   const n = L.antennas;
-  const xs = n === 2 ? [-hw * 0.26, hw * 0.26] : [-hw * 0.3, 0, hw * 0.3];
+  const cap = L.captain;
+  const xs = cap ? [-hw * 0.47, hw * 0.47] : n === 2 ? [-hw * 0.26, hw * 0.26] : [-hw * 0.3, 0, hw * 0.3];
   const lens = n === 2 ? [0.15, 0.15] : [0.13, 0.19, 0.13];
   xs.forEach((x, i) => {
-    const out = n === 2 ? (i === 0 ? 0.22 : -0.22) : i === 0 ? 0.3 : i === 2 ? -0.3 : 0;
+    const out = cap ? (i === 0 ? 0.9 : -0.9) : n === 2 ? (i === 0 ? 0.22 : -0.22) : i === 0 ? 0.3 : i === 2 ? -0.3 : 0;
     const len = lens[i] * (0.6 + 0.4 * k);
-    const base = hh + 0.1;
-    // stalk skin-coloured, the ball a plain colour; the stalk leans outwards
-    head.box([0.026, len, 0.026], [x - Math.sin(out) * len * 0.5, base + len / 2 - 0.02, -0.02], { s: 1 }, [0, 0, out]);
-    head.box([0.07, 0.07, 0.07], [x - Math.sin(out) * len, base + len + 0.0, -0.02], L.ball);
+    const base = cap ? hh * 0.86 : hh + 0.1;
+    // stalk skin-coloured, the ball a plain colour; the stalk leans outwards (the captain's poke out under the cap)
+    const up = cap ? Math.cos(out) : 1;
+    head.box([0.026, len, 0.026], [x - Math.sin(out) * len * 0.5, base + (len / 2) * up - 0.02, -0.02], { s: 1 }, [0, 0, out]);
+    head.box([0.07, 0.07, 0.07], [x - Math.sin(out) * len, base + len * up + 0.0, -0.02], L.ball);
   });
+  if (cap) {
+    // the peaked cap: a crown over the dome, a gold band, a dark peak and a gold badge
+    head
+      .box([hw + 0.04, 0.07, hd + 0.02], [0, hh + 0.03, -0.01], cap.cap)
+      .box([hw * 0.96, 0.14, hd * 0.96], [0, hh + 0.13, -0.02], cap.cap)
+      .box([hw + 0.1, 0.05, hd + 0.08], [0, hh + 0.22, -0.02], cap.cap)
+      .box([hw + 0.06, 0.04, hd + 0.04], [0, hh + 0.05, -0.01], cap.gold)
+      .box([hw * 0.74, 0.035, 0.17], [0, hh + 0.01, hd / 2 + 0.07], '#1f2a3a', [-0.15, 0, 0])
+      .box([0.1, 0.1, 0.03], [0, hh + 0.14, hd / 2 - 0.0], cap.gold, [0, 0, Math.PI / 4])
+      .box([0.04, 0.04, 0.03], [0, hh + 0.14, hd / 2 + 0.012], '#c23a2e');
+  }
   head.done();
 
   // arms: suit sleeves, bare thin hands in the skin colour
   for (const arm of [parts.armL, parts.armR]) {
     const aw = 0.085 * (0.5 + 0.5 * k) + 0.02;
     const len = bodyH * 0.75;
-    kit
+    const a = kit
       .part(arm.name, arm)
       .box([aw + 0.02, len * 0.7, aw + 0.02], [0, -len * 0.35 + 0.02, 0], L.suit)
       .box([aw + 0.025, 0.035, aw + 0.025], [0, -len * 0.7 + 0.02, 0], L.trim)
-      .box([aw, len * 0.34, aw], [0, -len * 0.84, 0], skinC)
-      .done();
+      .box([aw, len * 0.34, aw], [0, -len * 0.84, 0], skinC);
+    if (L.captain) a.box([aw + 0.07, 0.04, aw + 0.05], [0, 0.03, 0], L.captain.gold);
+    a.done();
   }
   void skinDark;
 
@@ -116,3 +141,4 @@ export const buildAlien1 = (skin: Skin): Rig => make(skin, LOOKS.alien_1);
 export const buildAlien2 = (skin: Skin): Rig => make(skin, LOOKS.alien_2);
 export const buildAlien3 = (skin: Skin): Rig => make(skin, LOOKS.alien_3);
 export const buildAlienKid = (skin: Skin): Rig => make(skin, LOOKS.alien_kid);
+export const buildAlienCaptain = (skin: Skin): Rig => make(skin, LOOKS.alien_captain);

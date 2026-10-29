@@ -9,6 +9,7 @@ import { hurtHero, throwBone } from './combat';
 import { homeDistance } from './house';
 import { playingSpeakers } from './kit';
 import { inLight } from './power';
+import { sheltered } from './prizes';
 import { redLight } from './defense';
 import { tuneOf } from './tune';
 import { inVillage } from './villages';
@@ -61,8 +62,8 @@ function trySpawn(ctx: Ctx): void {
     if (inVillage(ctx, x, z)) continue;
     // the boss's wasteland is its own: no regular monsters spawn there
     if (ctx.boss?.inZone(x, z, 2)) continue;
-    // nor where powered lamps and lighthouses shine at night
-    if (night && inLight(x, z)) continue;
+    // nor where powered lamps and lighthouses shine at night, nor round a tree house
+    if (night && (inLight(x, z) || sheltered(x, z))) continue;
     spawnAt(ctx, kind, x, z);
   }
 }

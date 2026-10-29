@@ -13,6 +13,7 @@ import { CHUNK_SIZE, SEA_LEVEL, WORLD_HEIGHT, type Biome } from '../contracts';
 import { B } from './blocks';
 import { hash2, mulberry32 } from './rng';
 import { findVillages, PLAZA, squareDist, toLocal, VILLAGE_EDGE, VILLAGE_HALF, type Race, type VillageSite } from './villages';
+import { CASTLE_EDGE, CASTLE_HALF, castlePaved, findCastles, type CastleSite } from './castles';
 
 export const BIOME_MEADOW = 0;
 export const BIOME_FOREST = 1;
@@ -37,6 +38,8 @@ const VILLAGE_FLOOR: Record<Race, number> = { elves: 0, gnomes: 0, robots: 0, al
 const VILLAGE_PAVE: Record<Race, number> = { elves: B.PLANKS, gnomes: B.COBBLE, robots: B.STONE, aliens: B.STONE };
 /** The aliens' crater: a rim this high just outside the floor. */
 const RIM_H = 2.2;
+/** A castle's floor (grass; the aliens' crater is sand); its plaza and path are paved like the race's village. */
+const CASTLE_FLOOR: Record<Race, number> = { elves: B.GRASS, gnomes: B.GRASS, robots: B.GRASS, aliens: B.SAND };
 
 export interface ColumnSample {
   /** Float height before flooring. */
@@ -49,9 +52,9 @@ export interface ColumnSample {
   hill: number;
   forest: number;
   biome: number;
-  /** 1 on a village's floor, falling to 0 across its slope. */
+  /** 1 on a village's or a castle's floor, falling to 0 across its slope. */
   village: number;
-  /** A village floor's own top block (0: the land's). */
+  /** A village's or castle's own top block (0: the land's). */
   vtop: number;
 }
 
@@ -88,6 +91,8 @@ export class Terrain {
   private s2: ColumnSample = { hf: 0, h: 0, wet: 0, lake: 0, hill: 0, forest: 0, biome: 0, village: 0, vtop: 0 };
   /** The four villages (world/villages.ts); their squares are flattened in `sample`. */
   villages: VillageSite[] = [];
+  /** The four castles (world/castles.ts), far beyond the villages; flattened in `sample` too. */
+  castles: CastleSite[] = [];
 
   constructor(seed: number) {
     this.seed = seed | 0;
@@ -111,6 +116,15 @@ export class Terrain {
     }
     // found on the raw land (no villages yet), then flattened from here on
     this.villages = findVillages({ raw: (x, z) => this.sample(x, z, this.s2) });
+    // castles keep 140 from every village, so the land they are found on is still raw
+    this.castles = findCastles({ raw: (x, z) => this.sample(x, z, this.s2) }, this.villages);
+  }
+
+  /** The castle whose square (with its slope) holds (x, z), if any. */
+  castleAt(x: number, z: number): CastleSite | null {
+    const R = CASTLE_HALF + CASTLE_EDGE;
+    for (const c of this.castles) if (Math.abs(x - c.x) <= R && Math.abs(z - c.z) <= R) return c;
+    return null;
   }
 
   /** The village whose square (with its slope) holds (x, z), if any. */
@@ -159,6 +173,20 @@ export class Terrain {
         const paved = Math.max(Math.abs(lx), Math.abs(lz)) <= PLAZA || (Math.abs(lx) <= 1 && lz > 0);
         vtop = paved ? VILLAGE_PAVE[v.race] : VILLAGE_FLOOR[v.race];
       }
+    }
+    // a castle's square: the same, bigger (the gnomes' raised into a hill, the aliens' sunk into a crater)
+    const c = !v && this.castles.length ? this.castleAt(x, z) : null;
+    if (c) {
+      const dist = squareDist(c, x, z, CASTLE_HALF);
+      village = 1 - smoothstep(CASTLE_HALF + 0.5, CASTLE_HALF + 0.5 + CASTLE_EDGE, dist);
+      hf += (c.y + 0.5 - hf) * village;
+      if (c.race === 'aliens') {
+        hf += RIM_H * smoothstep(CASTLE_HALF + 0.5, CASTLE_HALF + 2, dist) * Math.exp(-(((dist - CASTLE_HALF - 3.5) / 2.4) ** 2));
+        if (dist < CASTLE_HALF + 7) vtop = B.SAND;
+      }
+      const [lx, lz] = toLocal(c, x, z);
+      if (castlePaved(lx, lz)) vtop = VILLAGE_PAVE[c.race];
+      else if (village > 0.97) vtop = CASTLE_FLOOR[c.race];
     }
 
     const forest = this.nF(x / 160, z / 160) + 0.25 * this.nF(x / 40 + 9.1, z / 40 + 3.3) - homeT * 2;
@@ -305,6 +333,7 @@ export class Terrain {
     this.sample(tx, tz, s);
     // villages keep their squares and slopes clear (crowns reach two blocks out)
     if (s.village > 0 || this.villageAt(tx + 2, tz + 2) || this.villageAt(tx - 2, tz - 2)) return null;
+    if (this.castleAt(tx + 2, tz + 2) || this.castleAt(tx - 2, tz - 2)) return null;
     let p = 0;
     switch (s.biome) {
       case BIOME_FOREST:

@@ -14,6 +14,7 @@ import { initLanterns } from './render/lanterns';
 import { createSkin } from './render/skins';
 import { bossStartSpot, initBoss } from './systems/boss';
 import { buildHouse } from './systems/house';
+import { initCastles } from './systems/castles';
 import { initKit } from './systems/kit';
 import { initLandmarks } from './systems/landmarks';
 import { initVillages } from './systems/villages';
@@ -115,6 +116,7 @@ async function boot(): Promise<void> {
   initPower(ctx);
   // before the kit: the villages' ground is kept, buildings standing there go back to the box
   initVillages(ctx);
+  initCastles(ctx);
   initKit(ctx);
   initLandmarks(ctx);
   if (params.demo) placeDemo(ctx);

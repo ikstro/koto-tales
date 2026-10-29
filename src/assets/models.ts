@@ -13,13 +13,13 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { CharacterModel, IModels, ItemId, ModelRef, Rig, RigType, Skin } from '../contracts';
 import { animate } from './animate';
 import { buildItem } from './items';
-import { buildAlien1, buildAlien2, buildAlien3, buildAlienElder, buildAlienKid } from './parts/alien';
-import { buildElf1, buildElf2, buildElf3, buildElfElder, buildElfKid } from './parts/elf';
-import { buildGnome1, buildGnome2, buildGnome3, buildGnomeElder, buildGnomeKid } from './parts/gnome';
+import { buildAlien1, buildAlien2, buildAlien3, buildAlienCaptain, buildAlienElder, buildAlienKid } from './parts/alien';
+import { buildElf1, buildElf2, buildElf3, buildElfElder, buildElfKid, buildElfQueen } from './parts/elf';
+import { buildGnome1, buildGnome2, buildGnome3, buildGnomeElder, buildGnomeKid, buildGnomeKing } from './parts/gnome';
 import { build as landEater } from './parts/landEater';
 import { build as lyosha } from './parts/lyosha';
 import { build as pupsia } from './parts/pupsia';
-import { buildRobot1, buildRobot2, buildRobot3, buildRobotElder, buildRobotKid } from './parts/robot';
+import { buildRobot1, buildRobot2, buildRobot3, buildRobotChief, buildRobotElder, buildRobotKid } from './parts/robot';
 import { build as skeleton } from './parts/skeleton';
 import { build as solomiia } from './parts/solomiia';
 import { build as spider } from './parts/spider';
@@ -53,6 +53,11 @@ export const PART_BUILDERS: Record<string, (skin: Skin) => Rig> = {
   alien_2: buildAlien2,
   alien_3: buildAlien3,
   alien_kid: buildAlienKid,
+  // the castles' rulers (stage C2)
+  elf_queen: buildElfQueen,
+  gnome_king: buildGnomeKing,
+  robot_chief: buildRobotChief,
+  alien_captain: buildAlienCaptain,
 };
 
 const RIG_PARTS: Record<RigType, string[]> = {

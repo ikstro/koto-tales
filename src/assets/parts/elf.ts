@@ -29,6 +29,8 @@ interface Look {
   w: number;
   height: number;
   elder?: boolean;
+  /** The queen: a long robe, a cape down to the heels and a crown of gold leaves. */
+  queen?: { cape: string; capeTrim: string; jewel: string };
 }
 
 const LOOKS: Record<string, Look> = {
@@ -37,11 +39,16 @@ const LOOKS: Record<string, Look> = {
   elf_3: { id: 'elf_3', face: 'elf', tunic: '#2f7d6b', trim: '#ffe3a3', cap: '#c98a2a', hair: '#e8c46a', pants: '#a08a5c', boots: '#8a5a2b', k: 1, hk: 1, w: 1, height: 1.58 },
   elf_elder: { id: 'elf_elder', face: 'elf_elder', tunic: '#4b7a42', trim: GOLD, cap: GOLD, hair: '#cfd7de', pants: '#4b7a42', boots: '#6e4520', k: 1.04, hk: 1, w: 1, height: 1.62, elder: true },
   elf_kid: { id: 'elf_kid', face: 'elf', tunic: '#7fae44', trim: GOLD, cap: '#4f8a3c', hair: '#d6a640', pants: '#9a8a58', boots: '#7a4a24', k: 0.58, hk: 0.86, w: 0.8, height: 1.04 },
+  elf_queen: {
+    id: 'elf_queen', face: 'elf_queen', tunic: '#6cb86a', trim: GOLD, cap: GOLD, hair: '#f0d070', pants: '#6cb86a', boots: '#8a5a2b',
+    k: 1.1, hk: 1.02, w: 1.04, height: 1.78, queen: { cape: '#2f7d6b', capeTrim: GOLD, jewel: '#ee6a82' },
+  },
 };
 
 function make(skin: Skin, L: Look): Rig {
   const { k, hk, w } = L;
-  const elder = !!L.elder;
+  const queen = L.queen;
+  const elder = !!L.elder || !!queen;
   const kit = new Kit(L.id, skin, faceAtlas(L.face));
   const legH = 0.58 * k;
   const bodyH = 0.48 * k;
@@ -72,7 +79,20 @@ function make(skin: Skin, L: Look): Rig {
     .box([torsoW + 0.07, bodyH * 0.42, 0.27 * w], [0, bodyH * 0.1, 0], L.tunic)
     .box([torsoW + 0.08, 0.04, 0.28 * w], [0, -bodyH * 0.1, 0], L.trim)
     .box([0.18 * w, 0.05, 0.23 * w], [0, bodyH - 0.01, 0], L.trim);
-  if (elder) body.box([torsoW + 0.04, bodyH * 0.9, 0.05], [0, bodyH * 0.55, -0.15 * w], L.tunic);
+  if (elder && !queen) body.box([torsoW + 0.04, bodyH * 0.9, 0.05], [0, bodyH * 0.55, -0.15 * w], L.tunic);
+  if (queen) {
+    // a cape from the shoulders to the heels, gold-edged, flaring at the hem; a gold clasp
+    const capeH = bodyH + legH - 0.06;
+    const cy = (bodyH - (legH - 0.06)) / 2;
+    body
+      .box([torsoW + 0.12, capeH, 0.05], [0, cy, -0.15 * w - 0.03], queen.cape)
+      .box([torsoW + 0.22, capeH * 0.35, 0.05], [0, -legH * 0.75, -0.15 * w - 0.05], queen.cape)
+      .box([torsoW + 0.24, 0.05, 0.07], [0, -legH + 0.1, -0.15 * w - 0.05], queen.capeTrim)
+      .box([0.04, capeH, 0.07], [(torsoW + 0.12) / 2, cy, -0.15 * w - 0.03], queen.capeTrim)
+      .box([0.04, capeH, 0.07], [-(torsoW + 0.12) / 2, cy, -0.15 * w - 0.03], queen.capeTrim)
+      .box([torsoW + 0.16, 0.08, 0.3 * w], [0, bodyH - 0.02, -0.02], queen.cape)
+      .box([0.09, 0.09, 0.04], [0, bodyH - 0.06, 0.12 * w], queen.jewel, [0, 0, Math.PI / 4]);
+  }
   body.pixels(LEAF, { '#': L.trim }, [-0.06 * w, bodyH * 0.84, 0.11 * w], 0.026 * w, 0.012).done();
 
   // head: face box, pointed ears, hair, and the cap or circlet
@@ -95,8 +115,26 @@ function make(skin: Skin, L: Look): Rig {
       .box([hw + 0.05, hh * 1.3, 0.07], [0, hh * 0.38, -hd / 2 - 0.03], L.hair)
       .box([0.05, hh * 0.9, hd * 0.8], [hw / 2 + 0.015, hh * 0.45, -0.03], L.hair)
       .box([0.05, hh * 0.9, hd * 0.8], [-hw / 2 - 0.015, hh * 0.45, -0.03], L.hair)
-      .box([hw + 0.07, 0.04, hd + 0.07], [0, hh * 0.8, 0], GOLD)
-      .box([0.06, 0.07, 0.03], [0, hh * 0.8, hd / 2 + 0.04], '#3f9a52');
+      .box([hw + 0.07, 0.04, hd + 0.07], [0, queen ? hh * 0.95 : hh * 0.8, 0], GOLD)
+      .box([0.06, 0.07, 0.03], [0, queen ? hh * 0.95 : hh * 0.8, hd / 2 + 0.04], queen ? queen.jewel : '#3f9a52');
+    if (queen) {
+      // the crown: gold leaves standing round the band, the tallest at the front
+      const leaves: [number, number, number, number][] = [
+        [0, hd / 2 + 0.02, 0.2, 0],
+        [-hw * 0.32, hd / 2 + 0.01, 0.15, 0.25],
+        [hw * 0.32, hd / 2 + 0.01, 0.15, -0.25],
+        [-hw / 2 - 0.02, 0.02, 0.13, 0.3],
+        [hw / 2 + 0.02, 0.02, 0.13, -0.3],
+        [-hw * 0.3, -hd / 2 - 0.02, 0.11, 0.2],
+        [hw * 0.3, -hd / 2 - 0.02, 0.11, -0.2],
+      ];
+      for (const [x, z, h, tilt] of leaves) {
+        head.box([0.07, h, 0.03], [x, hh * 0.95 + h / 2 + 0.01, z], GOLD, [0, Math.atan2(x, z), tilt]);
+        head.box([0.045, 0.045, 0.04], [x, hh * 0.95 + h + 0.02, z], '#79c24a', [0, Math.atan2(x, z), Math.PI / 4]);
+      }
+      // hair: a fuller top and a long golden fall down the back
+      head.box([hw + 0.06, 0.08, hd + 0.06], [0, hh + 0.01, -0.005], L.hair).box([hw + 0.02, hh * 1.7, 0.08], [0, hh * 0.15, -hd / 2 - 0.05], L.hair);
+    }
   } else {
     // leaf cap: a crown, a leaf tip sweeping back and up, a gold leaf badge
     head
@@ -116,7 +154,7 @@ function make(skin: Skin, L: Look): Rig {
     a.box([0.115 * w, sleeve, 0.14 * w], [0, -sleeve / 2 + 0.03, 0], L.tunic)
       .box([0.12 * w, 0.035, 0.145 * w], [0, -sleeve + 0.03, 0], L.trim)
       .box([0.09 * w, 0.1 * k, 0.1 * w], [0, -sleeve - 0.02, 0], skinC);
-    if (elder && arm === parts.armR) {
+    if (L.elder && arm === parts.armR) {
       const top = 0.28;
       const bottom = -(legH + 0.4);
       a.box([0.05, top - bottom, 0.05], [0, (top + bottom) / 2, 0.1], WOOD)
@@ -135,3 +173,4 @@ export const buildElf1 = (skin: Skin): Rig => make(skin, LOOKS.elf_1);
 export const buildElf2 = (skin: Skin): Rig => make(skin, LOOKS.elf_2);
 export const buildElf3 = (skin: Skin): Rig => make(skin, LOOKS.elf_3);
 export const buildElfKid = (skin: Skin): Rig => make(skin, LOOKS.elf_kid);
+export const buildElfQueen = (skin: Skin): Rig => make(skin, LOOKS.elf_queen);

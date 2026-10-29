@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { PowerView } from '../assets/buildings';
 import type { PowerCard } from '../content/buildings';
-import { REACH, networks, tick, wires, type NetState, type PowerNode } from '../content/power';
+import { networks, reachOf, tick, wires, type NetState, type PowerNode } from '../content/power';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
 import { voice } from '../voice/voice';
@@ -213,7 +213,7 @@ export function previewWires(from: THREE.Vector3 | null): boolean {
   if (from) {
     for (const s of sites.values()) {
       const d = Math.hypot(s.socket.x - from.x, s.socket.z - from.z);
-      if (d <= REACH && Math.abs(s.socket.y - from.y) <= 6 && d < bd) {
+      if (d <= reachOf(s.card) && Math.abs(s.socket.y - from.y) <= 6 && d < bd) {
         bd = d;
         best = s;
       }

@@ -10,6 +10,9 @@
  *   skin=pixel|toy|hybrid  use the real skin (src/render/skins) when it exists; default: test skin
  *   ui=0      hide the info box
  *   yaw=1.57  facing of the figures in the actions view
+ *   view=castle&race=elves|gnomes|robots|aliens  a castle with its ruler, a hero at the top and the chest
+ *     alive=0..1 (default 1)  open=0..1 (default = alive)  night=0..1  cam=front|game|side|back
+ *   view=rulers  the four rulers next to their elders
  */
 import * as THREE from 'three';
 import type { CharacterModel, ItemId, ModelAction, Skin } from '../contracts';
@@ -19,8 +22,11 @@ import { animate } from '../assets/animate';
 import { Models, PART_BUILDERS } from '../assets/models';
 import { countMeshes } from '../assets/parts/kit';
 import { createArrow, createCampfire, createChest } from '../assets/props';
+import { createCastle, createCastleItem } from '../assets/castles';
 import { Effects } from '../render/effects';
+import { cutawayModel } from '../render/skins/cutaway';
 import { BLOCKS, B } from '../world/blocks';
+import { RACES, type Race } from '../world/villages';
 import { TestSkin } from './testSkin';
 
 declare global {
@@ -108,6 +114,8 @@ async function main() {
   const actors: Actor[] = [];
   const updaters: ((dt: number, t: number) => void)[] = [];
   const draw: Record<string, number> = {};
+  let daylight = 1;
+  const focus = new THREE.Vector3();
 
   const ground = (y: number, size = 60, color = 0x7cc35a) => {
     const g = new THREE.Mesh(new THREE.BoxGeometry(size, 0.2, size), new THREE.MeshLambertMaterial({ color }));
@@ -290,6 +298,72 @@ async function main() {
     camera.fov = 32;
     camera.position.set(0, 4.2, 15);
     camera.lookAt(0, 0.6, 0);
+  } else if (view === 'castle') {
+    ground(0, 120);
+    const race = (params.get('race') ?? 'elves') as Race;
+    const alive = Number(params.get('alive') ?? 1);
+    const open = Number(params.get('open') ?? alive);
+    const night = Number(params.get('night') ?? 0);
+    daylight = 1 - night;
+    const castle = createCastle(skin, race);
+    cutawayModel(castle.root);
+    scene.add(castle.root);
+    let tris = 0;
+    castle.root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const g = m.geometry;
+      tris += ((g.index ? g.index.count : g.getAttribute('position').count) / 3) * ((m as THREE.InstancedMesh).isInstancedMesh ? (m as THREE.InstancedMesh).count : 1);
+    });
+    draw[`castle-${race} tris ${Math.round(tris)} draws`] = countMeshes(castle.root);
+    const chest = createChest(skin);
+    chest.root.position.set(castle.chest.x, castle.chest.y, castle.chest.z);
+    chest.root.rotation.y = castle.chest.yaw;
+    scene.add(chest.root);
+    const ruler = { elves: 'elf_queen', gnomes: 'gnome_king', robots: 'robot_chief', aliens: 'alien_captain' }[race];
+    addChar(ruler, 0, 8, 0, 0, true);
+    const hero = addChar('lyosha', castle.top.x, castle.top.z, 0.3, 0, true, 1);
+    hero.model.root.position.y = castle.top.y;
+    const item = createCastleItem(skin, race);
+    item.root.position.set(3, 0, 9);
+    scene.add(item.root);
+    updaters.push((dt) => {
+      castle.update(dt, { night, alive, open, on: alive > 0.5, low: false, beat: 0 });
+      item.update(dt, { night, on: false, low: false, beat: 0 });
+    });
+    const cam = params.get('cam') ?? 'front';
+    camera.fov = 40;
+    focus.set(-0.5, 9, -4.5);
+    if (cam === 'game') {
+      focus.copy(castle.top);
+      // the game's high third-person view from the front, looking at the hero at the top
+      const pitch = THREE.MathUtils.degToRad(52);
+      const dist = 20;
+      camera.position.set(castle.top.x, castle.top.y + Math.sin(pitch) * dist, castle.top.z + Math.cos(pitch) * dist);
+      camera.lookAt(castle.top.x, castle.top.y, castle.top.z);
+    } else if (cam === 'side') {
+      camera.position.set(42, 18, -2);
+      camera.lookAt(0, 9, -5);
+    } else if (cam === 'back') {
+      camera.position.set(-22, 27, -46);
+      camera.lookAt(0, 9, -5);
+    } else {
+      camera.position.set(21, 25, 40);
+      camera.lookAt(-0.5, 9.5, -4.5);
+    }
+  } else if (view === 'rulers') {
+    ground(0);
+    const pairs: [string, string][] = [['elf_elder', 'elf_queen'], ['gnome_elder', 'gnome_king'], ['robot_elder', 'robot_chief'], ['alien_elder', 'alien_captain']];
+    pairs.forEach(([elder, ruler], i) => {
+      const x = (i - 1.5) * 2.6;
+      addChar(elder, x - 0.6, -0.4, 0.25);
+      addChar(ruler, x + 0.55, 0.2, -0.2);
+      label(ruler, x + 0.3, 2.4, -0.8, 0.9);
+    });
+    camera.fov = 30;
+    camera.position.set(0, 3.0, 15);
+    camera.lookAt(0, 0.9, 0);
+    void RACES;
   }
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
@@ -299,7 +373,7 @@ async function main() {
   const tags = Object.entries(draw)
     .map(([k, v]) => `${k} ${v}`)
     .join(' · ');
-  const nav = ['lineup', 'house', ...CHARS.map((c) => `hero&id=${c}`), 'actions&id=lyosha']
+  const nav = ['lineup', 'house', ...CHARS.map((c) => `hero&id=${c}`), 'actions&id=lyosha', ...RACES.map((r) => `castle&race=${r}`), 'rulers']
     .map((v) => `<a href="?view=${v}">${v.replace('hero&id=', '').replace('&id=', ' ')}</a>`)
     .join('');
   document.getElementById('nav')!.innerHTML = nav;
@@ -325,7 +399,7 @@ async function main() {
     }
     updaters.forEach((u) => u(dt, t));
     if (freezeAt === null || view !== 'house') effects.update(dt);
-    skin.updateScene(1, new THREE.Vector3());
+    skin.updateScene(daylight, focus);
     skin.render(renderer, scene, camera);
     frames++;
     if (frames % 20 === 1) {

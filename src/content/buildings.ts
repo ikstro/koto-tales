@@ -27,7 +27,11 @@ export type BuildingId =
   | 'garland'
   | 'carousel'
   | 'searchlight'
-  | 'trampoline';
+  | 'trampoline'
+  | 'treehouse'
+  | 'golem'
+  | 'robohelper'
+  | 'saucer';
 
 /**
  * What a building does in the power network (DESIGN.md «Power»): buildings closer than
@@ -44,6 +48,8 @@ export interface PowerCard {
   store?: number;
   /** At night no monster appears this close to it while it works (blocks). */
   light?: number;
+  /** Joins what stands this close instead of REACH (a castle's machine is big). */
+  reach?: number;
 }
 
 export interface BuildingCard {
@@ -82,6 +88,14 @@ export interface BuildingCard {
   bounce?: { height: number };
   /** Heroes may sleep in it at night. */
   sleep?: boolean;
+  /** A shelter (the tree house): at night no monster appears within `calm`; within `heal` hearts come back fast. */
+  shelter?: { calm: number; heal: number };
+  /** A golem: the nearest monster this close gets a ground slam every `every` seconds. */
+  slam?: { reach: number; every: number; damage: number };
+  /** Walks with the party as a helper (the robot): shoots the nearest monster this close. */
+  follow?: { reach: number };
+  /** A flying saucer: next to it a «fly» piece opens the big map to pick where to land. */
+  fly?: boolean;
   power?: PowerCard;
 }
 
@@ -314,6 +328,63 @@ export const BUILDINGS: Record<BuildingId, BuildingCard> = {
     firstLine: 'first_trampoline',
     bounce: { height: 8 },
   },
+  // stage C2: the castles' prizes, one per race
+  treehouse: {
+    id: 'treehouse',
+    name: 'Дерево-хатинка',
+    size: [3, 3],
+    solid: [{ dx: 1, dz: 1, h: 2 }],
+    count: 0,
+    sprite: 'b-treehouse',
+    firstLine: 'first_treehouse',
+    sleep: true,
+    shelter: { calm: 10, heal: 6 },
+  },
+  golem: {
+    id: 'golem',
+    name: "Кам'яний голем",
+    size: [2, 2],
+    solid: [
+      { dx: 0, dz: 0, h: 2 },
+      { dx: 1, dz: 0, h: 2 },
+      { dx: 0, dz: 1, h: 2 },
+      { dx: 1, dz: 1, h: 2 },
+    ],
+    count: 0,
+    sprite: 'b-golem',
+    firstLine: 'first_golem',
+    slam: { reach: 8, every: 2, damage: 2 },
+  },
+  robohelper: {
+    id: 'robohelper',
+    name: 'Робот-помічник',
+    size: [1, 1],
+    solid: [],
+    count: 0,
+    sprite: 'b-robohelper',
+    firstLine: 'first_robohelper',
+    follow: { reach: 10 },
+  },
+  saucer: {
+    id: 'saucer',
+    name: 'Літаюча тарілка',
+    size: [3, 3],
+    solid: [
+      { dx: 0, dz: 0, h: 2 },
+      { dx: 1, dz: 0, h: 2 },
+      { dx: 2, dz: 0, h: 2 },
+      { dx: 0, dz: 1, h: 2 },
+      { dx: 1, dz: 1, h: 2 },
+      { dx: 2, dz: 1, h: 2 },
+      { dx: 0, dz: 2, h: 2 },
+      { dx: 1, dz: 2, h: 2 },
+      { dx: 2, dz: 2, h: 2 },
+    ],
+    count: 0,
+    sprite: 'b-saucer',
+    firstLine: 'first_saucer',
+    fly: true,
+  },
 };
 
 /** A lighthouse by the water (world/landmarks.ts) in the power network. */
@@ -340,6 +411,10 @@ export const KIT_ORDER: BuildingId[] = [
   'carousel',
   'searchlight',
   'trampoline',
+  'treehouse',
+  'golem',
+  'robohelper',
+  'saucer',
 ];
 
 /** The boombox's music (the smallest speaker): how far it carries and how close monsters dance. */

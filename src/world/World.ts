@@ -28,6 +28,7 @@ import { meshBounds, meshChunk, PAD_SIZE, PAD_X, PAD_Z } from './mesher';
 import { hash2, mulberry32 } from './rng';
 import { bridgesNear, lighthousesNear, type BridgeSite, type LighthouseSite } from './landmarks';
 import type { VillageSite } from './villages';
+import type { CastleSite } from './castles';
 import { Terrain } from './terrain';
 
 const CS = CHUNK_SIZE;
@@ -713,6 +714,10 @@ export class World implements IWorld {
 
   villages(): VillageSite[] {
     return this.terrain.villages;
+  }
+
+  castles(): CastleSite[] {
+    return this.terrain.castles;
   }
 
   bridgesNear(x: number, z: number, radius: number): BridgeSite[] {

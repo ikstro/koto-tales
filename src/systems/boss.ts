@@ -306,10 +306,11 @@ function siteWet(ctx: Ctx, [x, z]: [number, number]): boolean {
   return false;
 }
 
-/** Villages keep their land: no lair within this of one. */
+/** Villages and castles keep their land: no lair within this of one. */
 const VILLAGE_KEEP = 64;
 function nearVillage(ctx: Ctx, [x, z]: [number, number]): boolean {
-  return (ctx.world.villages?.() ?? []).some((v) => Math.hypot(v.x - x, v.z - z) < VILLAGE_KEEP);
+  const near = (s: { x: number; z: number }) => Math.hypot(s.x - x, s.z - z) < VILLAGE_KEEP;
+  return (ctx.world.villages?.() ?? []).some(near) || (ctx.world.castles?.() ?? []).some(near);
 }
 
 function chooseSite(ctx: Ctx, level: number): [number, number] {
