@@ -195,12 +195,13 @@ export function updateLandmarks(ctx: Ctx, dt: number): void {
     scan(ctx);
   }
   const night = 1 - ctx.clock.daylight;
-  const p = ctx.player.pos;
   for (const t of towers.values()) {
     const v = t.power.view;
     t.model.update(dt, { lit: v.on, low: v.low, night });
     t.boat?.update(dt);
-    if (!ctx.playing) continue;
+    // before the heroes wake (the title) the towers only stand there
+    if (!ctx.playing || !ctx.player) continue;
+    const p = ctx.player.pos;
     if (v.on && !ctx.save.lit.includes(t.site.id)) firstLight(ctx, t);
     if (!v.on && !ctx.save.said.includes('lighthouse_seen') && Math.hypot(t.site.x + 1.5 - p.x, t.site.z + 1.5 - p.z) < SEEN_AT) {
       ctx.save.said.push('lighthouse_seen');

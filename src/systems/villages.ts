@@ -825,6 +825,8 @@ export function updateVillages(ctx: Ctx, dt: number): void {
       model.update(dt, tick);
     }
     for (const it of s.items) it.model.update(dt, tick);
+    // before the heroes wake (the title) the square only stands there
+    if (!ctx.player) continue;
     updatePortal(ctx, s, dt);
     updateFolk(ctx, s, dt);
     if (ctx.playing && !ctx.sleeping) updateTask(ctx, s, dt);

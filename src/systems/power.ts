@@ -146,7 +146,6 @@ function rebuild(): void {
 function balance(ctx: Ctx): void {
   const day = ctx.clock.daylight;
   const sunYaw = SUN_YAW + (ctx.clock.t - 0.32) * 1.4;
-  const p = ctx.player.pos;
   nets.forEach((net, n) => {
     const was = states[n];
     const st = tick(nodes, net, day, TICK);
@@ -168,7 +167,9 @@ function balance(ctx: Ctx): void {
         s.keep?.(s.charge);
       }
     }
-    if (!ctx.playing) return;
+    // before the heroes wake there is no one to hear (a village's heart is a site from the start)
+    if (!ctx.playing || !ctx.player) return;
+    const p = ctx.player.pos;
     const near = net.some((i) => Math.hypot(nodes[i].x - p.x, nodes[i].z - p.z) < 24);
     if (st.on && st.take > 0 && !was.on && !ctx.save.said.includes('power_on')) {
       ctx.save.said.push('power_on');
