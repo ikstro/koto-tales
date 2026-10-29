@@ -5,6 +5,11 @@ import * as THREE from 'three';
  * shoulders on that line dissolve, so a tree crown or a tall tower never
  * hides the child's character. Shared by every skin's world materials.
  *
+ * Tree crowns open much wider (a material that knows its leaves passes a
+ * `LeafCut`): a clearing around the hero and a broad way to the camera, whole
+ * leaf blocks at a time, so in a forest the child sees the ground around, not
+ * only the hero. Trunks stay.
+ *
  * The game sets `cutaway.from` (camera) and `cutaway.to` (hero chest) each
  * frame; `cutaway.on.value = 0` turns it off (start screen).
  */
@@ -41,6 +46,51 @@ uniform float uCutOn;
 varying vec3 vCutPos;
 `;
 
+/** Leaves go when their block is above the shoulders and within this of the hero (across the ground)… */
+const LEAF_CLEAR = 5.0;
+/** …or this close to the camera–hero line (at the hero, at the camera). */
+const LEAF_WAY = [6.0, 7.5];
+
+/** Which fragments are tree crowns and which block each belongs to (fragment GLSL), plus what that needs. */
+export interface LeafCut {
+  leaf: string;
+  /** vec3, the centre of the leaf's block in world space. */
+  cell: string;
+  vertPars?: string;
+  vertMain?: string;
+  fragPars?: string;
+}
+
+/** Crown pieces of an instanced dressing: `aCut` = 1 marks them; their block is the one they stand on (along the piece's up). */
+export const LEAF_PIECES: LeafCut = {
+  leaf: 'vCutLeaf > 0.5',
+  cell: 'vCutCell',
+  vertPars: 'attribute float aCut;\nflat varying float vCutLeaf;\nflat varying vec3 vCutCell;\n',
+  vertMain: /* glsl */ `
+{
+  mat4 cutM = modelMatrix;
+  #ifdef USE_INSTANCING
+    cutM = cutM * instanceMatrix;
+  #endif
+  vCutCell = floor(cutM[3].xyz - normalize(cutM[1].xyz) * 0.5) + 0.5;
+  vCutLeaf = aCut;
+}
+`,
+  fragPars: 'flat varying float vCutLeaf;\nflat varying vec3 vCutCell;\n',
+};
+
+const fragLeaf = (c: LeafCut) => /* glsl */ `
+if (uCutOn > 0.5 && (${c.leaf})) {
+  vec3 cell = ${c.cell};
+  if (cell.y > uCutTo.y + 0.3) {
+    vec3 ab = uCutFrom - uCutTo;
+    float t = clamp(dot(cell - uCutTo, ab) / dot(ab, ab), 0.0, 1.0);
+    float d = length(cell - (uCutTo + ab * t));
+    if (d < mix(${LEAF_WAY[0].toFixed(2)}, ${LEAF_WAY[1].toFixed(2)}, t) || length(cell.xz - uCutTo.xz) < ${LEAF_CLEAR.toFixed(2)}) discard;
+  }
+}
+`;
+
 const FRAG_MAIN = /* glsl */ `
 if (uCutOn > 0.5 && vCutPos.y > uCutTo.y + 0.7) {
   vec3 ab = uCutFrom - uCutTo;
@@ -57,14 +107,14 @@ if (uCutOn > 0.5 && vCutPos.y > uCutTo.y + 0.7) {
 `;
 
 /** Call inside a material's onBeforeCompile, after the skin's own patches. */
-export function injectCutaway(shader: THREE.WebGLProgramParametersWithUniforms): void {
+export function injectCutaway(shader: THREE.WebGLProgramParametersWithUniforms, leaves?: LeafCut): void {
   Object.assign(shader.uniforms, uniforms);
   shader.vertexShader = shader.vertexShader
-    .replace('#include <common>', '#include <common>\n' + VERT_PARS)
-    .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + VERT_MAIN);
+    .replace('#include <common>', '#include <common>\n' + VERT_PARS + (leaves?.vertPars ?? ''))
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + VERT_MAIN + (leaves?.vertMain ?? ''));
   shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', '#include <common>\n' + FRAG_PARS)
-    .replace('#include <clipping_planes_fragment>', FRAG_MAIN + '#include <clipping_planes_fragment>');
+    .replace('#include <common>', '#include <common>\n' + FRAG_PARS + (leaves?.fragPars ?? ''))
+    .replace('#include <clipping_planes_fragment>', (leaves ? fragLeaf(leaves) : '') + FRAG_MAIN + '#include <clipping_planes_fragment>');
 }
 
 const cutCopies = new Map<string, THREE.Material>();

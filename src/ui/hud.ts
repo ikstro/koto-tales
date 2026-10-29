@@ -514,34 +514,35 @@ export class Hud {
       this.fanTiles.set(id, p);
     });
 
-    // Bottom right, around the thumb: the bow; lightning (stud ring + tile) above it; the kit box on
-    // its own stud ring to the left (the studs = how far the kit's task has come). While a building
-    // is being placed the box turns into ✓ with a small ✕ beside it. A prompt (moon, fold) breathes above.
+    // Bottom right, one column hugging the edge: lightning (stud ring + tile) on top, the kit box on its
+    // own stud ring under it (the studs = how far the kit's task has come), the bow at the bottom by the
+    // thumb. The pieces that come and go stand just left of the column: a prompt (moon, fold, chest) by
+    // the lightning, the small ✕ by the box (the box is ✓ while placing), the note / fly / remote by the bow.
     this.gAct = new Group(r, 'g-act');
-    this.ring = this.gAct.add('ring', -112, -238);
+    this.ring = this.gAct.add('ring', COL_X, BOLT_Y);
     for (let i = 0; i < 8; i++) this.lit.push(this.ring.layer(`ring-lit-${i}` as SpriteName, 'sp lit'));
-    this.bolt = this.gAct.add('bolt-empty', -112, -238 - TOP, 'tile6-sh');
+    this.bolt = this.gAct.add('bolt-empty', COL_X, BOLT_Y - TOP, 'tile6-sh');
     this.boltFull = this.bolt.layer('bolt');
     this.boltGlow = div('glow');
     this.bolt.lf.insertBefore(this.boltGlow, this.bolt.pr);
-    const bow = this.gAct.add('bow', -80, -74, 'big-sh');
-    this.kitRing = this.gAct.add('ring', -268, -96);
+    const bow = this.gAct.add('bow', COL_X, -74, 'big-sh');
+    this.kitRing = this.gAct.add('ring', COL_X, KIT_Y);
     for (let i = 0; i < 8; i++) this.kitLit.push(this.kitRing.layer(`ring-lit-${i}` as SpriteName, 'sp lit'));
-    this.kitPiece = this.gAct.add('kit', -268, -96 - TOP);
+    this.kitPiece = this.gAct.add('kit', COL_X, KIT_Y - TOP);
     this.kitGlow = div('glow');
     this.kitPiece.lf.insertBefore(this.kitGlow, this.kitPiece.pr);
-    this.cancelPiece = this.gAct.add('close', -372, -206, 'tile6-sh');
+    this.cancelPiece = this.gAct.add('close', SIDE_X + 6, KIT_Y + 6, 'tile6-sh');
     this.cancelPiece.el.classList.add('small', 'hidden');
-    this.promptPiece = this.gAct.add('moon', -318, -322, 'tile6-sh');
+    this.promptPiece = this.gAct.add('moon', SIDE_X, BOLT_Y + 6, 'tile6-sh');
     this.promptPiece.el.classList.add('prompt', 'hidden');
-    // the DJ's note sits where the ✕ does while placing (never both at once)
-    this.notePiece = this.gAct.add('note', -372, -206, 'tile6-sh');
+    // the DJ's note by the bow (it steps aside while a building is being placed)
+    this.notePiece = this.gAct.add('note', SIDE_X + 16, -70, 'tile6-sh');
     this.notePiece.el.classList.add('prompt', 'hidden');
     // the saucer's «fly» piece shares that place too (the note wins when both are near)
-    this.flyPiece = this.gAct.add('fly', -372, -206, 'tile6-sh');
+    this.flyPiece = this.gAct.add('fly', SIDE_X + 16, -70, 'tile6-sh');
     this.flyPiece.el.classList.add('prompt', 'hidden');
     // the Wi-Fi remote too (the note and the fly piece win)
-    this.remotePiece = this.gAct.add('remote', -372, -206, 'tile6-sh');
+    this.remotePiece = this.gAct.add('remote', SIDE_X + 16, -70, 'tile6-sh');
     this.remotePiece.el.classList.add('prompt', 'hidden');
     this.gAct.seal();
     this.press(
@@ -679,15 +680,11 @@ export class Hud {
     }
     this.ts = ts;
 
-    // Bottom: joystick plate left, action pieces right; shrink both if they would meet.
+    // Bottom: joystick plate left, action pieces right, both at the bottom edge on every screen (they
+    // must not cover the game); shrink both if they would meet.
     const joyW = 212;
     const kb = Math.min(k, (W - 2 * g - gap) / (joyW + GA.w), (H - topBottom - g - gap) / GA.h);
-    // A tablet is held by both sides a little below the middle: the thumbs reach the side bands at
-    // about two thirds of the height, not the corners, so the bow and the joystick's rest go there.
-    // A phone is held by its bottom corners: there they stay at the bottom edge.
-    const bottom = H - g - GA.h * kb;
-    const lift = Math.min(W, H) >= TABLET ? Math.max(0, bottom - (H * THUMB_Y - (BOW_Y - GA.minY) * kb)) : 0;
-    GA.place(W - g - GA.w * kb, Math.max(topBottom + gap, bottom - lift), kb);
+    GA.place(W - g - GA.w * kb, H - g - GA.h * kb, kb);
     root.setProperty('--hud-joy-x', `${Math.round(g + 104 * kb)}px`);
     root.setProperty('--hud-joy-y', `${Math.round(H - g - 96 * kb - (H - GA.bottom - g))}px`);
     root.setProperty('--hud-kb', kb.toFixed(4));
@@ -732,14 +729,14 @@ export class Hud {
     BG.place(Math.max(g, (g + right2) / 2 - (BG.w * s2) / 2), y2, s2);
   }
 
-  /** The kit plate opens above and to the left of the kit box, inside the screen. */
+  /** The kit plate opens left of the action column, its foot level with the bow, inside the screen. */
   private placeKit(): void {
     const W = window.innerWidth;
     const H = window.innerHeight;
     const g = 8;
     const T = this.gKit;
     const s = Math.min(this.gAct.s * 1.05, (W - 2 * g) / T.w, (H - 2 * g) / T.h);
-    const [bx, by] = this.gAct.toScreen(-205, -170);
+    const [bx, by] = this.gAct.toScreen(SIDE_X + 40, -40);
     const x = Math.min(W - g - T.w * s, Math.max(g, bx - T.w * s));
     const y = Math.min(H - g - T.h * s, Math.max(g, by - T.h * s));
     T.place(x, y, s);
@@ -1467,12 +1464,11 @@ export class Hud {
   }
 }
 
-/** Tablets (shorter side at least this, css px) lift the bow and the joystick to where the thumbs rest. */
-const TABLET = 560;
-/** Where the bow's centre goes on a tablet, as a share of the screen height from the top. */
-const THUMB_Y = 0.66;
-/** The bow's centre in the action group (design px). */
-const BOW_Y = -74 - 46;
+/** The action column (design px): its centre line, the feet of the kit's and the lightning's stud rings, and the side pieces' line. */
+const COL_X = -81;
+const KIT_Y = -214;
+const BOLT_Y = -362;
+const SIDE_X = -216;
 
 /** Press / lift springs are CSS transitions; their easings go into custom properties once. */
 let springVarsSet = false;

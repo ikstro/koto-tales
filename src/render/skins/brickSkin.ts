@@ -130,6 +130,8 @@ export interface BrickShaderStyle {
   tilt?: number;
   /** How dark the seam between bricks is. */
   seam?: number;
+  /** Fragment GLSL, true on a tree crown (`vKind` is the block's kind): crowns open wide around the hero (cutaway.ts). */
+  leaf?: string;
 }
 
 const DEFAULT_BEVEL = /* glsl */ `
@@ -295,7 +297,8 @@ export function makeBrickMaterial(
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + fragNormal(style.tilt ?? 0.9))
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n' + FRAG_EMISSIVE)
       .replace('#include <aomap_fragment>', '#include <aomap_fragment>\n' + FRAG_AO);
-    injectCutaway(shader);
+    // a leaf's block: half a block in from the face it is drawn on
+    injectCutaway(shader, style.leaf ? { leaf: style.leaf, cell: 'floor(vCutPos - vFn * 0.5) + 0.5' } : undefined);
   };
   m.customProgramCacheKey = () => cacheKey;
   return m;

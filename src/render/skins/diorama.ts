@@ -22,7 +22,7 @@ import * as THREE from 'three';
 import { SEA_LEVEL, type ChunkGeometry, type QualityTier, type Skin } from '../../contracts';
 import { BLOCKS, B, type Surface } from '../../world/blocks';
 import { brickHash, buildLookupTexture, createStyledBrickSkin, F_STUDLESS, lookOf, skyKey } from './brickSkin';
-import { injectCutaway } from './cutaway';
+import { LEAF_PIECES, injectCutaway } from './cutaway';
 import { getPixelAtlas } from './pixelAtlas';
 import { brickFlags, roughnessOf, toyColor } from './toy';
 
@@ -391,7 +391,8 @@ const TUFT = hex(['#6f7f2a', '#8a8f30', '#ab9a38', '#5e7428']);
 function makeDresser() {
   const geo = pieceGeometry(8);
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.38, metalness: 0 });
-  mat.onBeforeCompile = (shader) => injectCutaway(shader);
+  // crown pieces go with their leaf blocks when the crowns open around the hero
+  mat.onBeforeCompile = (shader) => injectCutaway(shader, LEAF_PIECES);
   mat.customProgramCacheKey = () => 'diorama-piece-cut';
 
   const treeData = new Uint8Array(TREE_N * TREE_N * 2);
@@ -411,12 +412,13 @@ function makeDresser() {
   let cap = 4096;
   let mats = new Float32Array(cap * 16);
   let cols = new Float32Array(cap * 3);
+  let cuts = new Float32Array(cap);
   let n = 0;
   const m4 = new THREE.Matrix4();
   const p = new THREE.Vector3();
   const s = new THREE.Vector3();
   const tmp = new THREE.Color();
-  const push = (x: number, y: number, z: number, q: number, rx: number, h: number, c: THREE.Color) => {
+  const push = (x: number, y: number, z: number, q: number, rx: number, h: number, c: THREE.Color, leaf = 0) => {
     if (n === cap) {
       cap *= 2;
       const nm = new Float32Array(cap * 16);
@@ -425,12 +427,16 @@ function makeDresser() {
       const nc = new Float32Array(cap * 3);
       nc.set(cols);
       cols = nc;
+      const nl = new Float32Array(cap);
+      nl.set(cuts);
+      cuts = nl;
     }
     m4.compose(p.set(x, y, z), FACE_Q[q], s.set(rx, h, rx));
     m4.toArray(mats, n * 16);
     cols[n * 3] = c.r;
     cols[n * 3 + 1] = c.g;
     cols[n * 3 + 2] = c.b;
+    cuts[n] = leaf;
     n++;
   };
 
@@ -450,16 +456,16 @@ function makeDresser() {
     const fam = leafFamily(x, z);
     const cx = x + 0.5 + (r() - 0.5) * 0.24;
     const cz = z + 0.5 + (r() - 0.5) * 0.24;
-    push(cx, y + 1, cz, 0, 0.3 + r() * 0.12, 0.22 + r() * 0.22, leafTone(tmp, fam, r));
+    push(cx, y + 1, cz, 0, 0.3 + r() * 0.12, 0.22 + r() * 0.22, leafTone(tmp, fam, r), 1);
     if (light) return;
     const u = r();
     if (u < 0.6) {
       const a = r() * Math.PI * 2;
-      push(x + 0.5 + Math.cos(a) * 0.27, y + 1, z + 0.5 + Math.sin(a) * 0.27, 0, 0.17 + r() * 0.08, 0.3 + r() * 0.3, leafTone(tmp, fam, r));
+      push(x + 0.5 + Math.cos(a) * 0.27, y + 1, z + 0.5 + Math.sin(a) * 0.27, 0, 0.17 + r() * 0.08, 0.3 + r() * 0.3, leafTone(tmp, fam, r), 1);
     }
     if (u < 0.2) {
       const a = r() * Math.PI * 2;
-      push(x + 0.5 + Math.cos(a) * 0.3, y + 1, z + 0.5 + Math.sin(a) * 0.3, 0, 0.14 + r() * 0.06, 0.18 + r() * 0.2, leafTone(tmp, fam, r));
+      push(x + 0.5 + Math.cos(a) * 0.3, y + 1, z + 0.5 + Math.sin(a) * 0.3, 0, 0.14 + r() * 0.06, 0.18 + r() * 0.2, leafTone(tmp, fam, r), 1);
     }
   }
 
@@ -468,7 +474,7 @@ function makeDresser() {
     const along = (r() - 0.5) * 0.36;
     const px = x + 0.5 + dx * 0.5 + (dz !== 0 ? along : 0);
     const pz = z + 0.5 + dz * 0.5 + (dx !== 0 ? along : 0);
-    push(px, y + 0.5 + (r() - 0.5) * 0.3, pz, q, 0.28 + r() * 0.12, 0.14 + r() * 0.2, leafTone(tmp, fam, r));
+    push(px, y + 0.5 + (r() - 0.5) * 0.3, pz, q, 0.28 + r() * 0.12, 0.14 + r() * 0.2, leafTone(tmp, fam, r), 1);
   }
 
   function bush(x: number, y: number, z: number, r: () => number) {
@@ -644,6 +650,7 @@ function makeDresser() {
       const mesh = new THREE.InstancedMesh(geo.clone(), mat, n);
       (mesh.instanceMatrix.array as Float32Array).set(mats.subarray(0, n * 16));
       mesh.instanceColor = new THREE.InstancedBufferAttribute(cols.slice(0, n * 3), 3);
+      mesh.geometry.setAttribute('aCut', new THREE.InstancedBufferAttribute(cuts.slice(0, n), 1));
       mesh.instanceMatrix.needsUpdate = true;
       mesh.computeBoundingSphere();
       mesh.computeBoundingBox();
@@ -687,7 +694,7 @@ export function createDioramaSkin(): Skin {
     cacheKey: 'diorama-chunk',
     lookup: buildLookup(),
     atlas: getPixelAtlas().texture,
-    shader: { fragPars: FRAG_PARS, color: COLOR_HOOK, bevel: BEVEL, after: STUD_HOOK, uniforms, tilt: 0.75, seam: 0.38 },
+    shader: { fragPars: FRAG_PARS, color: COLOR_HOOK, bevel: BEVEL, after: STUD_HOOK, uniforms, tilt: 0.75, seam: 0.38, leaf: `int(vKind + 0.5) == ${K.LEAVES}` },
     keys: { day: DAY, dusk: DUSK, night: NIGHT },
     sunDir: SUN_DIR,
     sunDist: 60,
