@@ -204,7 +204,7 @@ export class GameMap {
     }
     if (p.map) setTimeout(() => this.open(), 700);
     // For automated checks: marks can be set from the page (`__kotoMap.setMapMarker(...)`).
-    (window as unknown as { __kotoMap: object }).__kotoMap = { setMapMarker, open: () => this.open() };
+    (window as unknown as { __kotoMap: object }).__kotoMap = { setMapMarker, open: () => this.open(), close: () => this.close() };
   }
 
   /** Every frame while playing: exploring is a cheap chunk check; the minimap redraws at 5 Hz. */

@@ -2,7 +2,8 @@
  * npm run perf -- [--url https://ikstro.com/koto-tales/] [--tier 1] [--size 800x500]
  *
  * Plays a fixed route headless and reports what a player would feel as freezes:
- *   the real start (the title's ▶, then touching a sleeping hero), a walk, every village, every castle,
+ *   the real start (the title's ▶, then touching a sleeping hero), a walk, the signal buildings put up
+ *   and a night show, every village, every castle,
  *   the village portal home, the big map.
  * Per step: frames drawn, frames slower than 4× the median (freezes), the worst frame,
  * shader programs linked (after the start there should be none: everything is prepared
@@ -123,6 +124,15 @@ await step('walk', async () => {
   await page.keyboard.down('KeyD');
   await gameTime(6);
   await page.keyboard.up('KeyD');
+});
+await step('signal: put up, show', async () => {
+  for (const id of ['generator', 'radar', 'wifi', 'transmitter', 'lamp']) {
+    await ev((b) => window.__kotoKit.give(b, true), id);
+    await gameTime(1);
+  }
+  await gameTime(2);
+  await ev(() => window.__kotoSignal.remote());
+  await gameTime(5);
 });
 for (const race of ['elves', 'gnomes', 'robots', 'aliens']) {
   await step(`village: ${race}`, async () => {

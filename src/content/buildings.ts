@@ -31,7 +31,10 @@ export type BuildingId =
   | 'treehouse'
   | 'golem'
   | 'robohelper'
-  | 'saucer';
+  | 'saucer'
+  | 'wifi'
+  | 'transmitter'
+  | 'radar';
 
 /**
  * What a building does in the power network (DESIGN.md «Power»): buildings closer than
@@ -96,6 +99,12 @@ export interface BuildingCard {
   follow?: { reach: number };
   /** A flying saucer: next to it a «fly» piece opens the big map to pick where to land. */
   fly?: boolean;
+  /** A Wi-Fi antenna: while it works, its signal reaches this far (blocks). */
+  signal?: { zone: number };
+  /** A transmitter pad: the party standing on a working one can jump to another working pad. */
+  jump?: boolean;
+  /** A radar: while it works, the map opens this far around it (blocks). */
+  scan?: { radius: number };
   power?: PowerCard;
 }
 
@@ -385,6 +394,48 @@ export const BUILDINGS: Record<BuildingId, BuildingCard> = {
     firstLine: 'first_saucer',
     fly: true,
   },
+  // stage D1 «Сигнал»: the signal buildings
+  wifi: {
+    id: 'wifi',
+    name: 'Wi-Fi антена',
+    size: [1, 1],
+    solid: [{ dx: 0, dz: 0, h: 4 }],
+    count: 0,
+    sprite: 'b-wifi',
+    firstLine: 'first_wifi',
+    rewardLine: 'reward_wifi',
+    signal: { zone: 12 },
+    power: { take: 1 },
+  },
+  transmitter: {
+    id: 'transmitter',
+    name: 'Передавач',
+    size: [3, 3],
+    solid: [],
+    count: 0,
+    sprite: 'b-transmitter',
+    firstLine: 'first_transmitter',
+    rewardLine: 'reward_transmitters',
+    jump: true,
+    power: { take: 1 },
+  },
+  radar: {
+    id: 'radar',
+    name: 'Радар',
+    size: [2, 2],
+    solid: [
+      { dx: 0, dz: 0, h: 3 },
+      { dx: 1, dz: 0, h: 3 },
+      { dx: 0, dz: 1, h: 3 },
+      { dx: 1, dz: 1, h: 3 },
+    ],
+    count: 0,
+    sprite: 'b-radar',
+    firstLine: 'first_radar',
+    rewardLine: 'reward_radar',
+    scan: { radius: 48 },
+    power: { take: 2 },
+  },
 };
 
 /** A lighthouse by the water (world/landmarks.ts) in the power network. */
@@ -415,6 +466,9 @@ export const KIT_ORDER: BuildingId[] = [
   'golem',
   'robohelper',
   'saucer',
+  'wifi',
+  'transmitter',
+  'radar',
 ];
 
 /** The boombox's music (the smallest speaker): how far it carries and how close monsters dance. */

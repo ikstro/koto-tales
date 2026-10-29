@@ -1,5 +1,5 @@
 /**
- * Pooled visual effects: poof, sparkle, coin burst, ring, lightning.
+ * Pooled visual effects: poof, sparkle, coin burst, ring, lightning, firework.
  *
  * Particles are cubes in two InstancedMeshes (solid shaded, additive glow),
  * so any number of effects costs two draw calls. Lightning uses three pooled
@@ -9,10 +9,24 @@
 import * as THREE from 'three';
 
 const SOLID_MAX = 320;
-const GLOW_MAX = 260;
+const GLOW_MAX = 400;
 const BOLTS = 3;
 const BOLT_SEGS = 16;
 const BOLT_LIFE = 0.32;
+const ROCKETS = 8;
+/** Seconds a firework's spark rises before it blooms. */
+const FIRE_RISE = 0.45;
+const WHITE = new THREE.Color(0xffffff);
+
+/** A firework on its way up (pooled): where it blooms and how long until then. */
+interface Rocket {
+  x: number;
+  y: number;
+  z: number;
+  y0: number;
+  left: number;
+  color: THREE.Color;
+}
 
 class Pool {
   readonly mesh: THREE.InstancedMesh;
@@ -57,10 +71,27 @@ class Pool {
   ): void {
     if (this.n >= this.max) return;
     const i = this.n++;
-    this.pos.set([x, y, z], i * 3);
-    this.vel.set([vx, vy, vz], i * 3);
-    this.col.set([color.r, color.g, color.b], i * 3);
-    this.p.set([0, life, size0, size1, gravity, drag, twinkle, floorY], i * Pool.P);
+    // element by element: no arrays made per particle (a show spawns some every frame)
+    const k = i * 3;
+    this.pos[k] = x;
+    this.pos[k + 1] = y;
+    this.pos[k + 2] = z;
+    this.vel[k] = vx;
+    this.vel[k + 1] = vy;
+    this.vel[k + 2] = vz;
+    this.col[k] = color.r;
+    this.col[k + 1] = color.g;
+    this.col[k + 2] = color.b;
+    const o = i * Pool.P;
+    const p = this.p;
+    p[o] = 0;
+    p[o + 1] = life;
+    p[o + 2] = size0;
+    p[o + 3] = size1;
+    p[o + 4] = gravity;
+    p[o + 5] = drag;
+    p[o + 6] = twinkle;
+    p[o + 7] = floorY;
   }
 
   private kill(i: number): void {
@@ -132,6 +163,7 @@ export class Effects {
   private solid: Pool;
   private glow: Pool;
   private bolts: Bolt[] = [];
+  private rockets: Rocket[] = Array.from({ length: ROCKETS }, () => ({ x: 0, y: 0, z: 0, y0: 0, left: 0, color: new THREE.Color() }));
   private flash: THREE.PointLight;
   private flashLeft = 0;
   private time = 0;
@@ -252,6 +284,38 @@ export class Effects {
     }
   }
 
+  /**
+   * A small firework from `at`: a bright spark rises `rise` blocks, then blooms into a ball of
+   * glowing points that fall and fade in ~1.2 s. Pooled like the rest (no new objects per burst).
+   */
+  firework(at: THREE.Vector3, color: THREE.ColorRepresentation = 0xffd23a, rise = 3.5): void {
+    const r = this.rockets.find((x) => x.left <= 0) ?? this.rockets.reduce((a, b) => (a.left < b.left ? a : b));
+    const up = FIRE_RISE;
+    r.x = at.x;
+    r.y = at.y + rise;
+    r.z = at.z;
+    r.y0 = at.y;
+    r.left = up;
+    r.color.set(color);
+    // the rising spark: one glow particle that slows to a stop where it blooms
+    const v = (2 * rise) / up;
+    this.glow.spawn(at.x, at.y, at.z, 0, v, 0, this.tmp.c.copy(r.color).lerp(WHITE, 0.6), up, 0.2, 0.12, -v / up);
+  }
+
+  private bloom(r: Rocket): void {
+    const c = this.tmp.c;
+    const n = 26;
+    for (let i = 0; i < n; i++) {
+      // even directions over a sphere (golden spiral), a little jitter
+      const y = 1 - (2 * (i + 0.5)) / n;
+      const rr = Math.sqrt(1 - y * y);
+      const a = i * 2.39996 + Math.random() * 0.3;
+      const sp = 3.2 + Math.random() * 0.9;
+      c.copy(r.color).lerp(WHITE, i % 4 === 0 ? 0.55 : Math.random() * 0.2);
+      this.glow.spawn(r.x, r.y, r.z, Math.cos(a) * rr * sp, y * sp + 0.6, Math.sin(a) * rr * sp, c, 1.0 + Math.random() * 0.3, 0.2, 0.03, -3.2, 1.6, 1);
+    }
+  }
+
   /** A jagged bolt from `from` to `to` with a flash of light. */
   lightning(from: THREE.Vector3, to: THREE.Vector3): void {
     const b = this.bolts.reduce((best, x) => (x.life < best.life ? x : best), this.bolts[0]);
@@ -318,6 +382,18 @@ export class Effects {
     this.time += dt;
     const { m, q, e, v, s, c } = this.tmp;
     this.solid.update(dt, m, q, e, v, s, c, this.time);
+    for (const r of this.rockets) {
+      if (r.left <= 0) continue;
+      r.left -= dt;
+      if (r.left <= 0) {
+        this.bloom(r);
+        continue;
+      }
+      // a short fading trail under the rising spark
+      const k = r.left / FIRE_RISE;
+      const y = r.y0 + (r.y - r.y0) * (1 - k * k);
+      this.glow.spawn(r.x, y - 0.1, r.z, 0, -0.3, 0, c.copy(r.color).lerp(WHITE, 0.3), 0.3, 0.09, 0.01);
+    }
     this.glow.update(dt, m, q, e, v, s, c, this.time);
     for (const b of this.bolts) {
       if (b.life <= 0) continue;

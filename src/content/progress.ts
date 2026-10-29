@@ -83,6 +83,10 @@ export const REWARDS: Reward[] = [
   { id: 'discoball', line: 'reward_discoball', items: [['discoball', 1]] },
   { id: 'tesla', line: 'reward_tesla', items: [['tesla', 1]] },
   { id: 'djconsole', line: 'reward_djconsole', items: [['djconsole', 1]] },
+  // stage D1: the signal
+  { id: 'radar', line: 'reward_radar', items: [['radar', 1]] },
+  { id: 'wifi', line: 'reward_wifi', items: [['wifi', 1]] },
+  { id: 'transmitters', line: 'reward_transmitters', items: [['transmitter', 2]] },
 ];
 
 /** Past the list: more of a building in turn (`n` at a time), while fewer than `cap` are owned; then coins. */
@@ -96,6 +100,8 @@ export const ENDLESS: { building: BuildingId; n: number; cap: number; line: Line
   { building: 'bigspeaker', n: 1, cap: 3, line: 'reward_bigspeaker_more' },
   { building: 'tesla', n: 1, cap: 3, line: 'reward_tesla_more' },
   { building: 'trafficlight', n: 1, cap: 3, line: 'reward_trafficlight_more' },
+  { building: 'transmitter', n: 2, cap: 6, line: 'reward_transmitters_more' },
+  { building: 'wifi', n: 1, cap: 4, line: 'reward_wifi_more' },
 ];
 export const ENDLESS_COINS = 25;
 

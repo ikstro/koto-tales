@@ -11,11 +11,12 @@ import { Kit, type Paint, type V3 } from './parts/kit';
 import {
   CORAL, CORAL_DARK, CREAM, INK, WOOD, MUSTARD, TEAL, MINT, CHARCOAL, STEEL, STEEL_DARK, SOLAR_BLUE, SOLAR_BLUE_LIGHT,
   WOOD_DARK, WARM, TAU, C_WARM, C_WARM_SOFT, C_CORAL, C_OFF, ownGlow, setGlow, powerBulb, markShadows, octagon, fadeDisc,
-  glowMaterial, stepped,
+  glowMaterial, stepped, showColour, showPhase, showLevel,
 } from './buildingParts';
 import { createBigSpeaker, createDanceFloor, createDiscoBall, createDjConsole, createTesla, createTrafficLight } from './disco';
 import { createCarousel, createGarland, createSearchlight, createTrampoline } from './prizes';
 import { createGolem, createRobohelper, createSaucer, createTreehouse } from './castlePrizes';
+import { createRadar, createTransmitter, createWifi } from './signal';
 
 /** How a building's power network is doing (systems/power.ts), for its lights and motion. */
 export interface PowerView {
@@ -60,7 +61,11 @@ export interface BuildingTick {
   wake?: number;
   /** The flying saucer: how far it has lifted off, 0 (standing) … 1 (up, beam on). */
   lift?: number;
+  /** A night show on this building: seconds since it started (it lasts `SHOW_LENGTH`); undefined = none. */
+  show?: number;
 }
+
+export { SHOW_LENGTH } from './buildingParts';
 
 export interface BuildingModel {
   root: THREE.Group;
@@ -119,6 +124,12 @@ export function createBuilding(skin: Skin, id: BuildingId): BuildingModel {
       return createRobohelper(skin);
     case 'saucer':
       return createSaucer(skin);
+    case 'wifi':
+      return createWifi(skin);
+    case 'transmitter':
+      return createTransmitter(skin);
+    case 'radar':
+      return createRadar(skin);
     default:
       return createLanternGhost();
   }
@@ -256,14 +267,21 @@ function createBoombox(skin: Skin): BuildingModel {
     root,
     update(dt, k) {
       t += dt;
-      shown += ((k.playing ? 1 : 0) - shown) * Math.min(1, dt * 3);
+      const sh = showLevel(k.show);
+      shown += ((k.playing || sh > 0 ? 1 : 0) - shown) * Math.min(1, dt * 3);
+      if (sh > 0) {
+        // a night show: the display runs through the show's colours and pulses brighter
+        showColour(k.show!, showPhase(root), lcdMat.color);
+        lcdMat.emissive.copy(lcdMat.color).multiplyScalar(0.85 + sh * (0.6 + 0.6 * Math.sin(k.show! * 7)));
+        lastBeat = -1;
+      }
       const beat = k.beat;
       const frac = beat - Math.floor(beat);
       const thump = k.playing ? Math.exp(-frac * 7) : 0;
       for (const c of cones) c.scale.set(1 + thump * 0.12, 1 + thump * 0.12, 1 + thump * 1.2);
       body.scale.set(1 + thump * 0.025, 1 - thump * 0.03, 1 + thump * 0.025);
       const b = Math.floor(beat);
-      if (k.playing && b !== lastBeat) {
+      if (k.playing && sh === 0 && b !== lastBeat) {
         lastBeat = b;
         lcdMat.color.copy(LCD[b % LCD.length]);
         lcdMat.emissive.copy(lcdMat.color).multiplyScalar(0.85);
@@ -594,6 +612,7 @@ function createLamp(skin: Skin): BuildingModel {
   markShadows(root);
   halo.receiveShadow = false;
   pool.receiveShadow = false;
+  const col = new THREE.Color();
   let t = 0;
   let last = '';
   return {
@@ -604,10 +623,25 @@ function createLamp(skin: Skin): BuildingModel {
       const pw = k.power;
       const lit = !!pw && pw.linked && (pw.low ? Math.floor(t * 6) % 2 === 0 : pw.on);
       const night = k.night;
-      const key = lit ? 'on' + Math.round(night * 20) : 'off';
       bulb.update(t, pw);
+      // a night show: the glass, its halo and pool run through the show's colours in a wave
+      const sh = lit && pw.on ? showLevel(k.show) : 0;
+      if (sh > 0) {
+        last = 'show';
+        col.copy(C_WARM_SOFT).lerp(showColour(k.show!, showPhase(root), col), sh);
+        setGlow(glassMat, col, 0.35 + 0.65 * night + 0.5 * sh);
+        haloMat.color.copy(col);
+        poolMat.color.copy(col);
+        haloMat.opacity = 0.06 + 0.3 * night + 0.12 * sh;
+        poolMat.opacity = 0.7 * night + 0.2 * sh;
+        halo.visible = pool.visible = true;
+        return;
+      }
+      const key = lit ? 'on' + Math.round(night * 20) : 'off';
       if (key === last) return;
       last = key;
+      haloMat.color.setHex(0xffc866);
+      poolMat.color.setHex(0xffb85a);
       if (lit) {
         setGlow(glassMat, C_WARM_SOFT, 0.35 + 0.65 * night);
         haloMat.opacity = 0.06 + 0.3 * night;

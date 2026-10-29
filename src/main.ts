@@ -16,6 +16,7 @@ import { bossStartSpot, initBoss } from './systems/boss';
 import { buildHouse } from './systems/house';
 import { initCastles } from './systems/castles';
 import { initKit } from './systems/kit';
+import { initSignal } from './systems/signal';
 import { initLandmarks } from './systems/landmarks';
 import { initVillages } from './systems/villages';
 import { initPower } from './systems/power';
@@ -118,6 +119,7 @@ async function boot(): Promise<void> {
   initVillages(ctx);
   initCastles(ctx);
   initKit(ctx);
+  initSignal(ctx);
   initLandmarks(ctx);
   if (params.demo) placeDemo(ctx);
   initBoss(ctx);

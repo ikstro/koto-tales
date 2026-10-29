@@ -204,6 +204,16 @@ const printExit = (col, arrow) => (x, s) => {
   x.beginPath(); x.moveTo(s / 2 - 40, s / 2 + 10); x.lineTo(s / 2 + 110, s / 2 + 10); x.stroke();
   x.beginPath(); x.moveTo(s / 2 + 95, s / 2 - 70); x.lineTo(s / 2 + 190, s / 2 + 10); x.lineTo(s / 2 + 95, s / 2 + 90); x.closePath(); x.fill();
 };
+/** A sprout from a seed in a little mound: start a new story. */
+const printSprout = (soil, leaf) => (x, s) => {
+  x.lineJoin = 'round'; x.lineCap = 'round';
+  x.fillStyle = soil; x.beginPath(); x.ellipse(s / 2, s / 2 + 150, 190, 70, 0, Math.PI, 0); x.closePath(); x.fill();
+  x.strokeStyle = leaf; x.lineWidth = 40;
+  x.beginPath(); x.moveTo(s / 2, s / 2 + 110); x.quadraticCurveTo(s / 2 - 10, s / 2 - 10, s / 2 + 10, s / 2 - 110); x.stroke();
+  x.fillStyle = leaf;
+  x.beginPath(); x.ellipse(s / 2 - 90, s / 2 - 60, 100, 46, -0.5, 0, Math.PI * 2); x.fill();
+  x.beginPath(); x.ellipse(s / 2 + 105, s / 2 - 130, 108, 50, 0.55, 0, Math.PI * 2); x.fill();
+};
 /** The portal's warm swirl, for its map mark. */
 const printSwirl = (x, s) => {
   const g = x.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s * 0.42);
@@ -539,6 +549,7 @@ shoot('ok', roundTile(1, C.green, printCheck(CREAM), 0.6), 130, 130, { shadow: '
 shoot('moon', roundTile(1, C.navy, printMoon(CREAM, '#ffd23a', C.navy), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('fold', roundTile(1, C.mustard, printFold(INK, C.coral), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('exit', roundTile(1, C.mustard, printExit(INK, C.coral), 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('restart', roundTile(1, C.mustard, printSprout(INK, C.green), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('sound-on', roundTile(1, C.navy, printSound(true, CREAM), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('sound-off', roundTile(1, C.navy, printSound(false, CREAM), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('home', roundTile(1, C.mustard, printHome(INK), 0.6), 130, 130, { shadow: 'tile6-sh' });
@@ -829,6 +840,11 @@ function folkPrint(id, bg, yaw = 0.3, part = 0.6) {
   shoot('b-golem', fittedBox(run('golem').root, 2.4, 3.0, -0.4), 200, 200, { oy: 1.05 });
   shoot('b-robohelper', fittedBox(run('robohelper').root, 1.8, 3.0, -0.4), 200, 200, { oy: 1.05 });
   shoot('b-saucer', fittedBox(run('saucer').root, 3.2, 2.6, -0.4), 200, 200, { oy: 0.85 });
+  // the signal buildings (stage D1, src/assets/signal.ts): fed; the radar's dish still facing front
+  const fresh = (id) => { const b = createBuilding(skin, id); b.update(0.1, { beat: 0, playing: false, night: 0, power: PW }); still(b.root); return b; };
+  shoot('b-wifi', fittedBox(fresh('wifi').root, 2.0, 4.6, -0.4), 200, 200, { oy: 1.55 });
+  shoot('b-transmitter', fittedBox(run('transmitter').root, 3.4, 2.2, -0.4), 200, 200, { oy: 0.6 });
+  shoot('b-radar', fittedBox(fresh('radar').root, 2.8, 3.6, -0.55), 200, 200, { oy: 1.2 });
 }
 /** A flying saucer with a dome and rim lights, speed lines behind it: the «fly» piece next to the saucer. */
 const printSaucer = (col, light, glass) => (x, s) => {
@@ -846,6 +862,32 @@ const printSaucer = (col, light, glass) => (x, s) => {
 };
 shoot('fly', roundTile(1, C.navy, printSaucer(CREAM, C.coral, '#8ff0e0'), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('map-saucer', roundTile(0.62, '#8f6fc8', printSaucer(CREAM, C.coral, '#8ff0e0'), 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
+
+// --- the signal (stage D1): the remote piece, the transmitter's map marks
+/** A toy remote: a dark rounded body, a big coral button, two small mint ones, two little waves off its top. */
+const printRemote = (x, s) => {
+  const k = s / 512; x.save(); x.scale(k, k); x.translate(256, 268); x.rotate(-0.38);
+  x.fillStyle = '#2e2a28'; x.beginPath(); x.roundRect(-88, -176, 176, 356, 62); x.fill();
+  x.fillStyle = 'rgba(255,240,200,0.14)'; x.beginPath(); x.roundRect(-70, -160, 140, 324, 50); x.fill();
+  x.fillStyle = '#ffe3a3'; x.beginPath(); x.roundRect(-30, -160, 60, 20, 10); x.fill();
+  x.fillStyle = C.coral; x.beginPath(); x.arc(0, -62, 56, 0, Math.PI * 2); x.fill();
+  x.fillStyle = 'rgba(255,255,255,0.28)'; x.beginPath(); x.arc(-16, -78, 20, 0, Math.PI * 2); x.fill();
+  x.fillStyle = C.mint; for (const bx of [-40, 40]) { x.beginPath(); x.arc(bx, 70, 28, 0, Math.PI * 2); x.fill(); }
+  x.strokeStyle = INK; x.lineWidth = 22; x.lineCap = 'round';
+  for (const r of [56, 104]) { x.beginPath(); x.arc(0, -196, r, -Math.PI * 0.78, -Math.PI * 0.22); x.stroke(); }
+  x.restore();
+};
+shoot('remote', roundTile(1, C.mustard, printRemote, 0.6), 130, 130, { shadow: 'tile6-sh' });
+/** The transmitter pad from above: its swirl in the middle and a ring of cream studs; `off` greys it all. */
+const printPad = (off) => (x, s) => {
+  if (off) x.filter = 'grayscale(1) brightness(0.85)';
+  x.save(); x.translate(s / 2, s / 2); x.scale(0.66, 0.66); x.translate(-s / 2, -s / 2); printSwirl(x, s); x.restore();
+  x.fillStyle = '#ffe3a3';
+  for (let i = 0; i < 8; i++) { const a = (i + 0.5) / 8 * Math.PI * 2; x.beginPath(); x.arc(s / 2 + Math.cos(a) * s * 0.4, s / 2 + Math.sin(a) * s * 0.4, s * 0.05, 0, Math.PI * 2); x.fill(); }
+  x.filter = 'none';
+};
+shoot('map-transmitter', roundTile(0.62, C.teal, printPad(false), 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
+shoot('map-transmitter-off', roundTile(0.62, '#6f7f7d', printPad(true), 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
 
 // --- the castles (systems/castles.ts): map marks, album stickers, the elves' seed, the chest piece
 {

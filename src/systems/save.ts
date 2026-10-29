@@ -112,6 +112,8 @@ export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
 const LEGACY_KEY = 'koto-tales-save-v1';
+/** The story before the last «Почати знову», kept aside in case it was a mistake. */
+const BEFORE_RESTART = 'koto-tales-save-before-restart';
 
 export function freshSave(): SaveData {
   return {
@@ -242,6 +244,23 @@ export function writeSave(data: SaveData): void {
   } catch {
     // Storage full or blocked: the game keeps running, progress just isn't kept.
   }
+}
+
+/** A new story on the same world: everything starts over but sound and difficulty. */
+export function restartSave(old: SaveData): SaveData {
+  return { ...freshSave(), difficulty: old.difficulty, soundOn: old.soundOn };
+}
+
+/** «Почати знову»: writes a new story and keeps the old one aside (BEFORE_RESTART). */
+export function startOver(old: SaveData): void {
+  try {
+    localStorage.setItem(BEFORE_RESTART, JSON.stringify(old));
+    // the spare must not bring the old story back
+    localStorage.removeItem(SPARE);
+  } catch {
+    // storage blocked: the new story still starts, it just isn't kept
+  }
+  writeSave(restartSave(old));
 }
 
 /** Asks the browser not to evict our storage when the tablet runs low on space. */

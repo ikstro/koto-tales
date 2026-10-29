@@ -33,7 +33,11 @@ describe('the kit box goal', () => {
   });
 
   it('then the disco and defence, one each', () => {
-    expect(REWARDS.map((r) => r.id).slice(6)).toEqual(['bigspeaker', 'dancefloor', 'trafficlight', 'discoball', 'tesla', 'djconsole']);
+    expect(REWARDS.map((r) => r.id).slice(6, 12)).toEqual(['bigspeaker', 'dancefloor', 'trafficlight', 'discoball', 'tesla', 'djconsole']);
+  });
+
+  it('then the signal: the radar, the Wi-Fi, two transmitters', () => {
+    expect(REWARDS.slice(12).map((r) => r.items)).toEqual([[['radar', 1]], [['wifi', 1]], [['transmitter', 2]]]);
   });
 
   it('past the list: more of each building in turn, while under the cap', () => {

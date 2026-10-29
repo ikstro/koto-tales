@@ -86,6 +86,34 @@ export function powerBulb(skin: Skin, parent: THREE.Object3D, at: V3): Bulb {
   };
 }
 
+/** How long a night show lasts (seconds); `BuildingTick.show` counts up from 0 to this. */
+export const SHOW_LENGTH = 20;
+
+const SHOW_COLOURS = ['#ffd98a', '#ff6a4a', '#7fe0c8', '#ffc23a'].map((c) => new THREE.Color(c));
+
+/**
+ * The show's colour wave: warm → coral → mint → mustard and round again, shifted by `phase`
+ * (where the light stands, so a row of lamps ripples). Writes into `out`.
+ */
+export function showColour(show: number, phase: number, out: THREE.Color): THREE.Color {
+  const n = SHOW_COLOURS.length;
+  const x = (((show * 0.9 - phase) % n) + n) % n;
+  const i = Math.floor(x);
+  const f = x - i;
+  return out.copy(SHOW_COLOURS[i]).lerp(SHOW_COLOURS[(i + 1) % n], f * f * (3 - 2 * f));
+}
+
+/** A building's place in the show's wave, from where it stands in the world. */
+export function showPhase(root: THREE.Object3D): number {
+  return (root.position.x + root.position.z) * 0.12;
+}
+
+/** How strong the show is now, 0..1: it swells in over a second and fades over the last two. */
+export function showLevel(show: number | undefined): number {
+  if (show === undefined || show < 0 || show >= SHOW_LENGTH) return 0;
+  return Math.min(1, show, (SHOW_LENGTH - show) / 2);
+}
+
 export function markShadows(root: THREE.Object3D): void {
   root.traverse((o) => {
     if ((o as THREE.Mesh).isMesh) o.receiveShadow = true;

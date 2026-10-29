@@ -12,7 +12,7 @@ import { canFold, pick, updateKit } from '../systems/kit';
 import { initNarration, updateNarration } from '../systems/narration';
 import { updatePickups } from '../systems/pickups';
 import { initProgress, updateProgress } from '../systems/progress';
-import { writeSave } from '../systems/save';
+import { startOver, writeSave } from '../systems/save';
 import { sleepPlace, updateSleep } from '../systems/sleep';
 import { initPortals, updatePortals } from '../systems/travel';
 import { updateLandmarks } from '../systems/landmarks';
@@ -20,6 +20,7 @@ import { djNear, initDisco, updateDisco } from '../systems/disco';
 import { exposeDefense, updateDefense } from '../systems/defense';
 import { updatePower } from '../systems/power';
 import { updatePrizes } from '../systems/prizes';
+import { updateSignal } from '../systems/signal';
 import { chestNear, updateCastles } from '../systems/castles';
 import { pushBubble } from '../systems/tasks';
 import { updateVillages } from '../systems/villages';
@@ -64,6 +65,8 @@ export class Game {
   intro: Intro | null = null;
   private saveTimer = AUTOSAVE_EVERY;
   private paused = false;
+  /** «Почати знову» wrote a new story: the old one is no longer saved. */
+  private restarting = false;
   private stats: HTMLElement | null = null;
   private fps = 0;
   /** Frames drawn so far (the frame cap skips some display refreshes). */
@@ -236,6 +239,10 @@ export class Game {
       ctx.hud.setSoundOn(on);
       this.applySound();
     };
+    ctx.hud.onRestart = (held) => {
+      if (held) this.restart();
+      else voice.say('restart_hold', { priority: 9, interrupt: true });
+    };
     // «Exit»: save, Пупся says goodbye in the dark, then the game closes. A page in a browser tab
     // may not close itself: then it lets go of fullscreen and starts afresh at the title.
     ctx.hud.onExit = () => {
@@ -252,6 +259,22 @@ export class Game {
         }, 1400),
       );
     };
+  }
+
+  /** «Почати знову» held through: the new story is written, the old one kept aside; then the title. */
+  private restart(): void {
+    const ctx = this.ctx;
+    this.persist();
+    this.restarting = true;
+    startOver(ctx.save);
+    sfx.play('sticker');
+    voice.say('restart_done', { priority: 10, interrupt: true });
+    void ctx.hud.fade(true).then(() =>
+      setTimeout(() => {
+        if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+        location.reload();
+      }, 1600),
+    );
   }
 
   private applySound(): void {
@@ -292,6 +315,7 @@ export class Game {
       updateDisco(ctx, dt);
       updateDefense(ctx, dt);
       updatePrizes(ctx, dt);
+      updateSignal(ctx, dt);
       updateProgress(ctx);
       updateSleep(ctx);
       ctx.hud.setPrompt(ctx.sleeping ? null : chestNear(ctx) ? 'chest' : sleepPlace(ctx) ? 'moon' : canFold(ctx) ? 'fold' : null);
@@ -357,6 +381,8 @@ export class Game {
   }
 
   persist(): void {
+    // a new story is already written: nothing of the old one may overwrite it
+    if (this.restarting) return;
     const ctx = this.ctx;
     ctx.save.edits = ctx.world.exportEdits();
     writeSave(ctx.save);

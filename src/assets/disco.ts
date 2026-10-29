@@ -25,6 +25,9 @@ import {
   markShadows,
   fadeDisc,
   glowMaterial,
+  showColour,
+  showPhase,
+  showLevel,
 } from './buildingParts';
 
 // ─── shared bits ────────────────────────────────────────────────────────────
@@ -138,6 +141,7 @@ export function createBigSpeaker(skin: Skin): BuildingModel {
   const e = new THREE.Euler();
   const pos = new THREE.Vector3();
   const scl = new THREE.Vector3();
+  const col = new THREE.Color();
   let t = 0;
   let lastBeat = -1;
   let ledOn = false;
@@ -155,7 +159,16 @@ export function createBigSpeaker(skin: Skin): BuildingModel {
       for (const c of cones) c.g.scale.set(1 + thump * 0.1 * c.k, 1 + thump * 0.1 * c.k, 1 + thump * 1.1 * c.k);
       body.scale.set(1 + thump * 0.02, 1 - thump * 0.025, 1 + thump * 0.02);
       const b = Math.floor(k.beat);
-      if (on && (b !== lastBeat || !ledOn)) {
+      const sh = on ? showLevel(k.show) : 0;
+      if (sh > 0) {
+        // a night show: the strip runs through the show's colours and pulses brighter
+        const ph = showPhase(root);
+        const pulse = 1 + sh * (0.45 + 0.45 * Math.sin(k.show! * 8));
+        for (let i = 0; i < LEDS; i++) leds.setColorAt(i, showColour(k.show!, ph + i * 0.35, col).multiplyScalar(pulse));
+        leds.instanceColor!.needsUpdate = true;
+        ledOn = true;
+        lastBeat = -1;
+      } else if (on && (b !== lastBeat || !ledOn)) {
         lastBeat = b;
         ledOn = true;
         for (let i = 0; i < LEDS; i++) leds.setColorAt(i, k.playing ? PARTY[(b + i) % PARTY.length] : PARTY[0]);
@@ -343,6 +356,7 @@ export function createDiscoBall(skin: Skin): BuildingModel {
   const scl = new THREE.Vector3();
   let t = 0;
   let spin = 0;
+  let spinAhead = 0;
   return {
     root,
     socket: new THREE.Vector3(0, 2.0, -0.37),
@@ -351,14 +365,17 @@ export function createDiscoBall(skin: Skin): BuildingModel {
       const pw = k.power;
       const on = !!pw && pw.on;
       bulb.update(t, pw);
-      spin += ((on ? 1.3 : 0) - spin) * Math.min(1, dt * 2);
+      // a night show spins the ball faster and brightens its spots
+      const sh = on ? showLevel(k.show) : 0;
+      spin += ((on ? 1.3 + 3.2 * sh : 0) - spin) * Math.min(1, dt * 2);
       ball.rotation.y += dt * spin;
       spots.visible = on;
       if (!on) return;
-      spotMat.opacity = 0.22 + 0.6 * k.night;
-      const pulse = k.playing ? Math.exp(-beatFrac(k.beat) * 5) * 0.2 : 0;
+      spinAhead += dt * 2 * sh;
+      spotMat.opacity = Math.min(1, 0.22 + 0.6 * k.night + 0.35 * sh);
+      const pulse = (k.playing ? Math.exp(-beatFrac(k.beat) * 5) * 0.2 : 0) + 0.35 * sh;
       for (let i = 0; i < SPOTS; i++) {
-        const a = t * (0.3 + (i % 3) * 0.13) * (i % 2 ? 1 : -1) + i * 1.7;
+        const a = (t + spinAhead) * (0.3 + (i % 3) * 0.13) * (i % 2 ? 1 : -1) + i * 1.7;
         const r = 1.5 + (((i * 37) % 100) / 100) * 3.4 + Math.sin(t * 0.7 + i) * 0.25;
         pos.set(Math.cos(a) * r, 0.03, Math.sin(a) * r);
         scl.set(0.8 + 0.35 * (i % 4) + pulse, 1, 0.8 + 0.35 * (i % 4) + pulse);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TERRAIN_VERSION } from '../contracts';
-import { SAVE_VERSION, freshSave, migrate, reconcileTerrain } from './save';
+import { SAVE_VERSION, freshSave, migrate, reconcileTerrain, restartSave } from './save';
 
 describe('save', () => {
   it('migrates a v1 save without losing progress', () => {
@@ -107,6 +107,14 @@ describe('save', () => {
     const s = migrate({ ...freshSave(), day: 7, boss } as unknown as Record<string, unknown>);
     expect(s.day).toBe(7);
     expect(s.boss).toEqual(boss);
+  });
+
+  it('starting over keeps only sound and difficulty', () => {
+    const old = { ...freshSave(), coins: 120, difficulty: 'hard' as const, soundOn: false, found: ['c:elves'], kit: { ...freshSave().kit, tent: 3 } };
+    old.progress.level = 9;
+    const s = restartSave(old);
+    expect(s).toEqual({ ...freshSave(), difficulty: 'hard', soundOn: false });
+    expect(s.seed).toBe(old.seed);
   });
 
   it('a fresh save is already current', () => {

@@ -336,6 +336,8 @@ export class Hud {
   onDifficulty: ((level: Difficulty) => void) | null = null;
   onSound: ((on: boolean) => void) | null = null;
   onExit: (() => void) | null = null;
+  /** «Почати знову»: `held` once the piece was held until its ring filled; false for a short tap (say how). */
+  onRestart: ((held: boolean) => void) | null = null;
   /** A tap on the minimap plate (ui/map.ts opens the big map). */
   onMapTap: (() => void) | null = null;
 
@@ -382,6 +384,9 @@ export class Hud {
   private flyPiece: Piece;
   private flyOn = false;
   private flyShown = false;
+  private remotePiece: Piece;
+  private remoteOn = false;
+  private remoteShown = false;
   private bubble: { el: HTMLDivElement; lit: HTMLImageElement[]; pic: Piece; shown: boolean } | null = null;
   private prompt: PromptKind | null = null;
   private kitItems: KitItem[] = [];
@@ -393,6 +398,11 @@ export class Hud {
   private soundPiece: Piece;
   private helpPiece: Piece;
   private diffPieces = new Map<Difficulty, Piece>();
+  private restartPiece: Piece;
+  private restartLit: HTMLImageElement[] = [];
+  private restartTimer = 0;
+  private restartT0 = 0;
+  private restartN = 0;
   private joyBase: HTMLDivElement;
   private joyIn: HTMLDivElement;
   private joyPieces: Piece[] = [];
@@ -530,6 +540,9 @@ export class Hud {
     // the saucer's «fly» piece shares that place too (the note wins when both are near)
     this.flyPiece = this.gAct.add('fly', -372, -206, 'tile6-sh');
     this.flyPiece.el.classList.add('prompt', 'hidden');
+    // the Wi-Fi remote too (the note and the fly piece win)
+    this.remotePiece = this.gAct.add('remote', -372, -206, 'tile6-sh');
+    this.remotePiece.el.classList.add('prompt', 'hidden');
     this.gAct.seal();
     this.press(
       bow,
@@ -546,6 +559,7 @@ export class Hud {
     this.press(this.promptPiece, this.promptPiece.target(110), () => this.prompt && input.press(`prompt:${this.prompt}`), { ui: true });
     this.press(this.notePiece, this.notePiece.target(110), () => this.noteOn && input.press('prompt:note'), { ui: true });
     this.press(this.flyPiece, this.flyPiece.target(110), () => this.flyShown && input.press('prompt:fly'), { ui: true });
+    this.press(this.remotePiece, this.remotePiece.target(110), () => this.remoteShown && input.press('prompt:remote'), { ui: true });
 
     // Taps outside an open fan / kit plate close it.
     this.catcher = div('catcher hidden', r);
@@ -558,13 +572,14 @@ export class Hud {
     // The kit plate: a studded plate with the buildings in the box, filled by setKitItems.
     this.gKit = new Group(r, 'g-kit hidden');
 
-    // The pause menu: picture pieces on a plate. ▶ continue, sound, «?» guide, home; difficulty below.
+    // The pause menu: picture pieces on a plate. ▶ continue, sound, «?» guide, the door, «start again»
+    // (a sprout on its own stud ring, held while the ring fills); difficulty below.
     this.menu = div('pmenu hidden', r);
     this.menu.addEventListener('pointerdown', (e) => {
       if (e.target === this.menu) this.setPaused(false);
     });
     this.gMenu = new Group(this.menu, 'g-menu');
-    const mw = 590;
+    const mw = 740;
     const mh = 330;
     const mp = ninePlate(this.gMenu.inner, mw, mh);
     (mp.previousElementSibling as HTMLElement).style.cssText += ';left:14px;top:18px';
@@ -577,6 +592,11 @@ export class Hud {
     this.press(this.soundPiece, this.soundPiece.target(104), () => this.toggleSound(), { ui: true, paused: true });
     this.press(this.helpPiece, this.helpPiece.target(104), () => this.openGuide(), { ui: true, paused: true });
     this.press(exit, exit.target(104), () => this.exit(), { ui: true, paused: true });
+    const ring = new Piece(this.gMenu.inner, 'ring', 636, 112 + TOP);
+    for (let i = 0; i < 8; i++) this.restartLit.push(ring.layer(`ring-lit-${i}` as SpriteName, 'sp lit'));
+    this.restartPiece = new Piece(this.gMenu.inner, 'restart', 636, 112, 'tile6-sh');
+    this.press(this.restartPiece, this.restartPiece.target(120), () => this.holdRestart(true), { ui: true, paused: true, up: () => this.holdRestart(false) });
+    this.setRestartStuds(0);
     LEVELS.forEach((lvl, i) => {
       const p = new Piece(this.gMenu.inner, `diff-${i + 1}` as SpriteName, mw / 2 - 116 + i * 116, 250, 'tile6-sh');
       p.layer('rim6', 'sp rim');
@@ -911,6 +931,7 @@ export class Hud {
     this.toggleFan(false);
     this.toggleKit(false);
     this.menu.classList.toggle('hidden', !on);
+    this.holdRestart(false, true);
     if (on) {
       this.input.fireHeld = false;
       this.placeMenu();
@@ -949,7 +970,45 @@ export class Hud {
   private *menuPieces(): Iterable<Piece> {
     yield this.soundPiece;
     yield this.helpPiece;
+    yield this.restartPiece;
     yield* this.diffPieces.values();
+  }
+
+  /**
+   * «Почати знову» is held, never tapped: each quarter second one more stud of its ring lights;
+   * all eight → onRestart(true). Let go sooner and the ring empties; a short tap wiggles the sprout
+   * and asks to hold (onRestart(false)).
+   */
+  private holdRestart(down: boolean, quiet = false): void {
+    clearInterval(this.restartTimer);
+    if (down) {
+      this.restartT0 = performance.now();
+      this.restartTimer = window.setInterval(() => {
+        this.setRestartStuds(this.restartN + 1);
+        sfx.play('click', { pitch: 1 + this.restartN * 0.09 });
+        if (this.restartN >= 8) {
+          clearInterval(this.restartTimer);
+          this.onRestart?.(true);
+        }
+      }, 250);
+      return;
+    }
+    if (this.restartN >= 8) return;
+    this.setRestartStuds(0);
+    if (quiet || performance.now() - this.restartT0 > 400) return;
+    this.restartPiece.el.animate(
+      [{ transform: 'rotate(0)' }, { transform: 'rotate(-9deg)' }, { transform: 'rotate(8deg)' }, { transform: 'rotate(-5deg)' }, { transform: 'rotate(0)' }],
+      { duration: 420, easing: 'ease-out' },
+    );
+    this.onRestart?.(false);
+  }
+
+  private setRestartStuds(n: number): void {
+    this.restartN = n;
+    this.restartLit.forEach((l, i) => {
+      l.style.visibility = i < n ? '' : 'hidden';
+      if (i === n - 1) l.animate([{ transform: 'translateY(-6px)' }, { transform: 'none' }], { duration: SP.press.duration, easing: SP.press.easing });
+    });
   }
 
   private toggleSound(): void {
@@ -1244,12 +1303,27 @@ export class Hud {
     this.syncFly();
   }
 
+  /** The remote piece breathing inside a working Wi-Fi zone (a tap: the night show). */
+  setRemote(on: boolean): void {
+    if (on === this.remoteOn) return;
+    this.remoteOn = on;
+    this.syncFly();
+  }
+
+  /** One piece in the shared slot: the note, else the fly piece, else the remote. */
   private syncFly(): void {
-    const show = this.flyOn && !this.noteOn;
-    if (show === this.flyShown) return;
-    this.flyShown = show;
-    this.flyPiece.el.classList.toggle('hidden', !show);
-    if (show) this.flyPiece.drop(0, 50);
+    const fly = this.flyOn && !this.noteOn;
+    if (fly !== this.flyShown) {
+      this.flyShown = fly;
+      this.flyPiece.el.classList.toggle('hidden', !fly);
+      if (fly) this.flyPiece.drop(0, 50);
+    }
+    const remote = this.remoteOn && !this.noteOn && !this.flyOn;
+    if (remote !== this.remoteShown) {
+      this.remoteShown = remote;
+      this.remotePiece.el.classList.toggle('hidden', !remote);
+      if (remote) this.remotePiece.drop(0, 50);
+    }
   }
 
   /**

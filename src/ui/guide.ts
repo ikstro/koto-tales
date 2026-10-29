@@ -11,7 +11,7 @@ import { SPRITES, type SpriteName } from './hudSprites';
  * Captions are short and only for parents — the pictures and the voice do the explaining.
  */
 
-export type GuideCard = 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'portal' | 'sleep' | 'power' | 'lighthouse' | 'disco' | 'defense' | 'village' | 'castle' | 'boss';
+export type GuideCard = 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'portal' | 'sleep' | 'power' | 'lighthouse' | 'disco' | 'defense' | 'village' | 'castle' | 'signal' | 'boss';
 
 interface CardSpec {
   id: GuideCard;
@@ -241,6 +241,21 @@ const CARDS: CardSpec[] = [
       a.put('castle-elves', -20, 0, 1.25, 'tile-sh');
       step(a, 100, -14);
       a.put('b-treehouse', 220, 4, 1.1);
+    },
+  },
+  {
+    id: 'signal',
+    line: 'guide_signal',
+    caption: 'Сигнал',
+    span: 2,
+    art: (a) => {
+      // the antenna → its remote (the night show) · a transmitter → its mark on the map
+      a.put('b-wifi', -300, 4, 1.2);
+      step(a, -215, -14);
+      a.put('remote', -130, -8, 1, 'tile6-sh');
+      a.put('b-transmitter', 60, 4, 1.15);
+      step(a, 150, -14);
+      a.put('map-transmitter', 230, -8, 1.3);
     },
   },
   {

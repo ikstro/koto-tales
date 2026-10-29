@@ -10,6 +10,7 @@ import { homeDistance } from './house';
 import { playingSpeakers } from './kit';
 import { inLight } from './power';
 import { sheltered } from './prizes';
+import { inShow } from './signal';
 import { redLight } from './defense';
 import { tuneOf } from './tune';
 import { inVillage } from './villages';
@@ -124,7 +125,8 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
     m.stun -= dt;
 
     const home = ctx.house ? homeDistance(ctx, m.pos) : Infinity;
-    const music = speakers.some((sp) => Math.hypot(sp.centre.x - m.pos.x, sp.centre.z - m.pos.z) < sp.dance);
+    // music close by, or a night show over it: it dances
+    const music = speakers.some((sp) => Math.hypot(sp.centre.x - m.pos.x, sp.centre.z - m.pos.z) < sp.dance) || inShow(m.pos.x, m.pos.z);
     // a red traffic light close by: it stops and waits (no chasing, no biting)
     if (m.frozen > 0) m.frozen -= dt;
     const red = !music && (redLight(m.pos.x, m.pos.z) || m.frozen > 0);

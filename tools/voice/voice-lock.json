@@ -239,5 +239,19 @@
   "saucer_land": "1081c74064e8",
   "robohelper_hi": "b412f631a348",
   "robohelper_bye": "e81a5f850a0e",
-  "guide_castle": "6e82a4d7e12b"
+  "guide_castle": "6e82a4d7e12b",
+  "restart_hold": "5780261e32cd",
+  "restart_done": "44cdee156b0c",
+  "reward_radar": "474583aedb43",
+  "reward_wifi": "5fd8a3ea26a1",
+  "reward_wifi_more": "69c5c1ad224e",
+  "reward_transmitters": "eda28dd32e3d",
+  "reward_transmitters_more": "14e248abd59d",
+  "first_radar": "a52d042549e2",
+  "first_wifi": "9a36c0aed4ec",
+  "first_transmitter": "104f05e8db7b",
+  "show_start": "3e5e54523291",
+  "radar_found": "70f02a904e9f",
+  "transmitter_off": "e57eb46dbb95",
+  "guide_signal": "d99f3ab70834"
 }

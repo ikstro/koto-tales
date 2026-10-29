@@ -31,6 +31,9 @@ import {
   octagon,
   fadeDisc,
   glowMaterial,
+  showColour,
+  showPhase,
+  showLevel,
 } from './buildingParts';
 
 // ─── shared bits ────────────────────────────────────────────────────────────
@@ -163,6 +166,7 @@ export function createGarland(skin: Skin): BuildingModel {
   const pos = new THREE.Vector3();
   const scl = new THREE.Vector3();
   const col = new THREE.Color();
+  const showCol = new THREE.Color();
   let t = 0;
   return {
     root,
@@ -177,8 +181,11 @@ export function createGarland(skin: Skin): BuildingModel {
       const night = k.night;
       const frac = beatFrac(k.beat);
       const parity = Math.floor(k.beat) % 2;
+      // a night show: the bulbs run through the show's colours in a wave along the string
+      const sh = st === 'on' ? showLevel(k.show) : 0;
+      const ph = showPhase(root);
       for (let i = 0; i < GN; i++) {
-        const base = PARTY[i % PARTY.length];
+        const base = sh > 0 ? showColour(k.show!, ph + i * 0.3, showCol).multiplyScalar(1.25) : PARTY[i % PARTY.length];
         let glow = 0;
         let pop = 0;
         if (st === 'on') {
