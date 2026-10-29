@@ -165,7 +165,7 @@ function defeatMonster(ctx: Ctx, m: Monster, by: Hero): void {
 
 /** A monster bumps a hero. Only the player loses hearts; helpers just tumble. */
 export function hurtHero(ctx: Ctx, hero: Hero, damage: number, from: THREE.Vector3): void {
-  if (hero.invulnerable > 0 || ctx.sleeping) return;
+  if (hero.invulnerable > 0 || ctx.sleeping || ctx.napping) return;
   const away = tmp.subVectors(hero.pos, from).setY(0);
   if (away.lengthSq() < 1e-4) away.set(0, 0, 1);
   away.normalize();

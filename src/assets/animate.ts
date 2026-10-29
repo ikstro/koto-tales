@@ -13,6 +13,8 @@ import * as THREE from 'three';
 import type { CharacterModel, ModelAction, Rig } from '../contracts';
 
 type OneShot = 'attack' | 'cast' | 'hurt' | 'happy' | 'wake' | 'cheer';
+/** Held until another action replaces them. */
+const HELD = new Set<ModelAction>(['sleep', 'dance', 'sit', 'eat']);
 export const ACTION_TIME: Record<OneShot, number> = { attack: 0.55, cast: 0.9, hurt: 0.45, happy: 0.95, wake: 1.45, cheer: 1.0 };
 /** Seconds into 'wake' while the character yawns (eyes shut); a caller may open a mouth in this window. */
 export const WAKE_YAWN: readonly [number, number] = [0.64, 1.3];
@@ -89,7 +91,26 @@ interface Ctx {
   legs: { j: Joint; side: number; k: number }[];
   /** Lying-down lift for bipeds (half the body depth). */
   lie: number;
+  /** How a seated rig ('sit', 'eat') rests on the seat surface (y = 0 of the model's root). */
+  seat: Seat;
 }
+
+/**
+ * The seated pose's numbers, found once from the rig's own proportions.
+ * `drop`: how far the rig's root goes down so the hips rest on the seat;
+ * `tilt` (quadruped): how far the body rears up so the straight front paws reach the ground;
+ * `shoulder`/`paw` (quadruped): the front legs' joint in body space and their length.
+ */
+interface Seat {
+  drop: number;
+  /** Quadruped: the body joint's height above the seat once dropped. */
+  hip: number;
+  tilt: number;
+  shoulder: [number, number];
+  paw: number;
+}
+
+const SEATED = new Set<ModelAction>(['sit', 'eat']);
 
 /** Stretch envelope of 'wake' (0 outside the stretch). */
 const stretchOf = (a: number) => ramp(STRETCH[0], STRETCH[1], a) * (1 - ramp(STRETCH[2], STRETCH[3], a));
@@ -98,6 +119,18 @@ const cheerHop = (a: number) => arc(0.05, 0.45, a) + arc(0.5, 0.9, a);
 /** 'dance': the beat phase (two beats a second, the music's 120 a minute) and its bounce 0..1. */
 const beatOf = (t: number) => t * TAU * 2;
 const bounceOf = (t: number) => Math.abs(Math.sin(beatOf(t) / 2));
+/** 'eat' (biped): a bite with the left hand, then the right, every `BITE` seconds; `chew` after each. */
+const BITE = 1.8;
+const bitesOf = (t: number) => {
+  const u = (t % BITE) / BITE;
+  return {
+    left: arc(0.02, 0.42, u),
+    right: arc(0.52, 0.92, u),
+    chew: arc(0.18, 0.5, u) + arc(0.68, 1.0, u),
+  };
+};
+/** 'eat' (quadruped): the head dips to the food in front every `NIBBLE` seconds. */
+const NIBBLE = 1.3;
 
 /** Common root-level reactions shared by every rig type. */
 function rootReactions(s: State, c: Ctx, lean: number): void {
@@ -260,6 +293,32 @@ function biped(s: State, c: Ctx): void {
       bob += 0.05 * bounceOf(t);
       break;
     }
+    case 'sit':
+    case 'eat': {
+      // hips down on the seat, legs out in front (over a seat's edge or along a blanket), hands on the knees
+      add(c.root, 4, -c.seat.drop);
+      mixRot(j.legL, 0, -1.45, 1);
+      mixRot(j.legR, 0, -1.45, 1);
+      mixRot(j.legL, 2, 0.08, 1);
+      mixRot(j.legR, 2, -0.08, 1);
+      mixOff(j.body, 0, -0.05, 1);
+      mixRot(j.armL, 0, -0.55, 1);
+      mixRot(j.armR, 0, -0.55, 1);
+      mixRot(j.armL, 2, 0.12, 1);
+      mixRot(j.armR, 2, -0.12, 1);
+      if (s.action !== 'eat') break;
+      // bites in turn: a hand comes up to the mouth, the head meets it, then chews
+      const { left, right, chew } = bitesOf(t);
+      mixRot(j.armL, 0, -2.0, left);
+      mixRot(j.armL, 2, -0.55, left);
+      mixRot(j.armR, 0, -2.0, right);
+      mixRot(j.armR, 2, 0.55, right);
+      add(j.head, 0, 0.14 * (left + right) + Math.sin(t * 15) * 0.05 * chew);
+      add(j.head, 1, 0.12 * (left - right));
+      add(j.body, 0, 0.07 * (left + right));
+      bob += Math.abs(Math.sin(t * 15)) * 0.008 * chew;
+      break;
+    }
   }
   add(j.body, 4, bob);
   carry(c, ['head', 'armL', 'armR', 'tool', 'hair'], bob);
@@ -382,6 +441,32 @@ function quadruped(s: State, c: Ctx): void {
       add(j.tail, 1, 0.8 * Math.sin(beat));
       break;
     }
+    case 'sit':
+    case 'eat': {
+      // on her haunches: hips on the ground, back legs folded forward, chest up on straight front paws
+      const { drop: down, hip, tilt, shoulder, paw } = c.seat;
+      let lean = tilt;
+      let dip = 0;
+      if (s.action === 'eat') {
+        // leans over the food and nibbles: the head dips down to it and comes back up to chew
+        const u = (t % NIBBLE) / NIBBLE;
+        dip = arc(0.05, 0.55, u);
+        lean = tilt * (1 - 0.75 * dip);
+        add(j.head, 0, 1.05 * dip + Math.sin(t * 14) * 0.05 * arc(0.5, 1, u));
+      }
+      add(c.root, 4, -down);
+      mixRot(j.body, 0, -lean, 1);
+      for (const n of ['legBL', 'legBR']) mixRot(j[n], 0, -1.45, 1);
+      // front legs straight down from the shoulder; when the chest is low they reach forward instead
+      const sy = hip + shoulder[0] * Math.cos(lean) + shoulder[1] * Math.sin(lean);
+      const fwd = Math.acos(Math.min(1, Math.max(0, sy) / paw));
+      for (const n of ['legFL', 'legFR']) mixRot(j[n], 0, lean - fwd, 1);
+      add(j.head, 0, lean * 0.85);
+      add(j.tail, 0, -0.55);
+      add(j.tail, 1, 0.9);
+      add(j.tail2, 1, 0.6);
+      break;
+    }
   }
   add(j.body, 4, drop);
   if (s.action === 'sleep') carry(c, ['head', 'legFL', 'legFR', 'legBL', 'legBR', 'tail', 'tail2'], drop);
@@ -465,6 +550,80 @@ function staticPose(s: State, c: Ctx): void {
 }
 
 const POSES = { biped, quadruped, spider, static: staticPose };
+
+/** A part's own meshes (not those of parts hanging under it) as a box in `frame`'s space. */
+function ownBox(part: THREE.Object3D, frame: THREE.Object3D, parts: Set<THREE.Object3D>): THREE.Box3 {
+  const box = new THREE.Box3();
+  const inv = new THREE.Matrix4().copy(frame.matrixWorld).invert();
+  const m = new THREE.Matrix4();
+  const b = new THREE.Box3();
+  const walk = (o: THREE.Object3D): void => {
+    const mesh = o as THREE.Mesh;
+    if (mesh.isMesh && mesh.geometry) {
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      box.union(b.copy(mesh.geometry.boundingBox!).applyMatrix4(m.multiplyMatrices(inv, mesh.matrixWorld)));
+    }
+    for (const ch of o.children) if (!parts.has(ch)) walk(ch);
+  };
+  walk(part);
+  return box;
+}
+
+/** Where a joint sits in `frame`'s space. */
+function jointIn(part: THREE.Object3D, frame: THREE.Object3D): THREE.Vector3 {
+  return frame.worldToLocal(part.getWorldPosition(new THREE.Vector3()));
+}
+
+/**
+ * The seated pose from the rig's proportions (rest pose): a biped's root goes down by its hip
+ * height less half a leg's thickness (the trousers rest on the seat); a quadruped finds the body
+ * tilt at which its straight front legs just reach the ground with the haunches on it.
+ */
+function seatOf(rig: Rig, frame: THREE.Object3D): Seat {
+  const seat: Seat = { drop: 0, hip: 0, tilt: 0, shoulder: [0, 0], paw: 0 };
+  const { body } = rig.parts;
+  if (!body || (rig.type !== 'biped' && rig.type !== 'quadruped')) return seat;
+  frame.updateMatrixWorld(true);
+  const parts = new Set(Object.values(rig.parts));
+  const hip = jointIn(body, frame).y;
+  if (rig.type === 'biped') {
+    const leg = rig.parts.legL ?? rig.parts.legR;
+    const lb = leg ? ownBox(leg, frame, parts) : new THREE.Box3();
+    const half = lb.isEmpty() ? 0.1 : Math.min(0.2, Math.max(0.04, (lb.max.z - lb.min.z) / 2));
+    seat.drop = Math.max(0, hip - half);
+    return seat;
+  }
+  // body-space numbers: the torso's box, the shoulder joint, the front leg's reach
+  const bb = ownBox(body, body, parts);
+  const box = bb.isEmpty() ? new THREE.Box3(new THREE.Vector3(-0.2, -0.1, -0.1), new THREE.Vector3(0.2, 0.25, 0.6)) : bb;
+  const front = rig.parts.legFL ?? rig.parts.legFR;
+  const sh = front ? jointIn(front, body) : new THREE.Vector3(0, 0, box.max.z);
+  const fb = front ? ownBox(front, front, parts) : new THREE.Box3();
+  const k = body.getWorldScale(new THREE.Vector3()).y || 1;
+  const paw = fb.isEmpty() ? hip / k : Math.max(0.05, -fb.min.y);
+  // the lowest point of the tilted torso sets how high the hips sit
+  const lift = (a: number): number => {
+    let low = Infinity;
+    for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) low = Math.min(low, y * Math.cos(a) + z * Math.sin(a));
+    return Math.max(0, -low);
+  };
+  const reach = (a: number): number => lift(a) + sh.y * Math.cos(a) + sh.z * Math.sin(a) - paw;
+  let lo = 0.15;
+  let hi = 1.0;
+  if (reach(lo) >= 0) hi = lo;
+  else if (reach(hi) <= 0) lo = hi;
+  for (let i = 0; i < 24 && hi - lo > 1e-4; i++) {
+    const mid = (lo + hi) / 2;
+    if (reach(mid) < 0) lo = mid;
+    else hi = mid;
+  }
+  seat.tilt = (lo + hi) / 2;
+  seat.hip = lift(seat.tilt) * k;
+  seat.drop = Math.max(0, hip - seat.hip);
+  seat.shoulder = [sh.y * k, sh.z * k];
+  seat.paw = paw * k;
+  return seat;
+}
 /** Blocks per walk cycle, and the speed at which the cycle is at full swing. */
 const GAIT = {
   biped: { stride: 1.6, full: 2.5 },
@@ -510,7 +669,7 @@ export function animate(rig: Rig): CharacterModel {
     if (!box.isEmpty()) lie = Math.max(0.08, (box.max.z - box.min.z) / 2);
   }
 
-  const ctx: Ctx = { rig, root: new Joint(rig.root), j, loose, hasTool: !!rig.parts.tool, legs, lie };
+  const ctx: Ctx = { rig, root: new Joint(rig.root), j, loose, hasTool: !!rig.parts.tool, legs, lie, seat: seatOf(rig, outer) };
   const all = [ctx.root, ...Object.values(j)];
   const pose = POSES[rig.type];
   const gait = GAIT[rig.type];
@@ -527,7 +686,9 @@ export function animate(rig: Rig): CharacterModel {
     play(action: ModelAction) {
       if (s.action === 'sleep' && action !== 'sleep') slow = 0.8;
       if (action === 'sleep' && s.action !== 'sleep') slow = 0.8;
-      if ((action === 'sleep' || action === 'dance') && s.action === action) return;
+      // sitting down and getting up are eased, like lying down
+      if (SEATED.has(action) !== SEATED.has(s.action)) slow = 0.45;
+      if (HELD.has(action) && s.action === action) return;
       s.action = action;
       s.at = 0;
     },
@@ -536,14 +697,14 @@ export function animate(rig: Rig): CharacterModel {
       first = false;
       dt = snap ? 0 : Math.min(dt, 0.1);
       s.t += dt;
-      if (s.action !== 'idle' && s.action !== 'sleep' && s.action !== 'dance') {
+      if (s.action !== 'idle' && !HELD.has(s.action)) {
         s.at += dt;
-        if (s.at >= ACTION_TIME[s.action]) {
+        if (s.at >= ACTION_TIME[s.action as OneShot]) {
           s.action = 'idle';
           s.at = 0;
         }
       }
-      const speed = s.action === 'sleep' ? 0 : Math.max(0, moveSpeed);
+      const speed = s.action === 'sleep' || SEATED.has(s.action) ? 0 : Math.max(0, moveSpeed);
       const wt = Math.min(1, speed / gait.full);
       s.walk = snap ? wt : s.walk + (wt - s.walk) * (1 - Math.exp(-8 * dt));
       s.phase = (s.phase + (dt * speed * TAU) / gait.stride) % TAU;

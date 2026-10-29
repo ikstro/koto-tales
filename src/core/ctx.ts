@@ -62,6 +62,8 @@ export interface Ctx {
   playing: boolean;
   /** Player is asleep (fading home); input is ignored. */
   sleeping: boolean;
-  /** The heroes lie in their beds (or tent) for the night: the sleep scene places them, physics waits. */
+  /** A scene holds the heroes in place (beds or a tent for the night, seats at a meal): physics waits, nothing bites. */
   napping: boolean;
+  /** Seconds of the ice cream's fast running left (systems/food.ts). */
+  fast: number;
 }

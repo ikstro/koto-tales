@@ -20,6 +20,7 @@ import { djNear, initDisco, updateDisco } from '../systems/disco';
 import { exposeDefense, updateDefense } from '../systems/defense';
 import { updatePower } from '../systems/power';
 import { updatePrizes } from '../systems/prizes';
+import { eating, updateFood } from '../systems/food';
 import { updateSignal } from '../systems/signal';
 import { chestNear, updateCastles } from '../systems/castles';
 import { pushBubble } from '../systems/tasks';
@@ -316,9 +317,10 @@ export class Game {
       updateDefense(ctx, dt);
       updatePrizes(ctx, dt);
       updateSignal(ctx, dt);
+      updateFood(ctx, dt);
       updateProgress(ctx);
       updateSleep(ctx);
-      ctx.hud.setPrompt(ctx.sleeping ? null : chestNear(ctx) ? 'chest' : sleepPlace(ctx) ? 'moon' : canFold(ctx) ? 'fold' : null);
+      ctx.hud.setPrompt(ctx.sleeping || eating() ? null : chestNear(ctx) ? 'chest' : sleepPlace(ctx) ? 'moon' : canFold(ctx) ? 'fold' : null);
       ctx.hud.setNote(!ctx.sleeping && djNear(ctx));
       updateNarration(ctx, dt);
     }

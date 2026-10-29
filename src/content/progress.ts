@@ -1,5 +1,6 @@
 import type { BuildingId } from './buildings';
 import type { LineId } from './lines';
+import { MAX_LEVEL, UPGRADES, UPGRADE_ORDER } from './upgrades';
 
 /**
  * The endless goal (DESIGN.md «Kit»): the kit box asks for one task at a time; when
@@ -65,6 +66,8 @@ export interface Reward {
   items?: [BuildingId, number][];
   /** Coins poured out of the box. */
   coins?: number;
+  /** A building raised a level (content/upgrades.ts). */
+  upgrade?: BuildingId;
 }
 
 /** Rewards in order; new stages add cards here (a save gets them on its next level-ups). */
@@ -87,6 +90,11 @@ export const REWARDS: Reward[] = [
   { id: 'radar', line: 'reward_radar', items: [['radar', 1]] },
   { id: 'wifi', line: 'reward_wifi', items: [['wifi', 1]] },
   { id: 'transmitters', line: 'reward_transmitters', items: [['transmitter', 2]] },
+  // stage D2: food, swings and the power station (the last one on the list)
+  { id: 'picnic', line: 'reward_picnic', items: [['picnic', 1]] },
+  { id: 'icecream', line: 'reward_icecream', items: [['icecream', 1]] },
+  { id: 'swings', line: 'reward_swings', items: [['swings', 1]] },
+  { id: 'station', line: 'reward_station', items: [['station', 1]] },
 ];
 
 /** Past the list: more of a building in turn (`n` at a time), while fewer than `cap` are owned; then coins. */
@@ -102,19 +110,41 @@ export const ENDLESS: { building: BuildingId; n: number; cap: number; line: Line
   { building: 'trafficlight', n: 1, cap: 3, line: 'reward_trafficlight_more' },
   { building: 'transmitter', n: 2, cap: 6, line: 'reward_transmitters_more' },
   { building: 'wifi', n: 1, cap: 4, line: 'reward_wifi_more' },
+  { building: 'picnic', n: 1, cap: 2, line: 'reward_picnic' },
+  { building: 'swings', n: 1, cap: 2, line: 'reward_swings' },
+  { building: 'icecream', n: 1, cap: 2, line: 'reward_icecream' },
 ];
 export const ENDLESS_COINS = 25;
 
 /**
- * What the box gives next: the first listed reward not yet got; past the list,
- * the next endless building still under its cap (`owned` = in the kit + standing).
+ * What the box gives next: the first listed reward not yet got; past the list, by turns
+ * the next endless building still under its cap (`owned` = in the kit + standing) and an
+ * upgrade of a building the child has (`level` = its upgrade level); when neither is
+ * left, coins.
  */
-export function nextReward(got: readonly string[], owned: (b: BuildingId) => number): Reward {
+export function nextReward(got: readonly string[], owned: (b: BuildingId) => number, level: (b: BuildingId) => number = () => MAX_LEVEL): Reward {
   for (const r of REWARDS) if (!got.includes(r.id)) return r;
-  const given = got.filter((g) => g.startsWith('+')).length;
-  for (let i = 0; i < ENDLESS.length; i++) {
-    const e = ENDLESS[(given + i) % ENDLESS.length];
-    if (owned(e.building) < e.cap) return { id: `+${e.building}`, line: e.line, items: [[e.building, e.n]] };
-  }
-  return { id: '+coins', line: 'reward_coins', coins: ENDLESS_COINS };
+  const more = got.filter((g) => g.startsWith('+') && !g.startsWith('+lvl:')).length;
+  const ups = got.filter((g) => g.startsWith('+lvl:')).length;
+  const building = (): Reward | null => {
+    for (let i = 0; i < ENDLESS.length; i++) {
+      const e = ENDLESS[(more + i) % ENDLESS.length];
+      if (owned(e.building) < e.cap) return { id: `+${e.building}`, line: e.line, items: [[e.building, e.n]] };
+    }
+    return null;
+  };
+  const upgrade = (): Reward | null => {
+    for (let i = 0; i < UPGRADE_ORDER.length; i++) {
+      const b = UPGRADE_ORDER[(ups + i) % UPGRADE_ORDER.length];
+      const n = level(b);
+      if (owned(b) > 0 && n < MAX_LEVEL) {
+        const u = UPGRADES[b]!;
+        return { id: `+lvl:${b}`, line: n + 1 === MAX_LEVEL && u.lastLine ? u.lastLine : u.line, upgrade: b };
+      }
+    }
+    return null;
+  };
+  // every other endless reward is an upgrade, while there is one to give
+  const r = (more + ups) % 2 === 1 ? (upgrade() ?? building()) : (building() ?? upgrade());
+  return r ?? { id: '+coins', line: 'reward_coins', coins: ENDLESS_COINS };
 }

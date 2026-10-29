@@ -34,7 +34,11 @@ export type BuildingId =
   | 'saucer'
   | 'wifi'
   | 'transmitter'
-  | 'radar';
+  | 'radar'
+  | 'picnic'
+  | 'icecream'
+  | 'swings'
+  | 'station';
 
 /**
  * What a building does in the power network (DESIGN.md «Power»): buildings closer than
@@ -53,6 +57,8 @@ export interface PowerCard {
   light?: number;
   /** Joins what stands this close instead of REACH (a castle's machine is big). */
   reach?: number;
+  /** Its links are crackling arcs instead of sagging wires (the power station: its reach is long). */
+  arcs?: boolean;
 }
 
 export interface BuildingCard {
@@ -105,6 +111,10 @@ export interface BuildingCard {
   jump?: boolean;
   /** A radar: while it works, the map opens this far around it (blocks). */
   scan?: { radius: number };
+  /** Food (a picnic, an ice-cream kiosk): next to it the party sits down to eat and their hearts fill; `fast` = seconds of fast running after. */
+  food?: { fast?: number };
+  /** Swings: a hero standing still on a seat swings, and the lightning charges faster. */
+  swing?: boolean;
   power?: PowerCard;
 }
 
@@ -436,6 +446,70 @@ export const BUILDINGS: Record<BuildingId, BuildingCard> = {
     scan: { radius: 48 },
     power: { take: 2 },
   },
+  // stage D2 «Їжа і решта»
+  picnic: {
+    id: 'picnic',
+    name: 'Пікнік',
+    size: [3, 3],
+    solid: [],
+    count: 0,
+    sprite: 'b-picnic',
+    firstLine: 'first_picnic',
+    rewardLine: 'reward_picnic',
+    food: {},
+  },
+  icecream: {
+    id: 'icecream',
+    name: 'Кіоск з морозивом',
+    // the kiosk along the back row; two stools and the cat's spot at its counter in front
+    size: [3, 2],
+    solid: [
+      { dx: 0, dz: 0, h: 2 },
+      { dx: 1, dz: 0, h: 2 },
+      { dx: 2, dz: 0, h: 2 },
+    ],
+    count: 0,
+    sprite: 'b-icecream',
+    firstLine: 'first_icecream',
+    rewardLine: 'reward_icecream',
+    food: { fast: 20 },
+    power: { take: 1 },
+  },
+  swings: {
+    id: 'swings',
+    name: 'Гойдалка',
+    size: [4, 1],
+    solid: [
+      { dx: 0, dz: 0, h: 3 },
+      { dx: 3, dz: 0, h: 3 },
+    ],
+    count: 0,
+    sprite: 'b-swings',
+    firstLine: 'first_swings',
+    rewardLine: 'reward_swings',
+    swing: true,
+  },
+  station: {
+    id: 'station',
+    name: 'Електростанція',
+    size: [3, 3],
+    solid: [
+      { dx: 0, dz: 0, h: 3 },
+      { dx: 1, dz: 0, h: 3 },
+      { dx: 2, dz: 0, h: 3 },
+      { dx: 0, dz: 1, h: 3 },
+      { dx: 1, dz: 1, h: 3 },
+      { dx: 2, dz: 1, h: 3 },
+      { dx: 0, dz: 2, h: 3 },
+      { dx: 1, dz: 2, h: 3 },
+      { dx: 2, dz: 2, h: 3 },
+    ],
+    count: 0,
+    sprite: 'b-station',
+    firstLine: 'first_station',
+    rewardLine: 'reward_station',
+    power: { give: 20, reach: 24, arcs: true },
+  },
 };
 
 /** A lighthouse by the water (world/landmarks.ts) in the power network. */
@@ -469,6 +543,10 @@ export const KIT_ORDER: BuildingId[] = [
   'wifi',
   'transmitter',
   'radar',
+  'picnic',
+  'icecream',
+  'swings',
+  'station',
 ];
 
 /** The boombox's music (the smallest speaker): how far it carries and how close monsters dance. */

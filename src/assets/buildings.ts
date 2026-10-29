@@ -17,6 +17,8 @@ import { createBigSpeaker, createDanceFloor, createDiscoBall, createDjConsole, c
 import { createCarousel, createGarland, createSearchlight, createTrampoline } from './prizes';
 import { createGolem, createRobohelper, createSaucer, createTreehouse } from './castlePrizes';
 import { createRadar, createTransmitter, createWifi } from './signal';
+import { createIcecream, createPicnic, createSwings } from './food';
+import { createStation } from './station';
 
 /** How a building's power network is doing (systems/power.ts), for its lights and motion. */
 export interface PowerView {
@@ -63,6 +65,12 @@ export interface BuildingTick {
   lift?: number;
   /** A night show on this building: seconds since it started (it lasts `SHOW_LENGTH`); undefined = none. */
   show?: number;
+  /** Swings: each seat's angle (radians, 0 = hanging straight down, + = forward). */
+  swing?: number[];
+  /** Food: seconds since the party sat down to eat here (undefined: nobody is eating). */
+  eat?: number;
+  /** Its upgrade level, 0..3 (the big speaker turns gold at 3). */
+  level?: number;
 }
 
 export { SHOW_LENGTH } from './buildingParts';
@@ -74,7 +82,7 @@ export interface BuildingModel {
   socket?: THREE.Vector3;
   /** A tesla tower's ball, where its lightning starts (model space). */
   tip?: THREE.Vector3;
-  /** A carousel's seats: riders are put at their world positions every frame. */
+  /** Seats: riders (a carousel, swings) or eaters (a picnic, a kiosk) are put at their world positions every frame. */
   seats?: THREE.Object3D[];
 }
 
@@ -130,6 +138,14 @@ export function createBuilding(skin: Skin, id: BuildingId): BuildingModel {
       return createTransmitter(skin);
     case 'radar':
       return createRadar(skin);
+    case 'picnic':
+      return createPicnic(skin);
+    case 'icecream':
+      return createIcecream(skin);
+    case 'swings':
+      return createSwings(skin);
+    case 'station':
+      return createStation(skin);
     default:
       return createLanternGhost();
   }

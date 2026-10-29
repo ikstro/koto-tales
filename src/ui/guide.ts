@@ -11,7 +11,7 @@ import { SPRITES, type SpriteName } from './hudSprites';
  * Captions are short and only for parents — the pictures and the voice do the explaining.
  */
 
-export type GuideCard = 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'portal' | 'sleep' | 'power' | 'lighthouse' | 'disco' | 'defense' | 'village' | 'castle' | 'signal' | 'boss';
+export type GuideCard = 'move' | 'bow' | 'jump' | 'bolt' | 'build' | 'heal' | 'map' | 'portal' | 'sleep' | 'power' | 'lighthouse' | 'disco' | 'defense' | 'village' | 'castle' | 'signal' | 'food' | 'station' | 'boss';
 
 interface CardSpec {
   id: GuideCard;
@@ -96,6 +96,18 @@ const CARDS: CardSpec[] = [
     art: (a) => {
       a.put('bow', -60, 0, 1, 'big-sh');
       a.put('mark-monster', 80, -8, 1.5);
+    },
+  },
+  {
+    id: 'jump',
+    line: 'guide_jump',
+    caption: 'Стрибок',
+    span: 1,
+    art: (a) => {
+      // the spring piece → the hero up in the air (no shadow under it: it is off the ground)
+      a.put('jump', -100, 0, 1, 'tile6-sh');
+      step(a, 0, -14);
+      a.put('hero-lyosha', 100, -44, 1.05, null);
     },
   },
   {
@@ -256,6 +268,30 @@ const CARDS: CardSpec[] = [
       a.put('b-transmitter', 60, 4, 1.15);
       step(a, 150, -14);
       a.put('map-transmitter', 230, -8, 1.3);
+    },
+  },
+  {
+    id: 'food',
+    line: 'guide_food',
+    caption: 'Їжа',
+    span: 1,
+    art: (a) => {
+      // the picnic → its apple piece → full hearts
+      a.put('b-picnic', -110, 4, 1.15);
+      a.put('food', 10, -8, 1, 'tile6-sh');
+      a.put('heart', 115, -12, 1.3);
+    },
+  },
+  {
+    id: 'station',
+    line: 'guide_station',
+    caption: 'Електростанція',
+    span: 1,
+    art: (a) => {
+      // the station lights lamps far around it
+      a.put('b-station', -95, 4, 1.25);
+      step(a, 10, -14);
+      a.put('b-lamp', 115, 4, 1.35);
     },
   },
   {

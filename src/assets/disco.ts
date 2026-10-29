@@ -84,6 +84,8 @@ const beatFrac = (beat: number): number => beat - Math.floor(beat);
 
 const DUST = 4;
 const LEDS = 5;
+/** The cabinet at upgrade level 3: metallic mustard. */
+const GOLD = new THREE.Color('#e8b032');
 
 /** A tall charcoal tower speaker: bass, mid and tweeter cones that thump, a colour-cycling LED strip, dust hopping on top. */
 export function createBigSpeaker(skin: Skin): BuildingModel {
@@ -94,7 +96,6 @@ export function createBigSpeaker(skin: Skin): BuildingModel {
   const kit = new Kit('bigspeaker', skin);
   const p = kit.part('cabinet', body);
   p.box([0.98, 0.1, 0.8], [0, 0.05, 0], DARK);
-  p.box([0.86, 2.4, 0.7], [0, 1.3, 0], CHARCOAL);
   p.box([0.74, 2.2, 0.03], [0, 1.3, 0.355], '#3a3532');
   p.box([0.5, 0.8, 0.02], [0, 1.3, -0.36], DARK);
   // mustard trim: the cap on top, a band under it and the corner strips
@@ -102,6 +103,16 @@ export function createBigSpeaker(skin: Skin): BuildingModel {
   p.box([0.88, 0.04, 0.72], [0, 2.48, 0], '#c98f1c');
   for (const sx of [-1, 1]) p.box([0.04, 2.3, 0.04], [sx * 0.44, 1.3, 0.34], MUSTARD);
   p.done();
+  // the cabinet's shell has its own material: at the top upgrade level it turns gold in place
+  // (a colour and shine change on a material drawn from the start, never a new shader)
+  const shellMat = (skin.partMaterial(CHARCOAL) as THREE.MeshStandardMaterial).clone();
+  shellMat.userData.own = true;
+  const shell = new THREE.Mesh(new THREE.BoxGeometry(0.86, 2.4, 0.7), shellMat);
+  shell.position.set(0, 1.3, 0);
+  shell.castShadow = true;
+  body.add(shell);
+  const plain = { c: shellMat.color.clone(), metal: shellMat.metalness ?? 0, rough: shellMat.roughness ?? 1 };
+  let gold = false;
 
   const mat = kit.vertexColourMaterial(false);
   const cones: { g: THREE.Mesh; k: number }[] = [];
@@ -153,6 +164,14 @@ export function createBigSpeaker(skin: Skin): BuildingModel {
       const pw = k.power;
       const on = !!pw && pw.on;
       bulb.update(t, pw);
+      if ((k.level ?? 0) >= 3 !== gold) {
+        gold = !gold;
+        shellMat.color.copy(gold ? GOLD : plain.c);
+        if ('metalness' in shellMat) {
+          shellMat.metalness = gold ? 0.75 : plain.metal;
+          shellMat.roughness = gold ? 0.3 : plain.rough;
+        }
+      }
       const live = on && k.playing;
       const frac = beatFrac(k.beat);
       const thump = live ? Math.exp(-frac * 7) : 0;

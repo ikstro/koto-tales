@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { PowerView } from '../assets/buildings';
 import type { PowerCard } from '../content/buildings';
-import { networks, reachOf, tick, wires, type NetState, type PowerNode } from '../content/power';
+import { networks, reachOf, reachUpOf, tick, wires, type NetState, type PowerNode } from '../content/power';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
 import { voice } from '../voice/voice';
@@ -10,8 +10,9 @@ import { voice } from '../voice/voice';
  * The power networks (DESIGN.md «Power», rules in content/power.ts). Every powered thing
  * in the world is a site: the kit's buildings (systems/kit.ts) and the lighthouses
  * near the hero (systems/landmarks.ts). Sites closer than REACH join by themselves;
- * the wires sag between them and sparks run along the ones that work. Four times a
- * second each network is balanced; its sites read the result from their `view`.
+ * the wires sag between them and sparks run along the ones that work. The power station's
+ * links are crackling arcs instead (its reach is long). Four times a second each network is
+ * balanced; its sites read the result from their `view`.
  */
 
 export interface PowerSite {
@@ -34,6 +35,10 @@ const TICK = 0.25;
 const MAX_SEGS = 640;
 const SEGS = 8;
 const MAX_SPARKS = 80;
+const ARC_SEGS = 9;
+const MAX_ARCS = 32;
+/** How often an arc finds a new crooked path (seconds). */
+const ARC_EVERY = 0.07;
 const LOW_EVERY = 60_000;
 
 const sites = new Map<string, PowerSite>();
@@ -41,17 +46,19 @@ let order: PowerSite[] = [];
 let nodes: PowerNode[] = [];
 let nets: number[][] = [];
 let states: NetState[] = [];
-/** Wires as socket pairs, with the network each belongs to. */
-let links: { a: THREE.Vector3; b: THREE.Vector3; net: number }[] = [];
+/** Wires as socket pairs, with the network each belongs to (`arc`: drawn as a crackling arc). */
+let links: { a: THREE.Vector3; b: THREE.Vector3; net: number; arc: boolean }[] = [];
 let dirty = true;
 let tickT = 0;
 let t = 0;
 let lastLow = -1e9;
 let lastSolar = -1e9;
+let arcT = 0;
 
 let wireMesh: THREE.InstancedMesh | null = null;
 let sparkMesh: THREE.InstancedMesh | null = null;
 let previewMesh: THREE.InstancedMesh | null = null;
+let arcMesh: THREE.InstancedMesh | null = null;
 
 export function addSite(s: PowerSite): void {
   sites.set(s.key, s);
@@ -74,6 +81,11 @@ export function initPower(ctx: Ctx): void {
   sparkMesh.count = 0;
   sparkMesh.frustumCulled = false;
   ctx.scene.add(sparkMesh);
+  arcMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.09, 0.09, 1), ctx.skin.partMaterial('#bff4ff', { emissive: true }), MAX_ARCS * ARC_SEGS);
+  arcMesh.name = 'arcs';
+  arcMesh.count = 0;
+  arcMesh.frustumCulled = false;
+  ctx.scene.add(arcMesh);
   const ghost = new THREE.MeshBasicMaterial({ color: 0xfff1c8, transparent: true, opacity: 0.55, depthWrite: false });
   previewMesh = new THREE.InstancedMesh(seg, ghost, SEGS);
   previewMesh.count = 0;
@@ -87,7 +99,8 @@ export function initPower(ctx: Ctx): void {
       return {
         sites: order.map((s) => ({ key: s.key, on: s.view.on, low: s.view.low, linked: s.view.linked, charge: +s.view.charge.toFixed(2) })),
         nets: states.map((s) => ({ ...s, give: +s.give.toFixed(2) })),
-        wires: links.length,
+        wires: links.filter((l) => !l.arc).length,
+        arcs: links.filter((l) => l.arc).length,
         zones: lightZones(),
       };
     },
@@ -109,17 +122,37 @@ const scl = new THREE.Vector3();
 const FWD = new THREE.Vector3(0, 0, 1);
 const dir = new THREE.Vector3();
 
+/** One segment from pa to pb into `mesh` at instance `i`. */
+function laySeg(mesh: THREE.InstancedMesh, i: number, a: THREE.Vector3, b: THREE.Vector3): void {
+  mid.addVectors(a, b).multiplyScalar(0.5);
+  dir.subVectors(b, a);
+  const len = dir.length();
+  q.setFromUnitVectors(FWD, dir.divideScalar(len || 1));
+  scl.set(1, 1, len + 0.03);
+  mesh.setMatrixAt(i, m4.compose(mid, q, scl));
+}
+
+/** Lays one crooked arc into `mesh` from instance `i` on (a new path each call); returns the next free instance. */
+function layArc(mesh: THREE.InstancedMesh, i: number, a: THREE.Vector3, b: THREE.Vector3): number {
+  const lift = Math.min(1.6, 0.06 * a.distanceTo(b));
+  const jag = () => (Math.random() - 0.5) * 0.7;
+  pa.copy(a);
+  for (let s = 1; s <= ARC_SEGS && i < mesh.instanceMatrix.count; s++) {
+    const k = s / ARC_SEGS;
+    pb.lerpVectors(a, b, k);
+    if (s < ARC_SEGS) pb.set(pb.x + jag(), pb.y + lift * 4 * k * (1 - k) + jag(), pb.z + jag());
+    laySeg(mesh, i++, pa, pb);
+    pa.copy(pb);
+  }
+  return i;
+}
+
 /** Lays one wire into `mesh` from instance `i` on; returns the next free instance. */
 function layWire(mesh: THREE.InstancedMesh, i: number, a: THREE.Vector3, b: THREE.Vector3): number {
   for (let s = 0; s < SEGS && i < mesh.instanceMatrix.count; s++) {
     along(a, b, s / SEGS, pa);
     along(a, b, (s + 1) / SEGS, pb);
-    mid.addVectors(pa, pb).multiplyScalar(0.5);
-    dir.subVectors(pb, pa);
-    const len = dir.length();
-    q.setFromUnitVectors(FWD, dir.divideScalar(len || 1));
-    scl.set(1, 1, len + 0.03);
-    mesh.setMatrixAt(i++, m4.compose(mid, q, scl));
+    laySeg(mesh, i++, pa, pb);
   }
   return i;
 }
@@ -132,11 +165,11 @@ function rebuild(): void {
   states = nets.map(() => ({ give: 0, take: 0, on: false, low: false }));
   links = [];
   nets.forEach((net, n) => {
-    for (const [i, j] of wires(nodes, net)) links.push({ a: order[i].socket, b: order[j].socket, net: n });
+    for (const [i, j] of wires(nodes, net)) links.push({ a: order[i].socket, b: order[j].socket, net: n, arc: !!(order[i].card.arcs || order[j].card.arcs) });
   });
   if (!wireMesh) return;
   let i = 0;
-  for (const l of links) i = layWire(wireMesh, i, l.a, l.b);
+  for (const l of links) if (!l.arc) i = layWire(wireMesh, i, l.a, l.b);
   wireMesh.count = i;
   wireMesh.instanceMatrix.needsUpdate = true;
   tickT = 0;
@@ -213,7 +246,7 @@ export function previewWires(from: THREE.Vector3 | null): boolean {
   if (from) {
     for (const s of sites.values()) {
       const d = Math.hypot(s.socket.x - from.x, s.socket.z - from.z);
-      if (d <= reachOf(s.card) && Math.abs(s.socket.y - from.y) <= 6 && d < bd) {
+      if (d <= reachOf(s.card) && Math.abs(s.socket.y - from.y) <= reachUpOf(s.card) && d < bd) {
         bd = d;
         best = s;
       }
@@ -237,11 +270,26 @@ export function updatePower(ctx: Ctx, dt: number): void {
     let k = 0;
     for (let i = 0; i < links.length && k < MAX_SPARKS; i++) {
       const l = links[i];
-      if (!states[l.net]?.on) continue;
+      if (l.arc || !states[l.net]?.on) continue;
       along(l.a, l.b, (t * 0.7 + i * 0.37) % 1, pa);
       sparkMesh.setMatrixAt(k++, m4.makeTranslation(pa.x, pa.y, pa.z));
     }
     sparkMesh.count = k;
     sparkMesh.instanceMatrix.needsUpdate = true;
+  }
+  // the station's arcs crackle on a working network: a new crooked path every few frames, now and then one goes out
+  arcT -= dt;
+  if (arcMesh && arcT <= 0) {
+    arcT = ARC_EVERY;
+    let k = 0;
+    let n = 0;
+    for (const l of links) {
+      if (!l.arc || !states[l.net]?.on || n >= MAX_ARCS) continue;
+      n++;
+      if (Math.random() < 0.18) continue;
+      k = layArc(arcMesh, k, l.a, l.b);
+    }
+    arcMesh.count = k;
+    arcMesh.instanceMatrix.needsUpdate = true;
   }
 }

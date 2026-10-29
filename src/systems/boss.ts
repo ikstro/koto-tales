@@ -10,18 +10,20 @@
 import * as THREE from 'three';
 import { SEA_LEVEL, type CharacterModel } from '../contracts';
 import { turnTowards, yawOf, type Hero } from '../actors/entities';
+import { placeOnGround } from '../actors/physics';
 import { Kit } from '../assets/parts/kit';
 import type { LineId } from '../content/lines';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
 import { setMapMarker } from '../ui/map';
+import { music } from '../voice/music';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { B } from '../world/blocks';
 import { hash2 } from '../world/rng';
-import { BOSS, BossBrain, bossMaxHp, bossScale, pickSite, shouldReturn, type HitResult } from './bossLogic';
+import { BOSS, BossBrain, biteSpot, bossMaxHp, bossScale, pickSite, shouldReturn, trapped, type GroundAt, type HitResult } from './bossLogic';
 import { hurtHero } from './combat';
-import { pick, pickedByBoss, selectedBuilding } from './kit';
+import { pick, pickedByBoss, playingSpeakers, selectedBuilding } from './kit';
 import { dropCoins } from './pickups';
 import { freshBoss } from './save';
 import { BossHints } from './pacing';
@@ -200,9 +202,16 @@ export class Boss {
       r.position.x += Math.sin(this.flinch * 90) * k;
       r.position.y += Math.abs(Math.sin(this.flinch * 70)) * k * 0.5;
     }
+    // dancing to the music: it rocks side to side and bobs on the beat, its jaw snapping along
+    const dancing = this.brain.dance > 0;
+    const beat = dancing ? Math.sin(music.beat() * Math.PI) : 0;
+    if (dancing) {
+      r.rotation.z = beat * 0.08;
+      r.position.y += Math.abs(beat) * 0.3 * this.scale;
+    } else r.rotation.z = 0;
     // a big beast takes long, slow steps
     this.model.update(dt, this.speed * 1.4);
-    const open = this.brain.mouthOpen ? 1 : this.chomp > 0 ? 0.45 : 0;
+    const open = this.brain.mouthOpen ? 1 : this.chomp > 0 ? 0.45 : dancing ? Math.abs(beat) * 0.3 : 0;
     this.jawK += (open - this.jawK) * (1 - Math.exp(-dt * (open > this.jawK ? 12 : 6)));
     if (dt === 0) this.jawK = open;
     if (this.jaw) this.jaw.rotation.x = this.jawK * 1.2;
@@ -278,6 +287,8 @@ const session = {
   inZone: false,
   spotSaid: false,
   farSaid: false,
+  /** Пупся laughed at its dance this fight. */
+  danceSaid: false,
   /** Пупся's hints and how often they repeat (systems/pacing.ts). */
   hints: new BossHints(),
   /** Game time when the boss card pops up (the first visit of this save), or null. */
@@ -345,7 +356,7 @@ function zoneColumns(site: [number, number]): [number, number][] {
   return cols.map(([x, z]) => [x, z]);
 }
 
-/** Grass → bare grey cobble (the skin's grey stone), with a few pits 1–2 deep; a ragged edge. */
+/** Grass → bare grey cobble (the skin's grey stone), with a few pits one step deep; a ragged edge. */
 function eatColumn(ctx: Ctx, site: [number, number], x: number, z: number): void {
   const { world } = ctx;
   const d = Math.hypot(x - site[0], z - site[1]);
@@ -362,10 +373,44 @@ function eatColumn(ctx: Ctx, site: [number, number], x: number, z: number): void
   if (!EATABLE.has(world.getBlock(x, g - 1, z))) return;
   const r = ((h >>> 8) & 1023) / 1023;
   if (d < edge - 3 && d > 5 && r < 0.07) {
-    const depth = r < 0.025 ? 2 : 1;
-    for (let i = 1; i <= depth; i++) world.setBlock(x, g - i, z, B.AIR);
-    world.setBlock(x, g - depth - 1, z, B.COBBLE);
+    world.setBlock(x, g - 1, z, B.AIR);
+    world.setBlock(x, g - 2, z, B.COBBLE);
   } else world.setBlock(x, g - 1, z, B.COBBLE);
+}
+
+/** The world's ground, remembered for one pass (the trap tests ask the same columns many times). */
+function groundCache(ctx: Ctx): GroundAt {
+  const known = new Map<string, number>();
+  return (x, z) => {
+    const k = `${x},${z}`;
+    let g = known.get(k);
+    if (g === undefined) known.set(k, (g = ctx.world.groundHeight(x, z)));
+    return g;
+  };
+}
+const waterAt = (ctx: Ctx, ground: GroundAt) => (x: number, z: number) => ctx.world.isWater(x, ground(x, z), z);
+
+/**
+ * Fills any hole a hero could not climb out of (old saves: pits two deep, bites that went down
+ * and down), a block at a time with the wasteland's cobble, until every column has a way out.
+ */
+function fillTraps(ctx: Ctx, site: [number, number]): void {
+  const cols = zoneColumns(site);
+  const raised = new Map<string, number>();
+  const base = groundCache(ctx);
+  const ground: GroundAt = (x, z) => base(x, z) + (raised.get(`${x},${z}`) ?? 0);
+  const open = waterAt(ctx, base);
+  const touched: [number, number][] = [];
+  for (let pass = 0; pass < 4; pass++) {
+    const shut = cols.filter(([x, z]) => trapped(ground, x, z, 5, open));
+    if (!shut.length) break;
+    for (const [x, z] of shut) {
+      ctx.world.setBlock(x, ground(x, z), z, B.COBBLE);
+      raised.set(`${x},${z}`, (raised.get(`${x},${z}`) ?? 0) + 1);
+      touched.push([x, z]);
+    }
+  }
+  if (touched.length) groundChanged(touched);
 }
 
 /** The map redraws the chunks whose ground changed. */
@@ -383,6 +428,7 @@ function eatNow(ctx: Ctx, site: [number, number]): void {
   const cols = zoneColumns(site);
   for (const [x, z] of cols) eatColumn(ctx, site, x, z);
   groundChanged(cols);
+  fillTraps(ctx, site);
 }
 
 /** Eaten (or bitten, or dug) blocks of a lair, nearest the centre first. */
@@ -450,10 +496,11 @@ function spawn(ctx: Ctx, atStart: boolean): void {
     if (atStart) eatNow(ctx, site);
     else eatQueue = { cols: zoneColumns(site), i: 0, site };
     s.eatenAt = [site[0], site[1]];
-  }
+  } else if (atStart) fillTraps(ctx, site);
   boss = new Boss(ctx, s.level, site, brain);
   ctx.boss = boss;
   session.spotSaid = false;
+  session.danceSaid = false;
   session.hints.newFight();
   setMapMarker('boss', { pos: boss.pos, icon: 'boss', pointer: true, zoneRadius: boss.zoneRadius });
 }
@@ -534,8 +581,12 @@ export function updateBoss(ctx: Ctx, dt: number): void {
   const far = playerD > 110;
   b.model.root.visible = !far;
 
-  // the rules: mouth, stomp
-  for (const e of brain.step(dt, stompD / b.scale)) {
+  // music whose dance circle reaches its body sets it dancing for a while
+  const reach = 3 * b.scale;
+  const heard = active && !far && playingSpeakers().some((sp) => Math.hypot(sp.centre.x - b.pos.x, sp.centre.z - b.pos.z) < sp.dance + reach);
+
+  // the rules: mouth, stomp, the dance
+  for (const e of brain.step(dt, stompD / b.scale, BOSS.stompRange, heard)) {
     if (e === 'mouth-open') {
       b.flare = 1;
       if (Math.random() < 0.35 && playerD < 40) {
@@ -551,12 +602,27 @@ export function updateBoss(ctx: Ctx, dt: number): void {
       sfx.play('rumble', { volume: 0.35, pitch: 1.4 });
       if (session.hints.stomp()) voice.say('pupsia_boss_stomp', { priority: 7, interrupt: true });
     } else if (e === 'stomp') stomp(ctx, b);
+    else if (e === 'dance') {
+      if (!session.danceSaid && playerD < 40) {
+        session.danceSaid = true;
+        voice.say('boss_dance', { priority: 7, interrupt: true });
+      }
+    } else if (e === 'dance-end') {
+      // it shakes the music off with a roar and gets back to work
+      b.flare = 1;
+      if (playerD < 40) {
+        voice.say('boss_roar', { priority: 2 });
+        sfx.play('rumble', { volume: 0.6 });
+      }
+    }
   }
 
   // roaming inside the zone; facing a hero who comes close
-  const busy = brain.mouthOpen || brain.stompWarn > 0;
+  const busy = brain.mouthOpen || brain.stompWarn > 0 || brain.dance > 0;
   let want = 0;
-  if (near && nearD < BOSS.sight * b.scale) {
+  if (brain.dance > 0) {
+    // dancing on the spot
+  } else if (near && nearD < BOSS.sight * b.scale) {
     b.yaw = turnTowards(b.yaw, yawOf(near.pos.x - b.pos.x, near.pos.z - b.pos.z), dt * 1.1);
   } else if (!busy) {
     b.wanderT -= dt;
@@ -662,10 +728,13 @@ function bite(ctx: Ctx, b: Boss): void {
   const s = ctx.save.boss;
   if ((s.bites ?? 0) >= BOSS.bitesPerLevel * b.level) return;
   const p = b.toWorld(0, 0, BITE_AT, tmp);
-  const x = Math.floor(p.x);
-  const z = Math.floor(p.z);
+  const ground = groundCache(ctx);
+  // never a shaft: if the spot is already low, it bites a higher neighbour (the crater grows wider)
+  const spot = biteSpot(ground, Math.floor(p.x), Math.floor(p.z), waterAt(ctx, ground));
+  if (!spot) return;
+  const [x, z] = spot;
   if (!b.inZone(x + 0.5, z + 0.5, -1)) return;
-  const g = ctx.world.groundHeight(x, z);
+  const g = ground(x, z);
   if (g <= 3 || !BITABLE.has(ctx.world.getBlock(x, g - 1, z))) return;
   ctx.world.setBlock(x, g - 1, z, B.AIR);
   s.bites = (s.bites ?? 0) + 1;
@@ -922,7 +991,10 @@ function updateEating(ctx: Ctx): void {
     touched.push([x, z]);
   }
   groundChanged(touched);
-  if (e.i >= e.cols.length) eatQueue = null;
+  if (e.i >= e.cols.length) {
+    eatQueue = null;
+    fillTraps(ctx, e.site);
+  }
 }
 
 // ─── for automated checks and screenshots ───────────────────────────────────
@@ -943,6 +1015,8 @@ function exposeForChecks(ctx: Ctx): void {
         lanterns: b?.brain.lanterns.length ?? 0,
         mouthOpen: b?.brain.mouthOpen ?? false,
         stompWarn: b?.brain.stompWarn ?? 0,
+        dance: b ? +b.brain.dance.toFixed(1) : 0,
+        danceRest: b ? +b.brain.danceRest.toFixed(1) : 0,
         defeatedDay: s.defeatedDay,
         day: ctx.save.day,
         hearts: ctx.save.inv.eater_heart ?? 0,
@@ -996,6 +1070,34 @@ function exposeForChecks(ctx: Ctx): void {
     },
     /** Pretend days went by (the return check runs every frame). */
     days: (n = 1) => (ctx.save.day += n),
+    /** Where the three heroes stand. */
+    get party() {
+      return [...ctx.heroes.values()].map((h) => h.pos.toArray().map((v) => +v.toFixed(2)));
+    },
+    /** The party `d` blocks from the boss, on the side towards its lair's centre. */
+    near: (d = 10) => {
+      const b = boss;
+      if (!b) return null;
+      const a = Math.atan2(b.site.x - b.pos.x, b.site.z - b.pos.z) || 0;
+      [...ctx.heroes.values()].forEach((h, i) => {
+        placeOnGround(ctx.world, h.body, b.pos.x + Math.sin(a) * d + i * 0.9, b.pos.z + Math.cos(a) * d);
+        h.syncModel(0);
+      });
+      events.emit('hero:teleport', {});
+      return ctx.player.pos.toArray().map((v) => +v.toFixed(1));
+    },
+    /** Digs a 3×3 hole `depth` deep under the party (as old saves may have), so a check can jump out. */
+    pit: (depth = 2) => {
+      const x0 = Math.floor(ctx.player.pos.x);
+      const z0 = Math.floor(ctx.player.pos.z);
+      for (let dx = -1; dx <= 1; dx++)
+        for (let dz = -1; dz <= 1; dz++) {
+          const g = ctx.world.groundHeight(x0 + dx, z0 + dz);
+          for (let i = 1; i <= depth; i++) ctx.world.setBlock(x0 + dx, g - i, z0 + dz, B.AIR);
+        }
+      groundChanged([[x0, z0]]);
+      return { feet: ctx.world.groundHeight(x0, z0), trapped: trapped(groundCache(ctx), x0, z0) };
+    },
   };
 }
 

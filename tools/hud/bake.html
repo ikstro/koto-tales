@@ -889,6 +889,68 @@ const printPad = (off) => (x, s) => {
 shoot('map-transmitter', roundTile(0.62, C.teal, printPad(false), 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
 shoot('map-transmitter-off', roundTile(0.62, '#6f7f7d', printPad(true), 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
 
+// --- food and the rest (stage D2): the kit's new buildings, the eat pieces, the upgrade stud
+{
+  const PW = { linked: true, on: true, low: false, charge: 0.5, sunYaw: 0.55, sunUp: 0.85 };
+  const still = (o) => { const glows = []; o.traverse((m) => { if (m.isMesh && m.material.blending === THREE.AdditiveBlending) glows.push(m); }); glows.forEach((m) => m.parent.remove(m)); return o; };
+  const run = (id, extra = {}) => { const b = createBuilding(skin, id); b.update(1.2, { beat: 0, playing: false, night: 0, power: PW, ...extra }); still(b.root); return b; };
+  shoot('b-picnic', fittedBox(run('picnic', { eat: 1.0 }).root, 3.4, 2.2, -0.45), 200, 200, { oy: 0.55 });
+  shoot('b-icecream', fittedBox(run('icecream').root, 3.2, 3.4, -0.4), 200, 200, { oy: 1.1 });
+  shoot('b-swings', fittedBox(run('swings', { swing: [0.35, -0.2] }).root, 3.4, 3.0, -0.4), 200, 200, { oy: 1.0 });
+  shoot('b-station', fittedBox(run('station').root, 3.2, 4.2, -0.45), 200, 200, { oy: 1.4 });
+}
+/** An apple: a round red fruit with a cream shine, a brown stem and a green leaf (the «eat» piece). */
+const printApple = (x, s) => {
+  const k = s / 512; x.save(); x.scale(k, k); x.lineJoin = 'round'; x.lineCap = 'round';
+  x.fillStyle = '#d93a2b';
+  x.beginPath(); x.arc(200, 290, 118, 0, Math.PI * 2); x.arc(312, 290, 118, 0, Math.PI * 2); x.fill();
+  x.beginPath(); x.ellipse(256, 340, 150, 110, 0, 0, Math.PI * 2); x.fill();
+  x.fillStyle = '#b02a1f'; x.beginPath(); x.ellipse(256, 196, 34, 18, 0, 0, Math.PI * 2); x.fill();
+  x.fillStyle = 'rgba(255,227,163,0.85)'; x.beginPath(); x.ellipse(176, 250, 26, 44, -0.5, 0, Math.PI * 2); x.fill();
+  x.strokeStyle = INK; x.lineWidth = 26; x.beginPath(); x.moveTo(256, 196); x.quadraticCurveTo(250, 140, 280, 104); x.stroke();
+  x.fillStyle = C.green; x.beginPath(); x.moveTo(282, 150); x.quadraticCurveTo(340, 80, 410, 118); x.quadraticCurveTo(350, 180, 282, 150); x.fill();
+  x.restore();
+};
+/** An ice-cream cone: a waffle cone with a criss-cross, a pink and a cream scoop, a cherry. */
+const printCone = (x, s) => {
+  const k = s / 512; x.save(); x.scale(k, k); x.lineJoin = 'round'; x.lineCap = 'round';
+  x.fillStyle = '#d9a35b'; x.beginPath(); x.moveTo(166, 262); x.lineTo(346, 262); x.lineTo(256, 474); x.closePath(); x.fill();
+  x.save(); x.clip(); x.strokeStyle = '#a8702f'; x.lineWidth = 12;
+  for (let i = -4; i <= 4; i++) { x.beginPath(); x.moveTo(256 + i * 44 - 120, 262); x.lineTo(256 + i * 44 + 120, 480); x.stroke(); x.beginPath(); x.moveTo(256 + i * 44 + 120, 262); x.lineTo(256 + i * 44 - 120, 480); x.stroke(); }
+  x.restore();
+  x.fillStyle = '#ee6a82'; x.beginPath(); x.arc(256, 248, 104, Math.PI, 0); x.fill();
+  for (let i = 0; i < 5; i++) { x.beginPath(); x.arc(170 + i * 43, 256, 24, 0, Math.PI); x.fill(); }
+  x.fillStyle = CREAM; x.beginPath(); x.arc(256, 164, 78, 0, Math.PI * 2); x.fill();
+  x.fillStyle = 'rgba(255,255,255,0.5)'; x.beginPath(); x.ellipse(222, 140, 18, 28, -0.5, 0, Math.PI * 2); x.fill();
+  x.fillStyle = C.coral; x.beginPath(); x.arc(262, 78, 30, 0, Math.PI * 2); x.fill();
+  x.strokeStyle = INK; x.lineWidth = 10; x.beginPath(); x.moveTo(266, 50); x.quadraticCurveTo(276, 26, 300, 18); x.stroke();
+  x.restore();
+};
+shoot('food', roundTile(1, C.mustard, printApple, 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('icecream', roundTile(1, C.navy, printCone, 0.6), 130, 130, { shadow: 'tile6-sh' });
+/** One upgrade level: a small round gold brick with its stud (stacked on a kit cell, one per level). */
+function levelStud() {
+  const g = new THREE.Group(); const m = M(C.gold);
+  g.add(new THREE.Mesh(roundDisc(0.36, 0.26, 0.06), m));
+  const s = new THREE.Mesh(roundDisc(0.22, 0.12, 0.035), m); s.position.y = 0.25; g.add(s);
+  return g;
+}
+shoot('lvl', levelStud(), 44, 44, { oy: 0.12, dpr: LO });
+
+/** The jump piece: a cream arrow up over a coiled spring between two bars. */
+const printSpring = (x, s) => {
+  const k = s / 512; x.save(); x.scale(k, k); x.lineJoin = 'round'; x.lineCap = 'round';
+  x.fillStyle = CREAM; x.strokeStyle = CREAM;
+  x.beginPath(); x.moveTo(256, 62); x.lineTo(372, 182); x.lineTo(304, 182); x.lineTo(304, 236); x.lineTo(208, 236); x.lineTo(208, 182); x.lineTo(140, 182); x.closePath();
+  x.lineWidth = 20; x.fill(); x.stroke();
+  x.lineWidth = 34; x.beginPath(); x.moveTo(156, 286); x.lineTo(356, 286); x.moveTo(156, 452); x.lineTo(356, 452); x.stroke();
+  x.lineWidth = 26; x.beginPath(); x.moveTo(256, 286);
+  [[338, 314], [174, 347], [338, 380], [174, 413], [256, 452]].forEach(([a, b]) => x.lineTo(a, b));
+  x.stroke();
+  x.restore();
+};
+shoot('jump', roundTile(1, C.green, printSpring, 0.6), 130, 130, { shadow: 'tile6-sh' });
+
 // --- the castles (systems/castles.ts): map marks, album stickers, the elves' seed, the chest piece
 {
   const RACE = { elves: '#3fa142', gnomes: C.coral, robots: C.teal, aliens: '#8f6fc8' };

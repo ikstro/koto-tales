@@ -120,14 +120,14 @@ export function markShadows(root: THREE.Object3D): void {
   });
 }
 
-/** A regular octagon standing on `y0`, `s` across the flats (four boxes, the toy way). */
-export function octagon(p: PartBuilder, s: number, h: number, y0: number, paint: Paint): void {
+/** A regular octagon standing on `y0` at (x, z), `s` across the flats (four boxes, the toy way). */
+export function octagon(p: PartBuilder, s: number, h: number, y0: number, paint: Paint, x = 0, z = 0): void {
   const t = s * 0.4142;
   const y = y0 + h / 2;
-  p.box([s, h, t], [0, y, 0], paint);
-  p.box([t, h, s], [0, y, 0], paint);
-  p.box([s, h, t], [0, y, 0], paint, [0, Math.PI / 4, 0]);
-  p.box([s, h, t], [0, y, 0], paint, [0, -Math.PI / 4, 0]);
+  p.box([s, h, t], [x, y, z], paint);
+  p.box([t, h, s], [x, y, z], paint);
+  p.box([s, h, t], [x, y, z], paint, [0, Math.PI / 4, 0]);
+  p.box([s, h, t], [x, y, z], paint, [0, -Math.PI / 4, 0]);
 }
 
 /** A soft round fade (bright middle, nothing at the edge) for additive pools of light. */

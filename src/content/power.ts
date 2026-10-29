@@ -34,7 +34,10 @@ export interface NetState {
 
 /** How close another socket must be to join this one. */
 export const reachOf = (card: PowerCard) => Math.max(REACH, card.reach ?? 0);
-const near = (a: PowerNode, b: PowerNode) => Math.hypot(a.x - b.x, a.z - b.z) <= Math.max(reachOf(a.card), reachOf(b.card)) && Math.abs(a.y - b.y) <= REACH_UP;
+/** …and how far up or down (a long reach, the power station's, climbs hills too). */
+export const reachUpOf = (card: PowerCard) => ((card.reach ?? 0) > REACH * 2 ? REACH_UP * 2 : REACH_UP);
+const near = (a: PowerNode, b: PowerNode) =>
+  Math.hypot(a.x - b.x, a.z - b.z) <= Math.max(reachOf(a.card), reachOf(b.card)) && Math.abs(a.y - b.y) <= Math.max(reachUpOf(a.card), reachUpOf(b.card));
 
 /** Networks: groups of node indices joined through neighbours. */
 export function networks(nodes: readonly PowerNode[]): number[][] {

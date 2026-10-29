@@ -87,6 +87,28 @@ const recipes: Record<SfxName, (k: K) => void> = {
     hiss(k, 0, 0.28, 0.35, 'bandpass', 700, 2600, 1.2, 0.05);
     tone(k, 420, 0, 0.2, 0.06, 'sine', 900);
   },
+  jump(k) {
+    // a spring: a sine that rises with a quick wobble, and a soft thud of the push
+    tone(k, 120, 0, 0.08, 0.25, 'sine', 70);
+    const o = k.c.createOscillator();
+    const g = k.c.createGain();
+    const lfo = k.c.createOscillator();
+    const lg = k.c.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(240 * k.p, k.t);
+    o.frequency.exponentialRampToValueAtTime(700 * k.p, k.t + 0.22);
+    lfo.frequency.value = 22;
+    lg.gain.value = 40 * k.p;
+    lfo.connect(lg).connect(o.frequency);
+    g.gain.setValueAtTime(0.0001, k.t);
+    g.gain.linearRampToValueAtTime(0.28 * k.v, k.t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, k.t + 0.26);
+    o.connect(g).connect(k.dest);
+    o.start(k.t);
+    lfo.start(k.t);
+    o.stop(k.t + 0.28);
+    lfo.stop(k.t + 0.28);
+  },
   hit(k) {
     tone(k, 170, 0, 0.16, 0.5, 'sine', 70);
     hiss(k, 0, 0.07, 0.15, 'lowpass', 900);

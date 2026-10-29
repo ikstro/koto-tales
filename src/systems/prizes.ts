@@ -44,6 +44,15 @@ const bounceT = new WeakMap<Standing, number>();
 /** Whether a hero sits on a carousel. */
 export const riding = (h: Hero) => riders.has(h);
 
+/** The swings: who sits on which seat, and how high it goes. */
+let swing: { s: Standing; seat: number; t: number; by: Hero } | null = null;
+let stillSwing = 0;
+/** The swing's largest angle (radians) and its pace. */
+const SWING_ARC = 0.6;
+const SWING_PACE = 2.3;
+/** On the swings the lightning charges this much faster. */
+const SWING_CHARGE = 3;
+
 function onPlatform(s: Standing, p: THREE.Vector3): boolean {
   return Math.hypot(p.x - s.centre.x, p.z - s.centre.z) < 1.45 && Math.abs(p.y - s.centre.y) < 0.9;
 }
@@ -87,6 +96,52 @@ function carousel(ctx: Ctx, dt: number): void {
     h.model.root.position.copy(h.body.pos);
     h.model.root.rotation.y = h.yaw;
   }
+}
+
+function offSwing(ctx: Ctx): void {
+  if (!swing) return;
+  swing.s.extra.swing = undefined;
+  const h = swing.by;
+  h.boltRate = 1;
+  h.model.play('idle');
+  h.model.root.rotation.set(0, h.yaw, 0);
+  swing = null;
+}
+
+/** Standing still on a seat of the swings, the player sits and swings; a step gets off. The lightning charges faster meanwhile. */
+function swings(ctx: Ctx, dt: number): void {
+  const h = ctx.player;
+  const moving = Math.hypot(ctx.input.moveX, ctx.input.moveY) > 0.2;
+  if (swing && (moving || swing.s.folding || h !== swing.by)) offSwing(ctx);
+  if (!swing) {
+    let found: { s: Standing; seat: number } | null = null;
+    for (const s of standingWhere((c) => !!c.swing)) {
+      (s.model?.seats ?? []).forEach((o, i) => {
+        o.getWorldPosition(seat);
+        if (Math.hypot(h.pos.x - seat.x, h.pos.z - seat.z) < 0.6 && Math.abs(h.pos.y - s.centre.y) < 0.9) found = { s, seat: i };
+      });
+    }
+    stillSwing = found && !moving ? stillSwing + dt : 0;
+    if (!found || stillSwing < 0.4) return;
+    swing = { ...(found as { s: Standing; seat: number }), t: 0, by: h };
+    sfx.play('switch', { pitch: 1.5 });
+  }
+  const sw = swing!;
+  sw.t += dt;
+  // it gets going over a couple of swings
+  const a = SWING_ARC * Math.min(1, sw.t / 2.5) * Math.sin(sw.t * SWING_PACE);
+  const angles = [0, 0];
+  angles[sw.seat] = a;
+  sw.s.extra.swing = angles;
+  h.boltRate = SWING_CHARGE;
+  const o = sw.s.model!.seats![sw.seat];
+  o.getWorldPosition(seat);
+  h.body.pos.copy(seat);
+  h.body.vel.set(0, 0, 0);
+  h.yaw = (sw.s.rec.rot * Math.PI) / 2;
+  h.model.play('sit');
+  h.model.root.position.copy(seat);
+  h.model.root.rotation.set(-a, h.yaw, 0, 'YXZ');
 }
 
 function trampolines(ctx: Ctx, dt: number): void {
@@ -422,6 +477,13 @@ function wire(ctx: Ctx): void {
       const s = standingWhere((c) => !!c.fly)[0];
       if (s) void fly(ctx, s, x, z);
     },
+    /** Puts the player on the swings' first seat (then standing still swings). */
+    toSwing: () => {
+      const o = standingWhere((c) => !!c.swing)[0]?.model?.seats?.[0];
+      if (!o) return;
+      o.getWorldPosition(seat);
+      ctx.player.body.pos.set(seat.x, standingWhere((c) => !!c.swing)[0].centre.y + 0.05, seat.z);
+    },
     get state() {
       const bot = standingWhere((c) => !!c.follow)[0];
       const saucer = standingWhere((c) => !!c.fly)[0];
@@ -431,6 +493,8 @@ function wire(ctx: Ctx): void {
         flight: flight?.phase ?? null,
         flyPiece: !!(saucer && saucerNear(ctx)),
         golem: standingWhere((c) => !!c.slam).map((s) => ({ slam: s.extra.slam, aim: s.extra.aim })),
+        swing: swing ? { seat: swing.seat, t: +swing.t.toFixed(1), rate: swing.by.boltRate } : null,
+        seats: standingWhere((c) => !!c.swing).flatMap((s) => (s.model?.seats ?? []).map((o) => o.getWorldPosition(new THREE.Vector3()).toArray().map((v) => +v.toFixed(2)))),
       };
     },
   };
@@ -448,9 +512,11 @@ export function updatePrizes(ctx: Ctx, dt: number): void {
       riders.clear();
       ride = null;
     }
+    offSwing(ctx);
     return;
   }
   carousel(ctx, dt);
+  swings(ctx, dt);
   trampolines(ctx, dt);
   searchlights(ctx);
   robots(ctx, dt);

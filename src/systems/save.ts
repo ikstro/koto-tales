@@ -62,6 +62,8 @@ export interface SaveData {
   villages: Partial<Record<Race, VillageSave>>;
   /** The four castles: met, tasks done, the one under way, the chest opened. */
   castles: Partial<Record<Race, CastleSave>>;
+  /** Buildings raised by the kit's rewards (content/upgrades.ts): level 1..3. */
+  upgrades: Partial<Record<BuildingId, number>>;
 }
 
 /** A building put up from the kit: footprint min corner, the height its floor stands on, quarter turns. */
@@ -107,7 +109,7 @@ export const freshBoss = (): BossSave => ({ level: 1, site: null, hp: null, lant
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -144,6 +146,7 @@ export function freshSave(): SaveData {
     song: 0,
     villages: {},
     castles: {},
+    upgrades: {},
   };
 }
 
@@ -187,6 +190,8 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
   8: (d) => ({ ...d, v: 9, villages: {} }),
   // v10: the castles (TERRAIN_VERSION 4 flattens their squares; buildings standing there go back to the kit).
   9: (d) => ({ ...d, v: 10, castles: {} }),
+  // v11: food, swings, the power station and upgrades (nothing raised yet).
+  10: (d) => ({ ...d, v: 11, upgrades: {} }),
 };
 
 export function migrate(raw: Raw): SaveData {

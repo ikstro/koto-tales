@@ -227,8 +227,10 @@ export type ModelRef =
  * One-shot actions return to idle/walk by themselves; 'sleep' and 'dance' hold until another action.
  * 'wake' gets up, stretches and yawns (eyes shut during the yawn); 'cheer' hops twice with arms up;
  * 'dance' bounces to the music's beat (120 a minute).
+ * 'sit' sits down with the hips at the model's origin (a seat, a blanket); 'eat' sits and takes bites,
+ * hands (paws, a head bob) to the mouth. Both are held until another action.
  */
-export type ModelAction = 'idle' | 'attack' | 'cast' | 'hurt' | 'happy' | 'sleep' | 'wake' | 'cheer' | 'dance';
+export type ModelAction = 'idle' | 'attack' | 'cast' | 'hurt' | 'happy' | 'sleep' | 'wake' | 'cheer' | 'dance' | 'sit' | 'eat';
 
 /** A rig with the shared procedural animator attached. */
 export interface CharacterModel {
@@ -288,6 +290,7 @@ export interface Line {
 
 export type SfxName =
   | 'arrow'
+  | 'jump'
   | 'hit'
   | 'lightning'
   | 'coin'

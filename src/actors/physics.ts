@@ -15,6 +15,8 @@ export interface Body {
 
 const GRAVITY = 25;
 const JUMP_SPEED = 8.2; // clears one block
+/** The jump piece: high enough for two blocks (out of any pit), not three. */
+export const JUMP_HIGH = 10.7;
 const MAX_FALL = 22;
 const EPS = 1e-3;
 
@@ -48,9 +50,17 @@ function canStepUp(world: IWorld, b: Body, x: number, z: number): boolean {
   return !collides(world, x, b.pos.y + 1 + EPS, z, b.radius, b.height);
 }
 
+/** The jump piece: from the ground or while swimming, never in the air. Returns whether it jumped. */
+export function jump(b: Body): boolean {
+  if (!b.onGround && !b.inWater) return false;
+  b.vel.y = Math.max(b.vel.y, JUMP_HIGH);
+  b.onGround = false;
+  return true;
+}
+
 /**
- * Moves a body by its velocity. Kids never press "jump": walking into a
- * one-block ledge hops onto it by itself.
+ * Moves a body by its velocity. Walking into a one-block ledge hops onto it by
+ * itself; higher ones need the jump piece.
  */
 export function stepBody(world: IWorld, b: Body, dt: number, autoJump = true): void {
   // Big frames are split so a fast body never tunnels through a block.

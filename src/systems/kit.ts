@@ -3,6 +3,7 @@ import type { IWorld } from '../contracts';
 import { overlapsBlock } from '../actors/physics';
 import { breatheGhost, createBuilding, createGhost, type BuildingModel, type BuildingTick } from '../assets/buildings';
 import { BUILDINGS, KIT_ORDER, type BuildingCard, type BuildingId } from '../content/buildings';
+import { MAX_LEVEL, upgraded } from '../content/upgrades';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
 import { cutawayModel } from '../render/skins/cutaway';
@@ -232,11 +233,12 @@ function fitPlinth(ctx: Ctx, s: Standing): void {
 }
 
 function raise(ctx: Ctx, rec: PlacedBuilding, fresh: boolean): Standing {
-  const card = BUILDINGS[rec.id];
+  const level = ctx.save.upgrades[rec.id] ?? 0;
+  const card = upgraded(BUILDINGS[rec.id], level);
   const [w, d] = dims(card, rec.rot);
   const centre = new THREE.Vector3(rec.x + w / 2, rec.y, rec.z + d / 2);
   if (card.block !== undefined) centre.set(rec.x + 0.5, rec.y, rec.z + 0.5);
-  const s: Standing = { rec, card, model: null, centre, age: fresh ? 0 : 99, folding: false, site: null, extra: {} };
+  const s: Standing = { rec, card, model: null, centre, age: fresh ? 0 : 99, folding: false, site: null, extra: level ? { level } : {} };
   if (card.block === undefined) {
     const model = createBuilding(ctx.skin, rec.id);
     model.root.position.copy(centre);
@@ -277,6 +279,15 @@ export function initKit(ctx: Ctx): void {
     fold: () => ctx.input.press('prompt:fold'),
     add: (id: BuildingId, n = 1) => addToKit(ctx, id, n),
     /** One more into the box; with `place`, chosen and put up in front of the hero at once. */
+    raise: (id: BuildingId) => raiseLevel(ctx, id),
+    /** Puts the player just in front of the first standing building of this kind. */
+    to: (id: BuildingId) => {
+      const s = standing.find((b) => b.rec.id === id);
+      if (!s) return;
+      const a = (s.rec.rot * Math.PI) / 2;
+      const k = s.card.size[1] / 2 + 0.8;
+      ctx.player.body.pos.set(s.centre.x + Math.sin(a) * k, s.centre.y + 0.1, s.centre.z + Math.cos(a) * k);
+    },
     give: (id: BuildingId, place = false) => {
       addToKit(ctx, id, 1);
       if (place) {
@@ -324,12 +335,28 @@ export function addToKit(ctx: Ctx, id: BuildingId, n = 1): void {
   ctx.hud.kitBump();
 }
 
+/** A reward raised a building a level: every one standing gets better at once (its card, its power, its look). */
+export function raiseLevel(ctx: Ctx, id: BuildingId): void {
+  const level = Math.min(MAX_LEVEL, (ctx.save.upgrades[id] ?? 0) + 1);
+  ctx.save.upgrades[id] = level;
+  for (const s of standing) {
+    if (s.rec.id !== id) continue;
+    s.card = upgraded(BUILDINGS[id], level);
+    s.extra.level = level;
+    if (s.site && s.card.power) {
+      s.site.card = s.card.power;
+      addSite(s.site);
+    }
+  }
+  pushHud(ctx);
+}
+
 /** The kit plate's pieces (only what the child has: in the box or standing) and the build button's look. */
 export function pushHud(ctx: Ctx): void {
   ctx.hud.setKitItems(
     KIT_ORDER.filter((id) => BUILDINGS[id].count === null || owned(ctx, id) > 0).map((id) => {
       const card = BUILDINGS[id];
-      return { id, sprite: card.sprite, count: card.count === null ? null : (ctx.save.kit[id] ?? 0) };
+      return { id, sprite: card.sprite, count: card.count === null ? null : (ctx.save.kit[id] ?? 0), level: ctx.save.upgrades[id] ?? 0 };
     }),
   );
   ctx.hud.setKitMode(selected);

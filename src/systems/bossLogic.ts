@@ -38,6 +38,9 @@ export const BOSS = {
   returnDays: 3,
   /** It turns towards a hero this close; the HUD bar shows this close. */
   sight: 12,
+  /** Music reaching it: it dances this long (no stomp, no bite, mouth shut), then music can't move it for `danceRest`. */
+  danceFor: 6,
+  danceRest: 30,
   barRange: 30,
   roamSpeed: 0.85,
   coins: 30,
@@ -66,7 +69,7 @@ export function pickSite(seed: number, level: number, home: { x: number; z: numb
   return first!;
 }
 
-export type BossEvent = 'mouth-open' | 'mouth-close' | 'stomp-warn' | 'stomp';
+export type BossEvent = 'mouth-open' | 'mouth-close' | 'stomp-warn' | 'stomp' | 'dance' | 'dance-end';
 export type HitResult = 'bounce' | 'hurt' | 'defeated';
 
 export interface BrainInit {
@@ -86,6 +89,9 @@ export class BossBrain {
   mouthOpen = false;
   /** Seconds left of the stomp warning (0 = no stomp coming). */
   stompWarn = 0;
+  /** Seconds left of a dance to the music (0 = not dancing), and of the rest after one. */
+  dance = 0;
+  danceRest = 0;
   private mouthT: number;
   private stompT: number;
   private rand: () => number;
@@ -138,10 +144,30 @@ export class BossBrain {
     return this.hp <= 0 ? 'defeated' : 'hurt';
   }
 
-  /** Advances the timers; `heroDist` is the nearest hero's distance in blocks (scaled to size by the caller). */
-  step(dt: number, heroDist: number, stompRange = BOSS.stompRange): BossEvent[] {
+  /**
+   * Advances the timers; `heroDist` is the nearest hero's distance in blocks (scaled to size by the caller),
+   * `music` whether a playing speaker's dance circle reaches it.
+   */
+  step(dt: number, heroDist: number, stompRange = BOSS.stompRange, music = false): BossEvent[] {
     const ev: BossEvent[] = [];
     if (!this.alive) return ev;
+
+    // music: a short dance (a breather, never a win), then it shakes it off and won't dance for a while
+    if (this.dance > 0) {
+      this.dance -= dt;
+      if (this.dance <= 0) {
+        this.dance = 0;
+        this.danceRest = BOSS.danceRest;
+        ev.push('dance-end');
+      }
+      return ev;
+    }
+    this.danceRest = Math.max(0, this.danceRest - dt);
+    if (music && this.danceRest <= 0 && !this.mouthOpen && this.stompWarn <= 0) {
+      this.dance = BOSS.danceFor;
+      ev.push('dance');
+      return ev;
+    }
 
     if (!this.armored) {
       this.mouthT -= dt;
@@ -182,4 +208,44 @@ export class BossBrain {
   forceStomp(): void {
     if (this.stompWarn <= 0) this.stompT = 0;
   }
+}
+
+/** Ground height of a column (feet level), as the world reports it. */
+export type GroundAt = (x: number, z: number) => number;
+const SIDES = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
+
+/**
+ * Whether a hero standing on column (x, z) is shut in a hole: walking with one-block hops
+ * (down any height) never leads `reach` columns away. `open` columns (water) count as a way out.
+ */
+export function trapped(ground: GroundAt, x: number, z: number, reach = 5, open?: (x: number, z: number) => boolean): boolean {
+  const seen = new Set<string>([`${x},${z}`]);
+  const todo: [number, number][] = [[x, z]];
+  while (todo.length) {
+    const [cx, cz] = todo.pop()!;
+    if (Math.max(Math.abs(cx - x), Math.abs(cz - z)) >= reach || open?.(cx, cz)) return false;
+    const g = ground(cx, cz);
+    for (const [dx, dz] of SIDES) {
+      const nx = cx + dx;
+      const nz = cz + dz;
+      const k = `${nx},${nz}`;
+      if (seen.has(k) || ground(nx, nz) > g + 1) continue;
+      seen.add(k);
+      todo.push([nx, nz]);
+    }
+  }
+  return true;
+}
+
+/**
+ * Where a bite at (x, z) lands so the ground never shuts anyone in: the spot itself, or else its
+ * highest neighbour (the crater grows wider, not deeper); null when neither can go.
+ */
+export function biteSpot(ground: GroundAt, x: number, z: number, open?: (x: number, z: number) => boolean): [number, number] | null {
+  const tries: [number, number][] = [[x, z], ...SIDES.map(([dx, dz]) => [x + dx, z + dz] as [number, number]).sort((a, b) => ground(b[0], b[1]) - ground(a[0], a[1]))];
+  for (const [bx, bz] of tries) {
+    const lowered: GroundAt = (cx, cz) => ground(cx, cz) - (cx === bx && cz === bz ? 1 : 0);
+    if (!trapped(lowered, bx, bz, 5, open)) return [bx, bz];
+  }
+  return null;
 }

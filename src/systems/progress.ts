@@ -4,7 +4,7 @@ import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
-import { addToKit, owned } from './kit';
+import { addToKit, owned, raiseLevel } from './kit';
 
 /**
  * The kit box's endless goal (content/progress.ts): one task at a time, counted from
@@ -39,10 +39,18 @@ function counter(ctx: Ctx, kind: TaskKind): number {
   }
 }
 
+const next = (ctx: Ctx): Reward =>
+  nextReward(
+    ctx.save.progress.got,
+    (b) => owned(ctx, b),
+    (b) => ctx.save.upgrades[b] ?? 0,
+  );
+
 /** What the kit plate shows in its last cell: the next reward (dark) and the task's picture. */
 function pushNext(ctx: Ctx): void {
-  const r = nextReward(ctx.save.progress.got, (b) => owned(ctx, b));
-  const sprite = r.ability === 'portal' ? 'b-portal' : r.items ? BUILDINGS[r.items[0][0]].sprite : 'coin';
+  const r = next(ctx);
+  const b = r.upgrade ?? r.items?.[0][0];
+  const sprite = r.ability === 'portal' ? 'b-portal' : b ? BUILDINGS[b].sprite : 'coin';
   ctx.hud.setKitNext({ sprite, task: TASKS[ctx.save.progress.kind].icon });
 }
 
@@ -91,6 +99,7 @@ function give(ctx: Ctx, r: Reward): void {
   p.level++;
   p.start = null;
   for (const [id, n] of r.items ?? []) addToKit(ctx, id, n);
+  if (r.upgrade) raiseLevel(ctx, r.upgrade);
   if (r.coins) {
     ctx.save.coins += r.coins;
     events.emit('coins:changed', { coins: ctx.save.coins });
@@ -117,7 +126,7 @@ export function updateProgress(ctx: Ctx): void {
     ctx.hud.setKitProgress(lit);
     lastLit = lit;
   }
-  if (done >= goal) give(ctx, nextReward(p.got, (b) => owned(ctx, b)));
+  if (done >= goal) give(ctx, next(ctx));
 }
 
 /** Whether the box has already given an ability. */

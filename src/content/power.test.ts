@@ -20,6 +20,14 @@ describe('power', () => {
     expect(networks([at('windmill', 0), at('pole', 9)])).toHaveLength(2);
   });
 
+  it('the power station reaches far and high and lights a whole yard', () => {
+    const station: PowerNode = { x: 0, y: 12, z: 0, card: { give: 20, reach: 24, arcs: true }, charge: 0 };
+    const yard = [station, at('lamp', 20), at('lamp', -22), { ...at('lamp', 0), z: 18, y: 21 }, at('tesla', 12)];
+    expect(networks(yard)).toHaveLength(1);
+    expect(tick(yard, all(yard), 0, 0.25)).toMatchObject({ on: true, low: false });
+    expect(networks([station, at('lamp', 25)])).toHaveLength(2);
+  });
+
   it('a windmill lights a lighthouse; three lamps are too much for it', () => {
     const lh = [at('windmill', 0), lighthouse(5)];
     expect(tick(lh, all(lh), 1, 0.25)).toMatchObject({ on: true, low: false });

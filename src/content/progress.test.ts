@@ -37,7 +37,28 @@ describe('the kit box goal', () => {
   });
 
   it('then the signal: the radar, the Wi-Fi, two transmitters', () => {
-    expect(REWARDS.slice(12).map((r) => r.items)).toEqual([[['radar', 1]], [['wifi', 1]], [['transmitter', 2]]]);
+    expect(REWARDS.slice(12, 15).map((r) => r.items)).toEqual([[['radar', 1]], [['wifi', 1]], [['transmitter', 2]]]);
+  });
+
+  it('then food, the swings, and last the power station', () => {
+    expect(REWARDS.slice(15).map((r) => r.id)).toEqual(['picnic', 'icecream', 'swings', 'station']);
+  });
+
+  it('past the list, every other reward raises a building the child has, up to level 3', () => {
+    const got = REWARDS.map((r) => r.id);
+    const level = (b: string) => (b === 'generator' ? 1 : 0);
+    // the first one past the list is a building, the next an upgrade
+    expect(nextReward(got, () => 1, level).items?.[0]).toEqual(['pole', 2]);
+    expect(nextReward([...got, '+pole'], () => 1, level)).toMatchObject({ id: '+lvl:generator', upgrade: 'generator', line: 'up_generator' });
+    // in turn: after the generator the tesla
+    expect(nextReward([...got, '+pole', '+lvl:generator', '+boombox'], () => 1, level).upgrade).toBe('tesla');
+    // only buildings the child has, and not past the last level
+    expect(nextReward([...got, '+pole'], (b) => (b === 'generator' ? 0 : 1), level).upgrade).toBe('tesla');
+    expect(nextReward([...got, '+pole'], () => 1, (b) => (b === 'generator' ? 3 : 0)).upgrade).toBe('tesla');
+    // the big speaker's last level has its own line (it turns gold)
+    expect(nextReward([...got, '+pole', '+lvl:a', '+boombox', '+lvl:b', '+lamp', '+lvl:c', '+windmill'], () => 1, (b) => (b === 'bigspeaker' ? 2 : 3)).line).toBe('up_bigspeaker_gold');
+    // nothing left to raise: buildings keep coming
+    expect(nextReward([...got, '+pole'], () => 1, () => 3).items?.[0]).toEqual(['boombox', 1]);
   });
 
   it('past the list: more of each building in turn, while under the cap', () => {

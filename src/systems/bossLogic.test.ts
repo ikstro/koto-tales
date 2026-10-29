@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOSS, BossBrain, bossMaxHp, bossScale, pickSite, shouldReturn, type BossEvent } from './bossLogic';
+import { BOSS, BossBrain, biteSpot, bossMaxHp, bossScale, pickSite, shouldReturn, trapped, type BossEvent, type GroundAt } from './bossLogic';
 
 /** Equal within one simulation step. */
 const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(0.051);
@@ -115,5 +115,57 @@ describe('boss fight', () => {
     const c = pickSite(20261128, 1, home, () => ++calls > 3);
     expect(calls).toBe(4);
     expect(c).not.toEqual(a);
+  });
+});
+
+describe('music and the boss', () => {
+  it('dances 6 s to music (no stomp meanwhile), then rests 30 s', () => {
+    const b = new BossBrain({ maxHp: 30, tempo: 1, rand: () => 0 });
+    const ev: string[] = [];
+    for (let t = 0; t < 6.1; t += 0.05) ev.push(...b.step(0.05, 2, BOSS.stompRange, true));
+    expect(ev[0]).toBe('dance');
+    expect(ev).not.toContain('stomp-warn');
+    expect(ev).toContain('dance-end');
+    expect(b.dance).toBe(0);
+    const later: string[] = [];
+    for (let t = 0; t < 29; t += 0.05) later.push(...b.step(0.05, 20, BOSS.stompRange, true));
+    expect(later).not.toContain('dance');
+    for (let t = 0; t < 1.5; t += 0.05) later.push(...b.step(0.05, 20, BOSS.stompRange, true));
+    expect(later).toContain('dance');
+  });
+
+  it('waits for its open mouth to shut before it dances', () => {
+    const b = new BossBrain({ maxHp: 30, tempo: 1, lanterns: ['a', 'b', 'c'] });
+    b.forceMouth();
+    b.step(0.05, 20);
+    expect(b.mouthOpen).toBe(true);
+    expect(b.step(0.05, 20, BOSS.stompRange, true)).not.toContain('dance');
+  });
+});
+
+/** Flat ground 10 with some columns set; `cells` maps "x,z" to a height. */
+const field = (cells: Record<string, number>): GroundAt => (x, z) => cells[`${x},${z}`] ?? 10;
+
+describe('the boss never shuts anyone in', () => {
+  it('a hole two deep is a trap; one deep, or a long ramp down, is not', () => {
+    expect(trapped(field({ '0,0': 8 }), 0, 0)).toBe(true);
+    expect(trapped(field({ '0,0': 9 }), 0, 0)).toBe(false);
+    expect(trapped(field({ '0,0': 8, '1,0': 8 }), 0, 0)).toBe(true);
+    expect(trapped(field({ '0,0': 8, '1,0': 9 }), 0, 0)).toBe(false);
+    expect(trapped(field({ '0,0': 8 }), 0, 0, 5, (x, z) => x === 0 && z === 0)).toBe(false);
+  });
+
+  it('a bite lands where it leaves a way out: the spot, else the highest neighbour', () => {
+    expect(biteSpot(field({}), 0, 0)).toEqual([0, 0]);
+    expect(biteSpot(field({ '0,0': 9 }), 0, 0)).not.toEqual([0, 0]);
+    // biting the same spot over and over makes a wide shallow bowl, never a shaft
+    const cells: Record<string, number> = {};
+    const g = field(cells);
+    for (let i = 0; i < 40; i++) {
+      const spot = biteSpot(g, 0, 0);
+      if (!spot) break;
+      cells[`${spot[0]},${spot[1]}`] = g(spot[0], spot[1]) - 1;
+      for (let x = -6; x <= 6; x++) for (let z = -6; z <= 6; z++) expect(trapped(g, x, z)).toBe(false);
+    }
   });
 });

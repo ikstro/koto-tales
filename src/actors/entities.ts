@@ -28,6 +28,8 @@ export class Hero {
   regenTimer = 0;
   fireCd = 0;
   boltCd = 0;
+  /** How fast the lightning charges (3 on the swings). */
+  boltRate = 1;
   /** Bot brain: next time a bot may shoot / cast on its own. */
   botFireCd = 0;
   botBoltCd = 4;

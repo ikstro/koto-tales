@@ -170,6 +170,66 @@ describe('animate', () => {
     expect(rig.root.position.length()).toBeLessThan(0.02);
   });
 
+  it('sit and eat lower the hips onto the seat and hold', () => {
+    for (const action of ['sit', 'eat'] as const) {
+      const rig = bipedRig();
+      const m = animate(rig);
+      m.update(0, 0);
+      m.play(action);
+      run(m, 6, 2); // held, and a seated rig does not walk
+      expect(rig.root.position.y).toBeLessThan(-0.3); // the hips (0.5 up) come down near the origin
+      expect(rig.root.position.y).toBeGreaterThan(-0.5);
+      expect(rig.parts.legL.rotation.x).toBeLessThan(-1.2); // legs out in front
+      m.play(action); // playing it again keeps the pose
+      run(m, 0.5);
+      expect(rig.root.position.y).toBeLessThan(-0.3);
+      m.play('idle');
+      run(m, 2);
+      expect(rig.root.position.length()).toBeLessThan(0.01);
+    }
+  });
+
+  it('eat brings a hand up to the mouth in turn', () => {
+    const rig = bipedRig();
+    const m = animate(rig);
+    m.update(0, 0);
+    m.play('eat');
+    let minL = 0;
+    let minR = 0;
+    for (let t = 0; t < 2.5; t += 1 / 60) {
+      m.update(1 / 60, 0);
+      minL = Math.min(minL, rig.parts.armL.rotation.x);
+      minR = Math.min(minR, rig.parts.armR.rotation.x);
+    }
+    expect(minL).toBeLessThan(-1.7);
+    expect(minR).toBeLessThan(-1.7);
+  });
+
+  it('quadruped: sits on its haunches (front up, hips down) and nibbles', () => {
+    const rig = quadRig();
+    rig.parts.body.add(new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.34, 0.78).translate(0, 0.1, 0.27)));
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.3, 0.14).translate(0, -0.15, 0));
+    rig.parts.legFL.add(leg);
+    const m = animate(rig);
+    m.update(0, 0);
+    const bodyRest = rig.parts.body.rotation.x;
+    m.play('sit');
+    run(m, 3);
+    expect(rig.parts.body.rotation.x - bodyRest).toBeLessThan(-0.15); // chest up
+    expect(rig.root.position.y).toBeLessThan(-0.1);
+    m.root.updateMatrixWorld(true);
+    const paw = new THREE.Box3().setFromObject(leg);
+    expect(Math.abs(paw.min.y)).toBeLessThan(0.03); // the straight front paw stands on the ground
+    m.play('eat');
+    let maxHead = -Infinity;
+    for (let t = 0; t < 2; t += 1 / 60) {
+      m.update(1 / 60, 0);
+      maxHead = Math.max(maxHead, rig.parts.head.rotation.x);
+    }
+    expect(maxHead).toBeGreaterThan(0.7); // the head dips down to the food
+    expect(rig.root.position.y).toBeLessThan(-0.1);
+  });
+
   it('walk swings the legs with speed', () => {
     const rig = bipedRig();
     const m = animate(rig);

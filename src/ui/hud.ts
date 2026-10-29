@@ -316,6 +316,8 @@ export interface KitItem {
   id: string;
   sprite: string;
   count: number | null;
+  /** Upgrade level 0..3: gold studs on the cell. */
+  level?: number;
 }
 
 /** A piece that breathes by the action pieces when something can be done here. */
@@ -381,16 +383,20 @@ export class Hud {
   private promptPiece: Piece;
   private notePiece: Piece;
   private noteOn = false;
+  private noteShown = false;
   private flyPiece: Piece;
   private flyOn = false;
   private flyShown = false;
   private remotePiece: Piece;
   private remoteOn = false;
   private remoteShown = false;
+  private foodPiece: Piece;
+  private foodOn: 'food' | 'icecream' | null = null;
+  private foodShown = false;
   private bubble: { el: HTMLDivElement; lit: HTMLImageElement[]; pic: Piece; shown: boolean } | null = null;
   private prompt: PromptKind | null = null;
   private kitItems: KitItem[] = [];
-  private kitCells = new Map<string, { p: Piece; count: Counter | null }>();
+  private kitCells = new Map<string, { p: Piece; count: Counter | null; studs: HTMLElement[] }>();
   private kitNext: { sprite: string; task: string } | null = null;
   private kitSelected: string | null = null;
   private kitLitN = -1;
@@ -514,10 +520,10 @@ export class Hud {
       this.fanTiles.set(id, p);
     });
 
-    // Bottom right, one column hugging the edge: lightning (stud ring + tile) on top, the kit box on its
-    // own stud ring under it (the studs = how far the kit's task has come), the bow at the bottom by the
-    // thumb. The pieces that come and go stand just left of the column: a prompt (moon, fold, chest) by
-    // the lightning, the small ✕ by the box (the box is ✓ while placing), the note / fly / remote by the bow.
+    // Bottom right, one column hugging the edge: the kit box on its own stud ring on top (the studs = how
+    // far the kit's task has come), lightning (stud ring + tile) under it, the bow at the bottom by the
+    // thumb. Beside the column: the jump by the bow (always); a prompt (moon, fold, chest) by the
+    // lightning; by the box the small ✕ while placing (the box is ✓ then), else the note / food / fly / remote.
     this.gAct = new Group(r, 'g-act');
     this.ring = this.gAct.add('ring', COL_X, BOLT_Y);
     for (let i = 0; i < 8; i++) this.lit.push(this.ring.layer(`ring-lit-${i}` as SpriteName, 'sp lit'));
@@ -535,15 +541,19 @@ export class Hud {
     this.cancelPiece.el.classList.add('small', 'hidden');
     this.promptPiece = this.gAct.add('moon', SIDE_X, BOLT_Y + 6, 'tile6-sh');
     this.promptPiece.el.classList.add('prompt', 'hidden');
-    // the DJ's note by the bow (it steps aside while a building is being placed)
-    this.notePiece = this.gAct.add('note', SIDE_X + 16, -70, 'tile6-sh');
+    const jump = this.gAct.add('jump', SIDE_X + 16, -70, 'tile6-sh');
+    // the DJ's note by the box (it steps aside for the ✕ while a building is being placed)
+    this.notePiece = this.gAct.add('note', SIDE_X + 6, KIT_Y + 6, 'tile6-sh');
     this.notePiece.el.classList.add('prompt', 'hidden');
     // the saucer's «fly» piece shares that place too (the note wins when both are near)
-    this.flyPiece = this.gAct.add('fly', SIDE_X + 16, -70, 'tile6-sh');
+    this.flyPiece = this.gAct.add('fly', SIDE_X + 6, KIT_Y + 6, 'tile6-sh');
     this.flyPiece.el.classList.add('prompt', 'hidden');
     // the Wi-Fi remote too (the note and the fly piece win)
-    this.remotePiece = this.gAct.add('remote', SIDE_X + 16, -70, 'tile6-sh');
+    this.remotePiece = this.gAct.add('remote', SIDE_X + 6, KIT_Y + 6, 'tile6-sh');
     this.remotePiece.el.classList.add('prompt', 'hidden');
+    // food: an apple by the picnic, a cone by the ice-cream kiosk (after the note, before the fly piece)
+    this.foodPiece = this.gAct.add('food' as SpriteName, SIDE_X + 6, KIT_Y + 6, 'tile6-sh');
+    this.foodPiece.el.classList.add('prompt', 'hidden');
     this.gAct.seal();
     this.press(
       bow,
@@ -555,12 +565,14 @@ export class Hud {
       { up: () => (input.fireHeld = false) },
     );
     this.press(this.bolt, this.bolt.target(104), () => input.press('bolt'));
+    this.press(jump, jump.target(104), () => input.press('jump'));
     this.press(this.kitPiece, this.kitPiece.target(116, 116, 18), () => this.kitTap());
     this.press(this.cancelPiece, this.cancelPiece.target(96), () => input.press('kit:cancel'), { ui: true });
     this.press(this.promptPiece, this.promptPiece.target(110), () => this.prompt && input.press(`prompt:${this.prompt}`), { ui: true });
-    this.press(this.notePiece, this.notePiece.target(110), () => this.noteOn && input.press('prompt:note'), { ui: true });
+    this.press(this.notePiece, this.notePiece.target(110), () => this.noteShown && input.press('prompt:note'), { ui: true });
     this.press(this.flyPiece, this.flyPiece.target(110), () => this.flyShown && input.press('prompt:fly'), { ui: true });
     this.press(this.remotePiece, this.remotePiece.target(110), () => this.remoteShown && input.press('prompt:remote'), { ui: true });
+    this.press(this.foodPiece, this.foodPiece.target(110), () => this.foodShown && input.press('prompt:food'), { ui: true });
 
     // Taps outside an open fan / kit plate close it.
     this.catcher = div('catcher hidden', r);
@@ -729,16 +741,16 @@ export class Hud {
     BG.place(Math.max(g, (g + right2) / 2 - (BG.w * s2) / 2), y2, s2);
   }
 
-  /** The kit plate opens left of the action column, its foot level with the bow, inside the screen. */
+  /** The kit plate opens left of the action column, its top level with the box, inside the screen. */
   private placeKit(): void {
     const W = window.innerWidth;
     const H = window.innerHeight;
     const g = 8;
     const T = this.gKit;
     const s = Math.min(this.gAct.s * 1.05, (W - 2 * g) / T.w, (H - 2 * g) / T.h);
-    const [bx, by] = this.gAct.toScreen(SIDE_X + 40, -40);
+    const [bx, by] = this.gAct.toScreen(SIDE_X + 40, KIT_Y - 120);
     const x = Math.min(W - g - T.w * s, Math.max(g, bx - T.w * s));
-    const y = Math.min(H - g - T.h * s, Math.max(g, by - T.h * s));
+    const y = Math.min(H - g - T.h * s, Math.max(g, by));
     T.place(x, y, s);
   }
 
@@ -862,9 +874,15 @@ export class Hud {
         ch.style.cssText = `left:44px;top:4px`;
         count = new Counter(new Piece(ch, 'numtile', 0, 0, null));
       }
+      // upgrade levels: up to three gold studs along the cell's top left
+      const studs: HTMLElement[] = [];
+      if ('lvl' in SPRITES) {
+        const lv = div('kl', holder);
+        for (let i = 0; i < 3; i++) studs.push(new Piece(lv, 'lvl' as SpriteName, -46 + i * 24, -40, null).el);
+      }
       this.press(p, p.target(cell, cell, 34), () => this.pickKit(item.id), { ui: true });
       K.pieces.push(p);
-      this.kitCells.set(item.id, { p, count });
+      this.kitCells.set(item.id, { p, count, studs });
     });
     if (this.kitNext) {
       const [cx, cy] = at(this.kitItems.length);
@@ -899,6 +917,7 @@ export class Hud {
       const c = this.kitCells.get(item.id);
       if (!c) continue;
       c.count?.set(item.count ?? 0, false);
+      c.studs.forEach((st, i) => (st.style.visibility = i < (item.level ?? 0) ? '' : 'hidden'));
       c.p.el.classList.toggle('empty', item.count === 0);
       c.p.el.classList.toggle('on', item.id === this.kitSelected);
     }
@@ -1244,6 +1263,7 @@ export class Hud {
       if (selected) this.cancelPiece.drop(80, 30);
     }
     if (!selected) this.kitPiece.el.classList.remove('dim');
+    this.syncFly();
     this.refreshKitCells();
   }
 
@@ -1288,8 +1308,6 @@ export class Hud {
   setNote(on: boolean): void {
     if (on === this.noteOn) return;
     this.noteOn = on;
-    this.notePiece.el.classList.toggle('hidden', !on);
-    if (on) this.notePiece.drop(0, 50);
     this.syncFly();
   }
 
@@ -1307,15 +1325,37 @@ export class Hud {
     this.syncFly();
   }
 
-  /** One piece in the shared slot: the note, else the fly piece, else the remote. */
+  /** The food piece next to a picnic (an apple) or a working ice-cream kiosk (a cone): a tap, and the party eats. */
+  setFood(kind: 'food' | 'icecream' | null): void {
+    if (kind === this.foodOn) return;
+    this.foodOn = kind;
+    if (kind) setSprite(this.foodPiece.img, kind as SpriteName);
+    this.foodShown = false;
+    this.syncFly();
+  }
+
+  /** One piece in the shared slot by the box: the note, else food, else the fly piece, else the remote; none while placing (the ✕ is there). */
   private syncFly(): void {
-    const fly = this.flyOn && !this.noteOn;
+    const free = !this.kitSelected;
+    const note = this.noteOn && free;
+    if (note !== this.noteShown) {
+      this.noteShown = note;
+      this.notePiece.el.classList.toggle('hidden', !note);
+      if (note) this.notePiece.drop(0, 50);
+    }
+    const food = !!this.foodOn && !this.noteOn && free;
+    if (food !== this.foodShown) {
+      this.foodShown = food;
+      this.foodPiece.el.classList.toggle('hidden', !food);
+      if (food) this.foodPiece.drop(0, 50);
+    }
+    const fly = this.flyOn && !this.noteOn && !food && free;
     if (fly !== this.flyShown) {
       this.flyShown = fly;
       this.flyPiece.el.classList.toggle('hidden', !fly);
       if (fly) this.flyPiece.drop(0, 50);
     }
-    const remote = this.remoteOn && !this.noteOn && !this.flyOn;
+    const remote = this.remoteOn && !this.noteOn && !this.flyOn && !food && free;
     if (remote !== this.remoteShown) {
       this.remoteShown = remote;
       this.remotePiece.el.classList.toggle('hidden', !remote);
@@ -1466,8 +1506,8 @@ export class Hud {
 
 /** The action column (design px): its centre line, the feet of the kit's and the lightning's stud rings, and the side pieces' line. */
 const COL_X = -81;
-const KIT_Y = -214;
-const BOLT_Y = -362;
+const KIT_Y = -362;
+const BOLT_Y = -214;
 const SIDE_X = -216;
 
 /** Press / lift springs are CSS transitions; their easings go into custom properties once. */

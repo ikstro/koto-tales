@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { CharacterModel, HeroId } from '../contracts';
 import { Hero, turnTowards, yawOf } from '../actors/entities';
-import { placeOnGround, stepBody } from '../actors/physics';
+import { jump, placeOnGround, stepBody } from '../actors/physics';
 import { HEROES, HERO_ORDER, HERO_STATS } from '../content/heroes';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
@@ -10,6 +10,7 @@ import { castBolt, fireArrow, nearestMonster } from './combat';
 import { isInside } from './house';
 import { playingSpeakers } from './kit';
 import { onDanceFloor } from './disco';
+import { FAST } from './food';
 import { healing, riding } from './prizes';
 import { tuneOf } from './tune';
 import { inVillage } from './villages';
@@ -17,6 +18,12 @@ import { inVillage } from './villages';
 const tmp = new THREE.Vector3();
 /** Seconds the player has stood still (near the music, the party starts dancing). */
 let stillFor = 0;
+/** Helpers jump a moment after the player (seconds left for each), so the party gets out of a pit together. */
+const botJumps = new Map<Hero, number>();
+const BOT_JUMP_LAG = 0.14;
+/** Seconds each helper has walked into a wall; past `BOT_HOP_AFTER` it jumps by itself (out of a pit after the player). */
+const botBlocked = new Map<Hero, number>();
+const BOT_HOP_AFTER = 0.35;
 
 /** A hero already standing in the world (the start ritual's models), taken over as is. */
 export interface HeroHandoff {
@@ -107,14 +114,14 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
 
   for (const h of ctx.heroes.values()) {
     h.fireCd -= dt;
-    h.boltCd -= dt;
+    h.boltCd -= dt * h.boltRate;
     h.invulnerable -= dt;
     h.sinceHit += dt;
   }
 
   // ── the player ──
   if (!ctx.sleeping) {
-    const speed = player.card.speed * (player.body.inWater ? 0.6 : 1);
+    const speed = player.card.speed * (player.body.inWater ? 0.6 : 1) * (ctx.fast > 0 ? FAST : 1);
     const k = 1 - Math.exp(-dt * 14);
     player.body.vel.x += (input.moveX * speed - player.body.vel.x) * k;
     player.body.vel.z += (input.moveY * speed - player.body.vel.z) * k;
@@ -124,6 +131,19 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
   } else {
     player.body.vel.x *= 0.8;
     player.body.vel.z *= 0.8;
+  }
+
+  // The jump piece: the player jumps (two blocks), the helpers one after another a moment later.
+  if (input.take('jump') && ctx.playing && !ctx.sleeping && !ctx.napping && jump(player.body)) {
+    sfx.play('jump', { pitch: 0.95 + Math.random() * 0.1 });
+    bots.forEach((bot, i) => botJumps.set(bot, BOT_JUMP_LAG * (i + 1)));
+  }
+  for (const [bot, t] of botJumps) {
+    if (t - dt > 0) botJumps.set(bot, t - dt);
+    else {
+      botJumps.delete(bot);
+      if (bot !== ctx.player && jump(bot.body)) sfx.play('jump', { pitch: 1.1 + Math.random() * 0.1, volume: 0.5 });
+    }
   }
 
   // Standing still near a playing speaker, the party dances (on a working dance floor, at
@@ -186,7 +206,7 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
     let vx = 0;
     let vz = 0;
     if (dist > 0.7 && !ctx.sleeping) {
-      const spd = Math.min(bot.card.speed * 1.2, dist * 2.2);
+      const spd = Math.min(bot.card.speed * 1.2 * (ctx.fast > 0 ? FAST : 1), dist * 2.2);
       vx = (dx / dist) * spd;
       vz = (dz / dist) * spd;
       bot.yaw = turnTowards(bot.yaw, yawOf(dx, dz), dt * 10);
@@ -195,6 +215,9 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
     bot.body.vel.x += (vx - bot.body.vel.x) * k;
     bot.body.vel.z += (vz - bot.body.vel.z) * k;
     bot.stuckTime = bot.body.blocked && dist > 3 ? bot.stuckTime + dt : 0;
+    const walled = bot.body.blocked && dist > 1.2 ? (botBlocked.get(bot) ?? 0) + dt : 0;
+    botBlocked.set(bot, walled);
+    if (walled > BOT_HOP_AFTER && !ctx.sleeping && jump(bot.body)) botBlocked.set(bot, 0);
 
     if (ctx.playing && !ctx.sleeping) {
       bot.botFireCd -= dt;

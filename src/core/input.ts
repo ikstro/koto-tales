@@ -22,6 +22,7 @@ export class Input {
       const map: Record<string, string> = {
         Space: 'fire',
         KeyE: 'bolt',
+        KeyQ: 'jump',
         ShiftLeft: 'bolt',
         KeyF: 'kit:place',
         KeyX: 'kit:cancel',
