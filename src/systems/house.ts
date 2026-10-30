@@ -7,7 +7,7 @@ import type { Ctx, HouseState } from '../core/ctx';
 import { events } from '../core/events';
 import { B } from '../world/blocks';
 
-const BLANKET: Partial<Record<HeroId, string>> = { lyosha: '#6fb2d6', solomiia: '#ee6a82' };
+const BLANKET: Partial<Record<HeroId, string>> = { lyosha: '#6fb2d6', solomiia: '#ee6a82', david: '#3fa142' };
 /** Lantern light by day and by night (it is the house's own warm lamp). */
 const LAMP_DAY = 1.2;
 export const LAMP_NIGHT = 6;

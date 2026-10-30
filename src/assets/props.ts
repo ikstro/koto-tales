@@ -1,7 +1,8 @@
-/** Arrow, campfire, treasure chest and the house furniture (bed, cushion, door). Materials from the skin. */
+/** Arrow and the other heroes' shots, campfire, treasure chest and the house furniture (bed, cushion, door). Materials from the skin. */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Skin } from '../contracts';
+import type { WeaponKind } from '../content/heroes';
 import { Kit } from './parts/kit';
 
 /** An arrow ≈0.75 blocks long, origin at its middle, pointing +Z. */
@@ -16,6 +17,39 @@ export function createArrow(skin: Skin): THREE.Group {
     .box([0.012, 0.11, 0.14], [0, 0, -0.26], '#ef5350')
     .box([0.11, 0.012, 0.14], [0, 0, -0.26], '#fafafa')
     .done();
+  return g;
+}
+
+/**
+ * What a hero throws (content/heroes.ts WeaponKind), flying along +Z like the arrow:
+ * Соломія's pink star, Пупся's purr-ball of cat magic, Давид's toy axe.
+ */
+export function createShot(skin: Skin, kind: WeaponKind): THREE.Group {
+  if (kind === 'arrow') return createArrow(skin);
+  const g = new THREE.Group();
+  g.name = kind;
+  const p = new Kit(kind, skin).part(kind, g);
+  if (kind === 'star') {
+    // two squares turned 45° to each other = an eight-point star, a bright heart in the middle
+    p.box([0.34, 0.34, 0.1], [0, 0, 0], { c: '#ff8fb1', glow: true });
+    p.box([0.34, 0.34, 0.1], [0, 0, 0], { c: '#ff8fb1', glow: true }, [0, 0, Math.PI / 4]);
+    p.box([0.16, 0.16, 0.14], [0, 0, 0], { c: '#fff1c9', glow: true }, [0, 0, Math.PI / 4]);
+  } else if (kind === 'paw') {
+    // a glowing violet ball with a cream paw print on its face: a big pad and four toe beans
+    p.box([0.34, 0.34, 0.34], [0, 0, 0], { c: '#b36bff', glow: true });
+    p.box([0.24, 0.42, 0.24], [0, 0, 0], { c: '#c98bff', glow: true });
+    p.box([0.42, 0.24, 0.24], [0, 0, 0], { c: '#c98bff', glow: true });
+    p.box([0.14, 0.11, 0.04], [0, -0.04, 0.19], { c: '#ffe3a3', glow: true });
+    for (const [x, y] of [[-0.1, 0.06], [-0.035, 0.11], [0.035, 0.11], [0.1, 0.06]])
+      p.box([0.05, 0.05, 0.04], [x, y, 0.19], { c: '#ffe3a3', glow: true });
+  } else {
+    // a toy axe: wooden handle along Z, a grey head with a bright edge at the front end
+    p.box([0.06, 0.06, 0.46], [0, 0, -0.05], '#9a5a2a');
+    p.box([0.05, 0.22, 0.16], [0, 0.08, 0.14], '#9aa4ad');
+    p.box([0.055, 0.08, 0.18], [0, 0.2, 0.14], '#dfe6ea');
+    p.box([0.08, 0.08, 0.08], [0, 0, -0.29], '#6b4a2b');
+  }
+  p.done();
   return g;
 }
 

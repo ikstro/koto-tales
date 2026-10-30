@@ -50,7 +50,7 @@ const forced = params.get('action') as ModelAction | 'walk' | null;
 const freezeAt = params.has('t') ? Number(params.get('t')) : null;
 if (params.get('ui') === '0') document.getElementById('info')!.style.display = 'none';
 
-const CHARS = ['lyosha', 'solomiia', 'pupsia', 'zombie', 'skeleton', 'spider'];
+const CHARS = ['lyosha', 'solomiia', 'pupsia', 'david', 'zombie', 'skeleton', 'spider'];
 
 async function pickSkin(): Promise<Skin> {
   const wanted = params.get('skin');

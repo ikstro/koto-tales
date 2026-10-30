@@ -38,6 +38,7 @@ export class Input {
       if (e.code === 'Digit1') this.pendingHero = 'lyosha';
       if (e.code === 'Digit2') this.pendingHero = 'solomiia';
       if (e.code === 'Digit3') this.pendingHero = 'pupsia';
+      if (e.code === 'Digit4') this.pendingHero = 'david';
     });
     window.addEventListener('keyup', (e) => {
       this.keys.delete(e.code);

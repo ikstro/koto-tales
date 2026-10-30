@@ -1,6 +1,6 @@
 # Льошині казки
 
-A blocky 3D browser game for a 6-year-old (Льоша) who invents its stories; his friend Соломія and the cat Пупся are the other heroes. Ukrainian voice-over, Android tablet (PWA, offline), published from `main` to https://ikstro.com/koto-tales/ by `.github/workflows/deploy.yml`.
+A blocky 3D browser game for a 6-year-old (Льоша) who invents its stories; his friends Соломія and Давид and the cat Пупся are the other heroes. Ukrainian voice-over, Android tablet (PWA, offline), published from `main` to https://ikstro.com/koto-tales/ by `.github/workflows/deploy.yml`.
 
 @DESIGN.md
 @CONTENT.md

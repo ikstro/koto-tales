@@ -63,7 +63,7 @@ describe('food and fun buildings', () => {
       expect(Math.abs(at.z)).toBeLessThanOrEqual(d / 2);
     };
     const picnic = createBuilding(skin, 'picnic');
-    expect(picnic.seats).toHaveLength(3);
+    expect(picnic.seats).toHaveLength(4); // one per hero
     for (const s of picnic.seats!) {
       const { at, yaw } = seatWorld(s);
       inside('picnic', at);
@@ -75,7 +75,7 @@ describe('food and fun buildings', () => {
     }
 
     const kiosk = createBuilding(skin, 'icecream');
-    expect(kiosk.seats).toHaveLength(3);
+    expect(kiosk.seats).toHaveLength(4); // three stools and the cat's cushion
     const ys = kiosk.seats!.map((s) => {
       const { at, yaw } = seatWorld(s);
       inside('icecream', at);
@@ -85,7 +85,8 @@ describe('food and fun buildings', () => {
     });
     expect(ys[0]).toBeGreaterThan(0.4); // stools
     expect(ys[1]).toBeGreaterThan(0.4);
-    expect(ys[2]).toBeLessThan(0.1); // the cat on the ground
+    expect(ys[2]).toBeGreaterThan(0.4);
+    expect(ys[3]).toBeLessThan(0.1); // the cat on the ground
     expect(kiosk.socket).toBeDefined();
   });
 

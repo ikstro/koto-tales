@@ -66,8 +66,8 @@ const BASKET_Z = 0.3;
 
 /**
  * A checked coral-and-cream blanket over most of the 3×3, a wicker basket with a handle and two
- * hinged lids full of apples, two cream plates and cups along the front. Three seats on the
- * blanket round the basket: the heroes at its sides facing in, the cat behind it facing the front.
+ * hinged lids full of apples, two cream plates and cups along the front. Four seats on the
+ * blanket round the basket: the heroes at its sides and in front facing in, the cat behind it facing the front.
  * While the party eats the lids swing open and the apples inside bob.
  */
 export function createPicnic(skin: Skin): BuildingModel {
@@ -160,6 +160,7 @@ export function createPicnic(skin: Skin): BuildingModel {
   const seats = [
     seatAt(root, [-0.95, BLANKET_Y, 0.15], Math.PI / 2),
     seatAt(root, [0.95, BLANKET_Y, 0.15], -Math.PI / 2),
+    seatAt(root, [0, BLANKET_Y, 0.95], Math.PI),
     seatAt(root, [0, BLANKET_Y, -0.85], 0),
   ];
   let open = 0;
@@ -184,11 +185,12 @@ export function createPicnic(skin: Skin): BuildingModel {
 /** The kiosk's front face (the counter), in the back row: z = -1 … 0. */
 const KIOSK_FRONT = -0.08;
 const STOOL_H = 0.55;
+const STOOLS_X = [-1.15, -0.4, 0.35];
 
 /**
  * A kiosk along the back row: a cream counter with a coral band and a glowing chilled window
  * of tubs (pink, mint, chocolate), slim posts, a coral-and-cream striped awning, a flat roof with
- * a big ice-cream cone on top that turns slowly while it works. In front: two coral stools and a
+ * a big ice-cream cone on top that turns slowly while it works. In front: three coral stools and a
  * spot on the ground for the cat, all facing the counter. Unfed, the window is dark.
  */
 export function createIcecream(skin: Skin): BuildingModel {
@@ -240,8 +242,8 @@ export function createIcecream(skin: Skin): BuildingModel {
   // a little junction box on the side the wire hangs from
   p.box([0.16, 0.24, 0.24], [1.47, 1.0, -0.6], CHARCOAL);
   p.box([0.18, 0.05, 0.26], [1.47, 1.14, -0.6], MUSTARD);
-  // two stools at the counter and the cat's cushion on the ground
-  for (const x of [-0.85, 0.05]) {
+  // three stools at the counter and the cat's cushion on the ground
+  for (const x of STOOLS_X) {
     p.box([0.34, 0.05, 0.34], [x, 0.025, 0.55], CHARCOAL);
     p.box([0.1, STOOL_H - 0.1, 0.1], [x, (STOOL_H - 0.1) / 2 + 0.05, 0.55], STEEL);
     p.box([0.22, 0.04, 0.22], [x, 0.2, 0.55], STEEL_DARK);
@@ -288,8 +290,7 @@ export function createIcecream(skin: Skin): BuildingModel {
   const bulb = powerBulb(skin, root, [1.05, 0.62, F]);
   markShadows(root);
   const seats = [
-    seatAt(root, [-0.85, STOOL_H, 0.55], Math.PI),
-    seatAt(root, [0.05, STOOL_H, 0.55], Math.PI),
+    ...STOOLS_X.map((x) => seatAt(root, [x, STOOL_H, 0.55], Math.PI)),
     seatAt(root, [0.95, 0.04, 0.85], Math.PI),
   ];
   const col = new THREE.Color();

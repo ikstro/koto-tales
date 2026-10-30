@@ -18,7 +18,7 @@ a wish that does not is engine work, done only after the owner's yes.
 - Ids: lower-case latin, `snake_case` (`siren`, `crystal_song`). The id is the card's key and its `id`/`kind`.
 - Lines: in `src/content/lines.json`, `{ speaker, text }`; short spoken Ukrainian for a 6-year-old;
   Льоша's own words kept where they fit. Speakers: `tools/voice/speakers.json` (`narrator`, `pupsia`,
-  `lyosha`, `solomiia`, `monster`, the races and their rulers). Every line needs its mp3
+  `lyosha`, `solomiia`, `david`, `monster`, the races and their rulers). Every line needs its mp3
   (`public/voice/<id>.mp3`); `STRICT_VOICE=1` (the deploy) fails on a missing one.
 - `lyosha: true` on a monster, item, artifact or tale card: its album sticker gets the gold rim.
 - Borrowed characters (a cartoon, an internet monster like "siren head") become the game's own toy:
@@ -104,8 +104,14 @@ lighthouse. Asker (`from`): Пупся (a dream) or a race (a paper plane); neve
 (`src/assets/tales.ts`).
 
 ## Hero (playable)
-Three, hard-coded (Льоша, Соломія, Пупся). More playable heroes are a later, separate task (owner's call
-2026-10-30). Until then "a new hero" = a companion card or a monster card.
+Four, in `src/content/heroes.ts` (`HERO_ORDER`: Льоша, Соломія, Пупся, Давид — Давид added on the owner's
+call 2026-10-30). A new playable hero is engine work (the `HeroId` type, a bed in the house, sleep spots in
+the tent, tree house and guest houses, seats at the food places, the HUD's hero and fire sprites, a
+speaker); "a new hero" from a wish is otherwise a companion card or a monster card.
+- `weapon` (`WeaponKind`): what the big button throws — `arrow` (Льоша's bow), `star` (Соломія's wand),
+  `paw` (Пупся's cat magic), `axe` (Давид's throwing axes; his sword stays in his hand). Every weapon
+  flies far and hits the same (`HERO_STATS`); only the look, the spin and the sound differ. The lightning
+  is not a weapon: only the child casts it, by its button (helpers never do).
 
 ## Checks and tools
 - `npm run check` — tsc + tests; `src/content/registry.test.ts` prints a checklist per card.

@@ -130,6 +130,7 @@ export const HOUSE: HouseBlueprint = {
     lyosha: { dx: 1.5, dy: 2, dz: 2, yaw: 0 },
     solomiia: { dx: 7.5, dy: 1.75, dz: 3, yaw: 0 },
     pupsia: { dx: 4.5, dy: 1.17, dz: 3.6, yaw: 0.55 },
+    david: { dx: 2.7, dy: 1.75, dz: 2, yaw: 0 },
   },
   // in the doorway (x 4..5) of the front wall, hinge on the left, swings out
   doorSpot: { dx: 4.04, dy: 1, dz: 6.86, yaw: 0 },

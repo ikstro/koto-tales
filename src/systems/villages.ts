@@ -265,7 +265,7 @@ function* build(ctx: Ctx, site: VillageSite): Generator<void, Shown> {
     if (p.kind === 'heart') heart = model;
     if (p.kind === 'guest') {
       const toWorld = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z).applyAxisAngle(THREE.Object3D.DEFAULT_UP, py).add(at);
-      const spots = (model.spots ?? [-1.4, 0, 1.4].map((x) => ({ x, y: 0.4, z: -0.2, yaw: 0 }))).map((s) => ({ pos: toWorld(s.x, s.y, s.z), yaw: py + s.yaw }));
+      const spots = (model.spots ?? [-1.4, 0, 0, 1.4].map((x) => ({ x, y: 0.4, z: -0.2, yaw: 0 }))).map((s) => ({ pos: toWorld(s.x, s.y, s.z), yaw: py + s.yaw }));
       guest = { centre: toWorld(0, 0, 1.6), spots, wake: toWorld(0, 0, 3) };
     }
     yield;

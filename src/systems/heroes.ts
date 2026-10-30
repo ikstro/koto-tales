@@ -6,7 +6,7 @@ import { HEROES, HERO_ORDER, HERO_STATS } from '../content/heroes';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
 import { sfx } from '../voice/sfx';
-import { castBolt, fireArrow, nearestMonster } from './combat';
+import { fireArrow, nearestMonster } from './combat';
 import { isInside } from './house';
 import { playingSpeakers } from './kit';
 import { onDanceFloor } from './disco';
@@ -35,7 +35,7 @@ export interface HeroHandoff {
 }
 
 /**
- * Creates all three heroes; `playerId` is controlled, the others follow as helpers.
+ * Creates every hero; `playerId` is controlled, the others follow as helpers.
  * Heroes in `handoff` keep their model (and place and facing, if given); the rest stand around `at`.
  */
 export function createHeroes(ctx: Ctx, playerId: HeroId, at: THREE.Vector3, handoff?: Partial<Record<HeroId, HeroHandoff>>): void {
@@ -179,15 +179,16 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
   // helpers leave dancing monsters alone
   const dancers = new Set(ctx.monsters.filter((m) => m.state === 'dance'));
   bots.forEach((bot, i) => {
-    const side = i === 0 ? 1 : -1;
-    // Behind the player, one on each side (character's left is +X when facing +Z).
-    // When that spot is inside a wall (on the doorstep, facing out), try beside, then in front.
+    const side = i === 0 ? 1 : i === 1 ? -1 : 0;
+    // Behind the player, one on each side (character's left is +X when facing +Z), the third
+    // straight behind a little further. When that spot is inside a wall (on the doorstep,
+    // facing out), try beside, then in front.
     const leftX = Math.cos(player.yaw);
     const leftZ = -Math.sin(player.yaw);
     const fy = Math.floor(player.pos.y + 0.01);
     let tx = player.pos.x;
     let tz = player.pos.z;
-    for (const back of [1.5, 0, -1.5]) {
+    for (const back of side ? [1.5, 0, -1.5] : [2.6, 1.3, -1.5]) {
       tx = player.pos.x - fwdX * back + leftX * 1.5 * side;
       tz = player.pos.z - fwdZ * back + leftZ * 1.5 * side;
       if (!world.isSolid(Math.floor(tx), fy, Math.floor(tz)) && !world.isSolid(Math.floor(tx), fy + 1, Math.floor(tz))) break;
@@ -222,7 +223,6 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
 
     if (ctx.playing && !ctx.sleeping) {
       bot.botFireCd -= dt;
-      bot.botBoltCd -= dt;
       const target = nearestMonster(ctx, bot.pos, 9, undefined, dancers);
       if (target) {
         if (dist < 3) bot.yaw = turnTowards(bot.yaw, yawOf(target.pos.x - bot.pos.x, target.pos.z - bot.pos.z), dt * 12);
@@ -231,10 +231,7 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
           bot.botFireCd = lo + Math.random() * (hi - lo);
           fireArrow(ctx, bot);
         }
-        if (bot.botBoltCd <= 0 && target.pos.distanceTo(bot.pos) < 8) {
-          bot.botBoltCd = 7 + Math.random() * 5;
-          castBolt(ctx, bot);
-        }
+        // no lightning for helpers: only the child casts it, by its button
       } else if (bot.botFireCd <= 0 && ctx.boss?.isTarget(bot.pos, 13)) {
         // helpers join in only when the boss's mouth is open (no pointless «дзинь» spam)
         const [lo, hi] = tuneOf(ctx).helperFireEvery;

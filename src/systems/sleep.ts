@@ -1,3 +1,4 @@
+import type { HeroId } from '../contracts';
 import * as THREE from 'three';
 import { placeOnGround } from '../actors/physics';
 import { HERO_ORDER, HERO_STATS } from '../content/heroes';
@@ -24,17 +25,19 @@ const DAWN = 0.93;
 const MORNING = 0.02;
 
 /** Lying spots inside a tent, around its centre, heads to the back. */
-const TENT_SPOTS: Record<string, { dx: number; dy: number; dz: number; yaw: number }> = {
-  lyosha: { dx: -0.55, dy: 0.12, dz: 0.1, yaw: 0 },
-  solomiia: { dx: 0.55, dy: 0.12, dz: 0.1, yaw: 0 },
-  pupsia: { dx: 0, dy: 0.08, dz: 0.95, yaw: 0.4 },
+const TENT_SPOTS: Record<HeroId, { dx: number; dy: number; dz: number; yaw: number }> = {
+  lyosha: { dx: -0.8, dy: 0.12, dz: 0.1, yaw: 0 },
+  solomiia: { dx: 0, dy: 0.12, dz: 0.1, yaw: 0 },
+  david: { dx: 0.8, dy: 0.12, dz: 0.1, yaw: 0 },
+  pupsia: { dx: 0, dy: 0.08, dz: 1.0, yaw: 0.4 },
 };
 
 /** Lying spots up in the tree house's hut (its floor is TREEHOUSE_FLOOR above the ground). */
-const TREE_SPOTS: Record<string, { dx: number; dy: number; dz: number; yaw: number }> = {
-  lyosha: { dx: -0.45, dy: TREEHOUSE_FLOOR + 0.06, dz: -0.2, yaw: 0 },
-  solomiia: { dx: 0.45, dy: TREEHOUSE_FLOOR + 0.06, dz: -0.2, yaw: 0 },
-  pupsia: { dx: -0.1, dy: TREEHOUSE_FLOOR + 0.04, dz: 0.62, yaw: 1.3 },
+const TREE_SPOTS: Record<HeroId, { dx: number; dy: number; dz: number; yaw: number }> = {
+  lyosha: { dx: -0.6, dy: TREEHOUSE_FLOOR + 0.06, dz: -0.2, yaw: 0 },
+  solomiia: { dx: 0, dy: TREEHOUSE_FLOOR + 0.06, dz: -0.2, yaw: 0 },
+  david: { dx: 0.6, dy: TREEHOUSE_FLOOR + 0.06, dz: -0.2, yaw: 0 },
+  pupsia: { dx: -0.1, dy: TREEHOUSE_FLOOR + 0.04, dz: 0.72, yaw: 1.3 },
 };
 
 const isNightTime = (t: number) => t >= EVENING && t < DAWN;
@@ -134,10 +137,12 @@ async function sleep(ctx: Ctx, place: NonNullable<ReturnType<typeof sleepPlace>>
       : place.where === 'guest'
         ? place.wake
         : ctx.player.pos;
+  // the player in front, the helpers in a little row behind
+  const ROW = [-1, 1, 0];
   let i = 0;
   for (const h of ctx.heroes.values()) {
-    const side = h === ctx.player ? 0 : i++ === 0 ? -1 : 1;
-    placeOnGround(ctx.world, h.body, at.x + side * 0.9, at.z + (side ? 0.9 : 0));
+    const side = h === ctx.player ? null : ROW[i++ % ROW.length];
+    placeOnGround(ctx.world, h.body, at.x + (side ?? 0) * 0.9, at.z + (side === null ? 0 : side === 0 ? 1.6 : 0.9));
     h.yaw = 0;
     h.model.play('idle');
   }

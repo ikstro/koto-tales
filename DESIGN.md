@@ -10,7 +10,12 @@ The source of the look is the game's own world, the «Діорама» skin: war
 - **Sized by the screen, not the mock-up**: one unit `--u: clamp(44px, 8.5vmin, 76px)`; the bow ≈ 1.35u, other actions 1u, top pieces ≈ 0.8u. Nothing overlaps at 1280×800, 1024×600, 844×390 or 390×844 (portrait phone uses a compact layout).
 - **Low, out of the way** (the owner's call on 2026-10-29, replacing the tablet ⅔-height rule): on every screen the joystick sits in the bottom-left corner and the actions at the bottom-right edge, so the controls never cover the game. The actions stand in one column hugging the right edge: the kit box on top, the lightning, the bow at the bottom by the thumb (the box and the lightning swapped on the owner's call, 2026-10-29). Just left of the column: the **jump** by the bow (always there); a prompt (moon, fold, chest) by the lightning; by the box the small ✕ while placing, otherwise the note / food / fly / remote.
 - **The tale piece** left of the minimap: the tale step's picture on an 8-stud ring (how far it has come), the asker's face in its corner (Пупся or the race's elder); a tap says the ask again. Hidden while no tale is under way, while sleeping and while the boss bar is up.
-- **Top right**: one hero piece (the current face; a tap fans out the three heroes), album, fullscreen, pause. Pause opens a plate of picture pieces: continue, sound, «?» (the guide), the door (exit: saved, Пупся says goodbye, the installed game closes; in a browser tab it goes back to the title), and «Почати знову» (a sprout on its own stud ring: held, never tapped — the ring lights over 2 s, then a new story on the same world starts at the title, keeping only sound and difficulty; the old save is kept aside in storage; a short tap wiggles it and Пупся says to hold); difficulty as three pieces with 1/2/3 skulls.
+- **Top right**: one hero piece (the current face; a tap fans out the four heroes), album, fullscreen, pause. Pause opens a plate of picture pieces: continue, sound, «?» (the guide), the door (exit: saved, Пупся says goodbye, the installed game closes; in a browser tab it goes back to the title), and «Почати знову» (a sprout on its own stud ring: held, never tapped — the ring lights over 2 s, then a new story on the same world starts at the title, keeping only sound and difficulty; the old save is kept aside in storage; a short tap wiggles it and Пупся says to hold); difficulty as three pieces with 1/2/3 skulls.
+
+## Heroes and weapons
+Four heroes (the owner's call, 2026-10-30): Льоша, Соломія, Пупся and Давид, Льоша's friend (very short light-brown hair, a big smile, a lemon-yellow tee, jeans, a toy sword always in his right hand). Any of them can be woken and played; the others follow (two beside, the third behind).
+- **Everyone shoots far, and the same**: one button, one strength (`HERO_STATS`), each hero with their own weapon and its own whoosh — Льоша's bow (arrows stick in walls), Соломія's wand (spinning pink stars with a sparkle trail), Пупся the battle mage's cat magic (glowing violet purr-balls with a cream paw print, she casts them), Давид's throwing axes (spinning end over end). Stars, purr-balls and axes puff in their colour on a wall. Armour (`bolt`, `lantern`) stops every weapon alike.
+- **The lightning is the child's**: only the lightning button casts it; helpers only shoot.
 
 ## Camera
 The owner's calls on 2026-10-29: the hero is not made smaller, and there is no zoom.
@@ -25,14 +30,15 @@ The owner's calls on 2026-10-29: the hero is not made smaller, and there is no z
 | print-cream | `#ffe3a3` | prints on dark pieces |
 | print-dark | `#4a2c14` | prints and digits on light pieces |
 | mustard | `#eab02b` / `#ffd23a` | number tile, joystick knob, active rim (gold) |
-| coral | `#e0583f` / `#e8463a` | bow tile |
+| coral | `#e0583f` / `#e8463a` | fire tile (each hero's weapon printed on it) |
 | blue | `#2f7fd6` | lightning tile, building brick default |
 | green | `#3fa142` | building palette |
 | pink | `#ee6a82` | Соломія's accents |
+| green (hero) | `#3fa142` | Давид's tile and blanket |
 World colours come from `src/render/skins/diorama.ts`; building colours from `src/world/blocks.ts`.
 
 ## Pieces
-- Round printed tile (bow, lightning, jump — a green tile with a spring and an arrow up, ✓, moon, fold, note, door), heart tile, the game's coin, mustard number tile, round hero tile with the rendered face (active: lifted, gold rim; others keep full colour), book piece (album), round joystick plate with a stud knob, the kit box (a mustard toolbox with a coral lid) on its own stud ring, the kit's buildings as their real models, the lantern as a real toy lantern piece (dark frame and cap, ring handle, warm glass, bright core, a soft glow behind it); the boss bar's lantern slots are small ones.
+- Round printed tile (fire — the current hero's weapon: Льоша's bow, Соломія's star wand, Пупся's paw print, Давид's axe —, lightning, jump — a green tile with a spring and an arrow up, ✓, moon, fold, note, door), heart tile, the game's coin, mustard number tile, round hero tile with the rendered face (active: lifted, gold rim; others keep full colour), book piece (album), round joystick plate with a stud knob, the kit box (a mustard toolbox with a coral lid) on its own stud ring, the kit's buildings as their real models, the lantern as a real toy lantern piece (dark frame and cap, ring handle, warm glass, bright core, a soft glow behind it); the boss bar's lantern slots are small ones.
 - Lightning charge: 8 studs around the tile light one by one; when full the tile pops. The kit box's ring works the same way for its task.
 - Sprites are baked from the game's models with the diorama materials: `tools/hud/` (re-bake after a skin or model change). Runtime cost: images + CSS transforms only.
 

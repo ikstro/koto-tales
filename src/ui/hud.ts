@@ -387,6 +387,8 @@ export class Hud {
   private zombiePiece: Piece;
   private killCount: Counter;
   private heroPiece: Piece;
+  /** The big fire button; its print is the current hero's weapon. */
+  private firePiece!: Piece;
   private fan: HTMLDivElement;
   private fanTiles = new Map<HeroId, Piece>();
   private fullPiece: Piece;
@@ -540,10 +542,10 @@ export class Hud {
     }
     this.gBoss.seal();
 
-    // The hero fan: three tiles under the plate, opened by the hero piece.
+    // The hero fan: one tile per hero under the plate, opened by the hero piece.
     this.fan = div('fan hidden', this.gTop.inner);
     HERO_ORDER.forEach((id, i) => {
-      const p = new Piece(this.fan, `hero-${id}` as SpriteName, -93 + (i - 1) * 100, 118, 'tile-sh');
+      const p = new Piece(this.fan, `hero-${id}` as SpriteName, -93 + (i - 2) * 100, 118, 'tile-sh');
       p.layer('rim', 'sp rim');
       this.press(p, p.target(96), () => {
         input.pendingHero = id;
@@ -564,6 +566,7 @@ export class Hud {
     this.boltGlow = div('glow');
     this.bolt.lf.insertBefore(this.boltGlow, this.bolt.pr);
     const bow = this.gAct.add('bow', COL_X, -74, 'big-sh');
+    this.firePiece = bow;
     this.kitRing = this.gAct.add('ring', COL_X, KIT_Y);
     for (let i = 0; i < 8; i++) this.kitLit.push(this.kitRing.layer(`ring-lit-${i}` as SpriteName, 'sp lit'));
     this.kitPiece = this.gAct.add('kit', COL_X, KIT_Y - TOP);
@@ -1291,6 +1294,8 @@ export class Hud {
     const first = this.player === null;
     this.player = id;
     setSprite(this.heroPiece.img, `hero-${id}` as SpriteName);
+    // the big button shows the hero's own weapon (Льоша's bow, Соломія's wand, Пупся's paw, Давид's axe)
+    setSprite(this.firePiece.img, (id === 'lyosha' ? 'bow' : `fire-${id}`) as SpriteName);
     for (const [hid, p] of this.fanTiles) p.el.classList.toggle('on', hid === id);
     if (!first) this.heroPiece.drop(0, 36);
   }

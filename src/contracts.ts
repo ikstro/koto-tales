@@ -17,7 +17,7 @@ import type { MonsterKind as ContentMonsterKind } from './content/monsters';
 
 // ─── ids ────────────────────────────────────────────────────────────────────
 
-export type HeroId = 'lyosha' | 'solomiia' | 'pupsia';
+export type HeroId = 'lyosha' | 'solomiia' | 'pupsia' | 'david';
 /** Defined by the cards, so adding a monster or an item touches one file. */
 export type MonsterKind = ContentMonsterKind;
 export type ItemId = ContentItemId;
@@ -280,7 +280,7 @@ export interface HouseBlueprint {
 // ─── voice & sound ──────────────────────────────────────────────────────────
 
 export type Speaker =
-  | 'narrator' | 'lyosha' | 'solomiia' | 'pupsia' | 'monster'
+  | 'narrator' | 'lyosha' | 'solomiia' | 'pupsia' | 'david' | 'monster'
   | 'elf' | 'elf_kid' | 'gnome' | 'robot' | 'alien' | 'alien_kid'
   | 'elf_queen' | 'gnome_king' | 'robot_chief' | 'alien_captain';
 

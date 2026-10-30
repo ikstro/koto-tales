@@ -394,14 +394,17 @@ export function wakeHeroes(ctx: Ctx, game: Game): Promise<HeroId> {
       sfx.play('wake');
       sfx.ambient('night');
       const others = sleepers.filter((s) => s !== h);
-      // places on the doorstep: the chosen in the middle, Льоша's side left, Соломія's right
+      // places on the doorstep: the chosen in the middle, Льоша's side left, Соломія's right, the fourth behind
       const middle: P2 = [4.5, 7.6];
       const left: P2 = [3.3, 8.0];
       const right: P2 = [5.7, 8.0];
+      const back: P2 = [4.5, 8.9];
       const ends = new Map<Sleeper, P2>([[h, middle]]);
-      const leftOne = others.find((o) => o.id === 'lyosha') ?? others.find((o) => o.id !== 'solomiia')!;
+      const leftOne = others.find((o) => o.id === 'lyosha') ?? others.find((o) => o.id === 'david') ?? others[0];
       ends.set(leftOne, left);
-      ends.set(others.find((o) => o !== leftOne)!, right);
+      const rightOne = others.find((o) => o.id === 'solomiia' && o !== leftOne) ?? others.find((o) => o !== leftOne)!;
+      ends.set(rightOne, right);
+      for (const o of others) if (!ends.has(o)) ends.set(o, back);
 
       const plan = (s: Sleeper, order: number) => {
         const isChosen = s === h;
