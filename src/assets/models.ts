@@ -16,23 +16,20 @@ import { buildItem } from './items';
 import { buildAlien1, buildAlien2, buildAlien3, buildAlienCaptain, buildAlienElder, buildAlienKid } from './parts/alien';
 import { buildElf1, buildElf2, buildElf3, buildElfElder, buildElfKid, buildElfQueen } from './parts/elf';
 import { buildGnome1, buildGnome2, buildGnome3, buildGnomeElder, buildGnomeKid, buildGnomeKing } from './parts/gnome';
-import { build as landEater } from './parts/landEater';
-import { build as lyosha } from './parts/lyosha';
-import { build as pupsia } from './parts/pupsia';
 import { buildRobot1, buildRobot2, buildRobot3, buildRobotChief, buildRobotElder, buildRobotKid } from './parts/robot';
-import { build as skeleton } from './parts/skeleton';
-import { build as solomiia } from './parts/solomiia';
-import { build as spider } from './parts/spider';
-import { build as zombie } from './parts/zombie';
+
+/**
+ * Every part file that exports `build` registers itself under its file name
+ * (`parts/zombie.ts` → 'zombie'): a new monster or companion is one file, no line here.
+ */
+const PART_FILES = import.meta.glob<{ build?: (skin: Skin) => Rig }>('./parts/*.ts', { eager: true });
+const ONE_FILE_ONE_MODEL = Object.fromEntries(
+  Object.entries(PART_FILES).flatMap(([file, mod]) => (mod.build ? [[file.slice('./parts/'.length, -'.ts'.length), mod.build]] : [])),
+);
 
 export const PART_BUILDERS: Record<string, (skin: Skin) => Rig> = {
-  lyosha,
-  solomiia,
-  pupsia,
-  zombie,
-  skeleton,
-  spider,
-  landEater,
+  ...ONE_FILE_ONE_MODEL,
+  // the folk files hold a whole race each
   elf_elder: buildElfElder,
   elf_1: buildElf1,
   elf_2: buildElf2,

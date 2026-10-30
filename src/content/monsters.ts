@@ -89,7 +89,8 @@ export const MONSTERS = {
 
 export type MonsterKind = keyof typeof MONSTERS;
 
-export const MONSTER_ORDER: MonsterKind[] = ['zombie', 'skeleton', 'spider'];
+/** The album's (and spawning's) order is the cards' order: a new monster is one card. */
+export const MONSTER_ORDER = Object.keys(MONSTERS) as MonsterKind[];
 
 /** Where monsters appear; how many and how often is set by the difficulty (content/difficulty.ts). */
 export const SPAWN = {

@@ -3,7 +3,7 @@
  * two tiny fangs and a light heart on its back. Eight two-segment legs.
  */
 import type { Rig, Skin } from '../../contracts';
-import { faceAtlas } from '../faces';
+import { faceAtlas, type FaceSpec } from '../faces';
 import { spiderFrame } from './frames';
 import { Kit } from './kit';
 
@@ -11,8 +11,26 @@ const BODY = '#5c6bc0';
 const LIGHT = '#aab4ec';
 const LEG = '#3f4a9a';
 
+/** The 8×8 face printed on the head's front (`src/assets/faces.ts`). */
+export const face: FaceSpec = {
+  // body, legs, belly, fang
+  swatches: ['#5c6bc0', '#3f4a9a', '#9fa8da', '#ffffff'],
+  pal: { K: '#16163a', W: '#ffffff', R: '#ff8a80', F: '#ffffff', P: '#ff9ec7' },
+  open: [
+    'K......K',
+    '........',
+    '.KW..KW.',
+    '.KK..KK.',
+    '.KK..KK.',
+    'P......P',
+    '..F..F..',
+    '..F..F..',
+  ],
+  closed: { 2: '........', 3: '........', 4: '.KK..KK.' },
+};
+
 export function build(skin: Skin): Rig {
-  const kit = new Kit('spider', skin, faceAtlas('spider'));
+  const kit = new Kit('spider', skin, faceAtlas('spider', face));
   const { root, parts } = spiderFrame({
     bodyY: 0.32,
     head: [0, 0.0, 0.06],

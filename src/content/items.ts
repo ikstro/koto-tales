@@ -14,6 +14,8 @@ export interface ItemCard {
   weight: number;
   /** Sparkle colour. */
   color: number;
+  /** false: not an album sticker (left out of ITEM_ORDER on purpose). */
+  album?: false;
 }
 
 export const ITEMS = {
@@ -34,7 +36,7 @@ export const ITEMS = {
   // The Land Eater's trophy: only dropped by the boss (weight 0 — never lies around).
   eater_heart: { id: 'eater_heart', name: 'Серце Пожирача', line: 'item_eater_heart', biomes: 'any', weight: 0, color: 0xffa526 },
   /** Dropped by monsters (never lies around by itself); picking it up gives a heart back. Not an album sticker. */
-  heart: { id: 'heart', name: 'Сердечко', line: 'item_heart', biomes: 'any', weight: 0, color: 0xff4d6d },
+  heart: { id: 'heart', name: 'Сердечко', line: 'item_heart', biomes: 'any', weight: 0, color: 0xff4d6d, album: false },
 } satisfies Record<string, ItemCard>;
 
 export type ItemId = keyof typeof ITEMS;

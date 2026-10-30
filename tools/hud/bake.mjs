@@ -9,6 +9,10 @@
  * Re-run after a skin, model, block-colour or piece change. Node only: it starts its own
  * Vite dev server for the bake page and stops it afterwards.
  * Needs `npx playwright install chromium-headless-shell` once.
+ *
+ * npm run hud -- --only b-tent,item-fish
+ *   bakes only those sprites (and their own `<name>-sh` shadows) and merges them into
+ *   public/hud/ and src/ui/hudSprites.ts; every other PNG and manifest line is left as it is.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -17,28 +21,25 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
+import { findShell } from '../lib/shell.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const outDir = path.join(root, 'public/hud');
 const tsOut = path.join(root, 'src/ui/hudSprites.ts');
 
-function findShell() {
-  const base = path.join(process.env.LOCALAPPDATA ?? os.homedir(), 'ms-playwright');
-  for (const d of fs.existsSync(base) ? fs.readdirSync(base) : []) {
-    const exe = path.join(base, d, 'chrome-headless-shell-win64', 'chrome-headless-shell.exe');
-    if (d.startsWith('chromium_headless_shell') && fs.existsSync(exe)) return exe;
-  }
-  throw new Error('headless shell not found: run `npx playwright install chromium-headless-shell`');
-}
+const arg = process.argv.indexOf('--only');
+const only = arg >= 0 ? (process.argv[arg + 1] ?? '').split(',').filter(Boolean) : null;
+if (only && !only.length) throw new Error('--only needs a list: npm run hud -- --only b-tent,item-fish');
+
 
 const server = await createServer({ root, configFile: false, logLevel: 'error', optimizeDeps: { entries: ['tools/hud/bake.html'] }, server: { port: 5291, strictPort: false, host: '127.0.0.1' } });
 await server.listen();
-const url = `${server.resolvedUrls.local[0]}tools/hud/bake.html`;
+const url = `${server.resolvedUrls.local[0]}tools/hud/bake.html${only ? `?only=${only.join(',')}` : ''}`;
 let dom;
 try {
   const { stdout } = await promisify(execFile)(
     findShell(),
-    ['--dump-dom', '--window-size=800,600', '--mute-audio', '--virtual-time-budget=90000', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', url],
+    [...(process.getuid?.() === 0 ? ['--no-sandbox'] : []), '--dump-dom', '--window-size=800,600', '--mute-audio', '--virtual-time-budget=90000', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', url],
     { maxBuffer: 512 * 1024 * 1024, encoding: 'utf8' },
   );
   dom = stdout;
@@ -49,17 +50,37 @@ try {
 const m = /<pre id="out">([\s\S]*?)<\/pre>/.exec(dom);
 if (!m || !m[1].trim()) throw new Error('bake page produced nothing (check the console of tools/hud/bake.html in a browser)');
 const text = m[1].replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
-const { sprites, nine } = JSON.parse(text);
+const baked = JSON.parse(text);
+let { sprites, nine } = baked;
 
 fs.mkdirSync(outDir, { recursive: true });
-for (const f of fs.readdirSync(outDir)) if (f.endsWith('.png')) fs.unlinkSync(path.join(outDir, f));
+let meta = {};
+if (only) {
+  // keep everything already baked; only the asked-for sprites (and their own shadows) change
+  const unknown = only.filter((n) => !sprites[n]);
+  if (unknown.length) throw new Error(`not baked by tools/hud/bake.html: ${unknown.join(', ')}`);
+  sprites = Object.fromEntries(Object.entries(sprites).filter(([n]) => only.includes(n) || only.some((o) => n === `${o}-sh`)));
+  meta = readManifest();
+  nine = readNine();
+} else for (const f of fs.readdirSync(outDir)) if (f.endsWith('.png')) fs.unlinkSync(path.join(outDir, f));
 let bytes = 0;
-const meta = {};
 for (const [name, s] of Object.entries(sprites)) {
   const buf = Buffer.from(s.png.split(',', 2)[1], 'base64');
   fs.writeFileSync(path.join(outDir, `${name}.png`), buf);
   bytes += buf.length;
   meta[name] = { w: s.w, h: s.h, oy: s.oy, x: s.x, y: s.y, cw: s.cw, ch: s.ch };
+}
+
+/** The sprite lines of the current src/ui/hudSprites.ts. */
+function readManifest() {
+  const src = fs.readFileSync(tsOut, 'utf8');
+  const out = {};
+  for (const m of src.matchAll(/^  '([^']+)': (\{[^}]*\}),$/gm)) out[m[1]] = JSON.parse(m[2].replace(/(\w+): /g, '"$1": '));
+  return out;
+}
+function readNine() {
+  const m = /export const NINE = (\{.*\}) as const;/.exec(fs.readFileSync(tsOut, 'utf8'));
+  return m ? JSON.parse(m[1]) : {};
 }
 
 const lines = Object.entries(meta).map(([k, v]) => `  '${k}': ${JSON.stringify(v).replace(/"(\w+)":/g, '$1: ')},`);
@@ -79,4 +100,4 @@ export type SpriteName = keyof typeof SPRITES;
 export const NINE = ${JSON.stringify(nine)} as const;
 `,
 );
-console.log(`${Object.keys(meta).length} sprites, ${(bytes / 1024).toFixed(0)} KB → public/hud/`);
+console.log(only ? `${Object.keys(sprites).join(', ')} (${(bytes / 1024).toFixed(0)} KB) merged into public/hud/` : `${Object.keys(meta).length} sprites, ${(bytes / 1024).toFixed(0)} KB → public/hud/`);
