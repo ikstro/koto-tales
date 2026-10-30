@@ -14,6 +14,7 @@ a wish that does not is engine work, done only after the owner's yes.
    `?spawn=` / `?give=` / `?tale=` → commit; push to `main` only when the owner asks (it deploys).
 
 ## Rules for every card
+- What is shared and what is not (the owner's call, 2026-10-30): the logic is shared — a card only picks verbs the engine already has, so a wish writes no engine code. The model is not: each thing's toy is built by hand (the `model-builder` agent, from the nearest existing model), so every monster keeps its own look. No parts library or recipes.
 - Ids: lower-case latin, `snake_case` (`siren`, `crystal_song`). The id is the card's key and its `id`/`kind`.
 - Lines: in `src/content/lines.json`, `{ speaker, text }`; short spoken Ukrainian for a 6-year-old;
   Льоша's own words kept where they fit. Speakers: `tools/voice/speakers.json` (`narrator`, `pupsia`,
