@@ -19,7 +19,7 @@ A blocky 3D browser game for a 6-year-old (Льоша) who invents its stories; 
 - Systems talk through `src/core/events.ts`. Saves are versioned with migrations (`src/systems/save.ts`).
 
 ## Rules
-- Photos of the children never go into the repo; `design-lab/` is excluded from git (`.git/info/exclude`).
+- Photos of the children never go into the repo; `design-lab/` is excluded from git (`.gitignore`).
 - Generic toy-brick aesthetic only: no brand names, logos on studs, minifigure shapes, or copies of real games' UI.
 - No losing; home is safe; nothing must require reading.
 - No digging or loose bricks: the ground never changes; achievements open ready-made buildings in the kit (DESIGN.md «Kit»), each with a real use.

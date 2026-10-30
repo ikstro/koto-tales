@@ -2,6 +2,8 @@
   "name": "koto-tales",
   "private": true,
   "version": "0.1.0",
+  "description": "A blocky 3D browser game whose stories are invented by a 6-year-old. Ukrainian voice-over, offline PWA.",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -29,5 +31,8 @@
     "vite": "^8.3.5",
     "vite-plugin-pwa": "^2.0.0",
     "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

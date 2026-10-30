@@ -4,3 +4,12 @@ tools/voice/.cache/
 refs/
 *.local
 .playwright-mcp/
+
+# Working pictures, including photos of the children: never committed
+design-lab/
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
