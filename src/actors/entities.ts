@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { CharacterModel, HeroId, ItemId, MonsterKind } from '../contracts';
-import { HEROES, HERO_STATS, type HeroCard } from '../content/heroes';
+import { HEROES, HERO_STATS, type HeroCard, type WeaponKind } from '../content/heroes';
 import { MONSTERS, type MonsterCard } from '../content/monsters';
 import { makeBody, type Body } from './physics';
 
@@ -30,9 +30,8 @@ export class Hero {
   boltCd = 0;
   /** How fast the lightning charges (3 on the swings). */
   boltRate = 1;
-  /** Bot brain: next time a bot may shoot / cast on its own. */
+  /** Bot brain: next time a bot may shoot on its own (helpers never cast the lightning). */
   botFireCd = 0;
-  botBoltCd = 4;
   stuckTime = 0;
   isPlayer = false;
   /** Dancing to a boombox (the player stood still near the music). */
@@ -115,6 +114,8 @@ export class Arrow {
   /** Helpers' arrows hit softer than the child's own (difficulty). */
   damage = 1;
   by: Hero | null = null;
+  /** The thrower's weapon: arrows point along the flight, the rest spin. */
+  kind: WeaponKind = 'arrow';
   life = 2.2;
   stuck = false;
   dead = false;

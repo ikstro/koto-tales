@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { createArrow } from '../assets/props';
+import { createShot } from '../assets/props';
 import { Arrow, type Hero, type Monster, yawOf } from '../actors/entities';
-import { HERO_STATS } from '../content/heroes';
+import { HERO_STATS, type WeaponKind } from '../content/heroes';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
 import { sfx } from '../voice/sfx';
@@ -51,6 +51,12 @@ function aimsAtBoss(ctx: Ctx, from: THREE.Vector3, range: number, monster: Monst
   return !monster || d < Math.hypot(monster.pos.x - from.x, monster.pos.z - from.z);
 }
 
+/** The same whoosh, pitched per weapon: the star rings higher, the axe swishes lower. */
+const SHOT_PITCH: Record<WeaponKind, number> = { arrow: 1, star: 1.45, paw: 1.25, axe: 0.75 };
+/** Spin of the thrown things, turns a second (arrows fly straight). */
+const SPIN: Record<WeaponKind, number> = { arrow: 0, star: 14, paw: 5, axe: 16 };
+const TRAIL: Partial<Record<WeaponKind, number>> = { star: 0xff8fb1, paw: 0xc98bff };
+
 export function fireArrow(ctx: Ctx, hero: Hero): void {
   if (hero.fireCd > 0) return;
   hero.fireCd = HERO_STATS.arrowCooldown;
@@ -67,18 +73,20 @@ export function fireArrow(ctx: Ctx, hero: Hero): void {
   else dir.set(Math.sin(hero.yaw), 0.05, Math.cos(hero.yaw)).normalize();
   hero.yaw = yawOf(dir.x, dir.z);
 
-  const obj = createArrow(ctx.skin);
+  const kind = hero.card.weapon;
+  const obj = createShot(ctx.skin, kind);
   obj.position.copy(from);
   ctx.scene.add(obj);
   const a = new Arrow(obj, from);
   a.by = hero;
+  a.kind = kind;
   a.damage = hero.isPlayer ? HERO_STATS.arrowDamage : HERO_STATS.arrowDamage * tuneOf(ctx).helperDamage;
   a.vel.copy(dir).multiplyScalar(HERO_STATS.arrowSpeed);
   a.vel.y += 1.2; // a slight arc reads as a real arrow
   ctx.arrows.push(a);
 
-  hero.model.play('attack');
-  sfx.play('arrow', { volume: hero.isPlayer ? 1 : 0.5 });
+  hero.model.play(kind === 'paw' ? 'cast' : 'attack');
+  sfx.play('arrow', { volume: hero.isPlayer ? 1 : 0.5, pitch: SHOT_PITCH[kind] });
   events.emit('attack:arrow', { hero: hero.id });
 }
 
@@ -285,6 +293,10 @@ export function updateCombat(ctx: Ctx, dt: number): void {
       a.pos.addScaledVector(a.vel, dt);
       a.obj.position.copy(a.pos);
       a.obj.lookAt(tmp.copy(a.pos).add(a.vel));
+      if (a.kind === 'axe') a.obj.rotateX(a.life * SPIN.axe);
+      else if (a.kind !== 'arrow') a.obj.rotateZ(a.life * SPIN[a.kind]).rotateY(a.life * SPIN[a.kind] * 0.5);
+      const trail = TRAIL[a.kind];
+      if (trail !== undefined && Math.random() < dt * 14) ctx.effects.sparkle(a.pos, trail);
       for (const m of ctx.monsters) {
         if (!m.alive) continue;
         if (centreOf(m, tmp2).distanceTo(a.pos) < m.body.radius + 0.45 + m.body.height * 0.3) {
@@ -308,8 +320,14 @@ export function updateCombat(ctx: Ctx, dt: number): void {
         }
       }
       if (!a.dead && ctx.world.isSolid(Math.floor(a.pos.x), Math.floor(a.pos.y), Math.floor(a.pos.z))) {
-        a.stuck = true;
-        a.life = Math.min(a.life, 2);
+        if (a.kind === 'arrow') {
+          a.stuck = true;
+          a.life = Math.min(a.life, 2);
+        } else {
+          // stars, purr-balls and axes don't stick: a puff in their colour
+          ctx.effects.poof(a.pos, TRAIL[a.kind] ?? 0x9aa4ad, 6);
+          a.dead = true;
+        }
       }
     }
     if (a.life <= 0) a.dead = true;

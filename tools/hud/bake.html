@@ -123,6 +123,29 @@ function printBow(x, s) {
   x.fillStyle = CREAM;
   for (const d of [-1, 1]) { x.beginPath(); x.moveTo(-70, 0); x.lineTo(-130, d * 44); x.lineTo(-160, d * 40); x.lineTo(-110, 0); x.closePath(); x.fill(); }
 }
+/** Соломія's fire piece: a wand with a big star on its tip. */
+function printWand(x, s) {
+  x.translate(s / 2, s / 2); x.lineCap = 'round';
+  x.strokeStyle = CREAM; x.lineWidth = 34;
+  x.beginPath(); x.moveTo(-150, 150); x.lineTo(20, -20); x.stroke();
+  x.fillStyle = CREAM; x.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 46 : 112; x.lineTo(70 + Math.cos(a) * r, -70 + Math.sin(a) * r); }
+  x.closePath(); x.fill();
+}
+/** Пупся's fire piece: a cat's paw print (cat magic). */
+function printPaw(x, s) {
+  x.translate(s / 2, s / 2); x.fillStyle = CREAM;
+  x.beginPath(); x.ellipse(0, 60, 96, 80, 0, 0, Math.PI * 2); x.fill();
+  for (const [a, b, r] of [[-120, -40, 40], [-50, -110, 42], [50, -110, 42], [120, -40, 40]]) { x.beginPath(); x.ellipse(a, b, r, r * 1.2, a / 300, 0, Math.PI * 2); x.fill(); }
+}
+/** Давид's fire piece: a throwing axe, turned like a throw. */
+function printAxe(x, s) {
+  x.translate(s / 2, s / 2); x.rotate(Math.PI / 4); x.lineCap = 'round';
+  x.strokeStyle = CREAM; x.lineWidth = 40;
+  x.beginPath(); x.moveTo(0, 170); x.lineTo(0, -150); x.stroke();
+  x.fillStyle = CREAM; x.beginPath();
+  x.moveTo(10, -150); x.lineTo(120, -190); x.quadraticCurveTo(160, -100, 120, -10); x.lineTo(10, -50); x.closePath(); x.fill();
+}
 function boltPath(x, s) {
   const p = [[0.12, 0.66], [-0.32, -0.04], [-0.03, -0.04], [-0.17, -0.66], [0.34, 0.1], [0.05, 0.1], [0.22, 0.66]];
   x.beginPath(); p.forEach(([a, b], i) => { const X = s / 2 + a * s * 0.56, Y = s / 2 - b * s * 0.56; i ? x.lineTo(X, Y) : x.moveTo(X, Y); }); x.closePath();
@@ -530,9 +553,10 @@ const faces = {
   lyosha: face('lyosha', 0.3, C.mustard),
   solomiia: face('solomiia', 0.3, '#ee6a82'),
   pupsia: face('pupsia', 0.5, '#f08a24'),
+  david: face('david', 0.3, '#3fa142'),
   zombie: face('zombie', 0.3, '#86b04a'),
 };
-const HC = { lyosha: C.mustard, solomiia: '#ee6a82', pupsia: '#f08a24' };
+const HC = { lyosha: C.mustard, solomiia: '#ee6a82', pupsia: '#f08a24', david: '#3fa142' };
 
 shoot('plate-hearts', rectPlate(8, 2, C.plate), 380, 140, { dpr: LO });
 shoot('heart', heartTile(), 90, 90, { dpr: LO });
@@ -567,6 +591,10 @@ shoot('sound-off', roundTile(1, C.navy, printSound(false, CREAM), 0.6), 130, 130
 shoot('home', roundTile(1, C.mustard, printHome(INK), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('close', roundTile(1, C.coral, printX(CREAM), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('bow', roundTile(1.35, C.coral, printBow, 0.6), 160, 160, { shadow: 'big-sh' });
+// the other heroes' own weapons on the same coral piece (the HUD swaps it with the hero)
+shoot('fire-solomiia', roundTile(1.35, C.coral, printWand, 0.6), 160, 160, { shadow: 'big-sh' });
+shoot('fire-pupsia', roundTile(1.35, C.coral, printPaw, 0.6), 160, 160, { shadow: 'big-sh' });
+shoot('fire-david', roundTile(1.35, C.coral, printAxe, 0.6), 160, 160, { shadow: 'big-sh' });
 shoot('play', roundTile(1.35, C.green, printPlay(CREAM), 0.6), 160, 160, { shadow: 'big-sh' });
 // the lantern is a real toy lantern (the kit's piece and the boss's light)
 shoot('brick-' + B.LANTERN, lanternPiece(1.05), 200, 260, { oy: 1.1, shadow: 'brick-' + B.LANTERN + '-sh' });

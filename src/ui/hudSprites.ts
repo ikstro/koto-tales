@@ -211,6 +211,11 @@ export const SPRITES = {
   'castle-aliens': {w: 110,h: 110,oy: 0,x: 14,y: 14,cw: 82,ch: 74},
   'item-castle-elves': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
   'chest': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
+  'hero-david': {w: 110,h: 110,oy: 0,x: 14,y: 14,cw: 82,ch: 74},
+  'fire-solomiia': {w: 160,h: 160,oy: 0,x: 26,y: 23,cw: 108,ch: 101},
+  'fire-pupsia': {w: 160,h: 160,oy: 0,x: 26,y: 23,cw: 108,ch: 101},
+  'fire-david': {w: 160,h: 160,oy: 0,x: 26,y: 23,cw: 108,ch: 101},
+  'mark-david': {w: 76,h: 76,oy: 0,x: 12,y: 12,cw: 52,ch: 46},
 } satisfies Record<string, SpriteMeta>;
 
 export type SpriteName = keyof typeof SPRITES;

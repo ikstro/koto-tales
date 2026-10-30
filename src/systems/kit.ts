@@ -262,9 +262,13 @@ export function initKit(ctx: Ctx): void {
   const c = ctx.house?.campfire.root.position;
   if (c) for (let dx = -2; dx <= 2; dx++) for (let dz = -3; dz <= 2; dz++) reserved.add(`${Math.floor(c.x) + dx},${Math.floor(c.z) + dz}`);
   // the world moved (a river now flows there, the ground rose over the floor or fell away,
-  // a village stands there now): back into the box
+  // a village stands there now, the house grew over it): back into the box
   ctx.save.placed = ctx.save.placed.filter((rec) => {
     const card = BUILDINGS[rec.id];
+    if (onHouse(ctx, rec)) {
+      ctx.save.kit[rec.id] = (ctx.save.kit[rec.id] ?? 0) + 1;
+      return false;
+    }
     // the robot is out with the party wherever it stood (systems/prizes.ts brings it along)
     if (card.block !== undefined || card.follow || (standsOk(ctx, rec) && !onReserved(rec))) return true;
     ctx.save.kit[rec.id] = (ctx.save.kit[rec.id] ?? 0) + 1;
@@ -314,6 +318,14 @@ export function standsOk(world: Pick<IWorld, 'groundHeight' | 'isWater'> | Ctx, 
     }
   }
   return top >= rec.y - 1;
+}
+
+/** A saved building under the house or right against its walls (an old save's house grew bigger). */
+function onHouse(ctx: Ctx, rec: PlacedBuilding): boolean {
+  const f = ctx.house?.footprint;
+  if (!f || BUILDINGS[rec.id].follow) return false;
+  const [sw, sd] = dims(BUILDINGS[rec.id], rec.rot);
+  return rec.x < f.x1 + 1 && rec.x + sw > f.x0 - 1 && rec.z < f.z1 + 1 && rec.z + sd > f.z0 - 1;
 }
 
 /** A saved building on ground kept for something else (a village's houses). */

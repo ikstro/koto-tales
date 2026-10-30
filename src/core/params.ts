@@ -4,7 +4,7 @@ import { SKIN_NAMES, type AnySkin } from '../render/skins';
 
 /**
  * URL switches for testing (and for screenshots by an agent):
- *   ?skin=pixel|toy|hybrid|diorama  ?hero=lyosha  ?autostart=1
+ *   ?skin=pixel|toy|hybrid|diorama  ?hero=lyosha|david  ?autostart=1
  *   ?tier=2|1|0|-1  fixes the quality level and turns the adaptive controller off (src/core/quality.ts):
  *     2 = full: shadows, dressing, studs, tilt-shift post, pixel ratio ≤ 1.5, render distance 5, 60 fps
  *     1 = the same at pixel ratio 1 with a cheaper post pass (6 blur taps, 2× MSAA), 60 fps
@@ -12,7 +12,7 @@ import { SKIN_NAMES, type AnySkin } from '../render/skins';
  *    -1 = 0 at 0.75 render scale, render distance 3, 30 fps
  *   ?fps=30|60  fixes the frame cap (also turns adaptation off)
  *   ?x=..&z=..  (start position)  ?time=0..1  ?freeze=1  ?stats=1  ?fresh=1 (ignore the save)  ?demo=1
- *   ?wakeTap=lyosha|solomiia|pupsia  (test only: the start ritual taps that hero by itself
+ *   ?wakeTap=lyosha|solomiia|pupsia|david  (test only: the start ritual taps that hero by itself
  *   ~1.2 s after it begins; no audio unlock or fullscreen, those need a real touch)
  *   ?wakeHold=<s>  (test only: the ritual stops at <s> seconds after the touch, for screenshots)
  *   ?title=0  (skip only the title «Льошині казки» with its ▶; the wake ritual still runs)
@@ -99,7 +99,7 @@ export function readParams(): Params {
     skin: one('skin', SKIN_NAMES),
     tier: tier === 2 || tier === 1 || tier === 0 || tier === -1 ? tier : null,
     fps: num('fps') === 30 ? 30 : num('fps') === 60 ? 60 : null,
-    hero: one('hero', ['lyosha', 'solomiia', 'pupsia'] as const),
+    hero: one('hero', ['lyosha', 'solomiia', 'pupsia', 'david'] as const),
     autostart: q.get('autostart') === '1',
     x: num('x'),
     z: num('z'),
@@ -109,7 +109,7 @@ export function readParams(): Params {
     fresh: q.get('fresh') === '1',
     demo: q.get('demo') === '1',
     hud: q.get('hud') !== '0',
-    wakeTap: one('wakeTap', ['lyosha', 'solomiia', 'pupsia'] as const),
+    wakeTap: one('wakeTap', ['lyosha', 'solomiia', 'pupsia', 'david'] as const),
     wakeHold: num('wakeHold'),
     title: q.get('title') !== '0',
     titleTap: q.get('titleTap') === '1',

@@ -17,11 +17,12 @@
 import * as THREE from 'three';
 import type { CharacterModel, ItemId, ModelAction, Skin } from '../contracts';
 import { ITEM_ORDER } from '../content/items';
-import { HOUSE } from '../content/house';
+import { HOME, HOUSE } from '../content/house';
+import { createAquarium, createBunk, createCabinet, createKitchen, createTable } from '../assets/home';
 import { animate } from '../assets/animate';
 import { Models, PART_BUILDERS } from '../assets/models';
 import { countMeshes } from '../assets/parts/kit';
-import { createArrow, createCampfire, createChest } from '../assets/props';
+import { createArrow, createBed, createCampfire, createChest } from '../assets/props';
 import { createCastle, createCastleItem } from '../assets/castles';
 import { Effects } from '../render/effects';
 import { cutawayModel } from '../render/skins/cutaway';
@@ -50,7 +51,7 @@ const forced = params.get('action') as ModelAction | 'walk' | null;
 const freezeAt = params.has('t') ? Number(params.get('t')) : null;
 if (params.get('ui') === '0') document.getElementById('info')!.style.display = 'none';
 
-const CHARS = ['lyosha', 'solomiia', 'pupsia', 'zombie', 'skeleton', 'spider'];
+const CHARS = ['lyosha', 'solomiia', 'pupsia', 'david', 'zombie', 'skeleton', 'spider'];
 
 async function pickSkin(): Promise<Skin> {
   const wanted = params.get('skin');
@@ -208,6 +209,31 @@ async function main() {
     chest.root.position.set(HOUSE.chestSpot.dx, HOUSE.chestSpot.dy, HOUSE.chestSpot.dz);
     scene.add(chest.root);
     updaters.push((_dt, t) => chest.setOpen(t % 4 > 1.5));
+    // the furniture, as systems/house.ts puts it up
+    const bunk = createBunk(skin, '#3fa142', '#6fb2d6', HOME.bunkLow, HOME.bunkTop);
+    const kitchen = createKitchen(skin);
+    const table = createTable(skin);
+    const cabinet = createCabinet(skin, 8);
+    const aquarium = createAquarium(skin);
+    const solSpot = HOUSE.sleepSpots.solomiia;
+    const solBed = createBed(skin, '#ee6a82', solSpot.dy - 1);
+    solBed.root.position.set(solSpot.dx, 1, solSpot.dz);
+    scene.add(solBed.root);
+    for (const [o, at] of [
+      [bunk.root, HOME.bunk],
+      [kitchen.root, HOME.kitchen],
+      [table.root, HOME.table],
+      [cabinet.root, HOME.shelf],
+      [aquarium.root, HOME.aquarium],
+    ] as const) {
+      o.position.set(at.dx, 1, at.dz);
+      scene.add(o);
+    }
+    updaters.push((dt, t) => {
+      kitchen.update(dt, t % 6 > 3, 0);
+      cabinet.update(dt);
+      aquarium.update(dt);
+    });
     const fire = createCampfire(skin);
     const c = HOUSE.campfireSpot;
     fire.root.position.set(c.dx, c.dy, c.dz);

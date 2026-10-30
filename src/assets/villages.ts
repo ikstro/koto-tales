@@ -33,7 +33,7 @@ export interface VillagePiece {
   update(dt: number, k: VillageTick): void;
   /** Hearts: where power wires hang from (model space). */
   socket?: THREE.Vector3;
-  /** Guest houses: three lying spots (model space), in order lyosha, solomiia, pupsia; heads towards −Z. */
+  /** Guest houses: four lying spots (model space), in HERO_ORDER (lyosha, solomiia, pupsia, david); heads towards −Z. */
   spots?: { x: number; y: number; z: number; yaw: number }[];
   /** Houses: the door's foot point (model space) — villagers walk in there to hide. */
   door?: THREE.Vector3;
@@ -698,7 +698,9 @@ function beds(b: Build, frame: string, blanket: string[], pillow: string): { x: 
     b.box([1.0, 0.7, 0.1], [x, 0.55, -0.95], frame);
     out.push({ x, y: 0.58, z: 0.0, yaw: 0 });
   });
-  return out;
+  // spots in HERO_ORDER (lyosha, solomiia, pupsia, david): Пупся curls up across the foot of Давид's bed
+  const last = out[out.length - 1];
+  return [out[0], out[1], { x: last.x, y: 0.66, z: 0.82, yaw: Math.PI / 2 }, last];
 }
 
 export function createGuestHouse(skin: Skin, race: Race): VillagePiece {

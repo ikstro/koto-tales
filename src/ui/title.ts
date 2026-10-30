@@ -17,6 +17,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { DOOR, HOUSE, houseWindows } from '../content/house';
 import type { Ctx } from '../core/ctx';
 import type { Game, Intro } from '../core/game';
 import { LAMP_NIGHT } from '../systems/house';
@@ -437,12 +438,10 @@ export async function showTitle(ctx: Ctx, game: Game, loader: Loader | null): Pr
     const haloMat = new THREE.MeshBasicMaterial({ map: glowTex, color: '#ffae4a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
     disposables.push(glowTex, paneGeo, haloGeo, paneMat, haloMat);
     /** Glass blocks of the house walls: centre of the outer face and its outward normal. */
-    const WINDOWS: [THREE.Vector3, THREE.Vector3][] = [
-      [at(2.5, 2.5, 7), new THREE.Vector3(0, 0, 1)],
-      [at(6.5, 2.5, 7), new THREE.Vector3(0, 0, 1)],
-      [at(0, 2.5, 3.5), new THREE.Vector3(-1, 0, 0)],
-      [at(9, 2.5, 3.5), new THREE.Vector3(1, 0, 0)],
-    ];
+    const WINDOWS: [THREE.Vector3, THREE.Vector3][] = houseWindows().map((w) => [at(w.dx, w.dy, w.dz), new THREE.Vector3(...w.n)]);
+    /** The two front windows the dive can go through: the outer ones, left and right of the door. */
+    const front = WINDOWS.filter(([, n]) => n.z > 0.5).sort((a, b) => a[0].x - b[0].x);
+    const DIVE_WINDOWS = [front[0], front[front.length - 1]];
     const halos: THREE.Mesh[] = [];
     for (const [p, n] of WINDOWS) {
       // a warm pane just inside the glass, and a soft halo just outside it
@@ -591,12 +590,15 @@ export async function showTitle(ctx: Ctx, game: Game, loader: Loader | null): Pr
     };
 
     // ─── the world camera: a slow night drift in front of the house ───
-    const FOCUS = at(4.5, 2, 7.5);
+    const SX = HOUSE.sizeX;
+    const SZ = HOUSE.sizeZ;
+    const DX = DOOR.dx;
+    const FOCUS = at(DX, 2, SZ + 0.5);
     /** Side-to-side sway of the drift, radians around the house. */
     const SWAY = 0.16;
     const tanHalf = () => Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     /** About 14 blocks (the house and its yard) across a part of the screen. */
-    const viewDist = () => THREE.MathUtils.clamp(14 / ((camera.aspect < 1 ? 0.95 : 0.5) * 2 * tanHalf() * camera.aspect), 14, 40);
+    const viewDist = () => THREE.MathUtils.clamp((SX + 5) / ((camera.aspect < 1 ? 0.95 : 0.5) * 2 * tanHalf() * camera.aspect), 14, 48);
     const camAt = (a: number, e: number, dist: number, out: THREE.Vector3) =>
       out.set(FOCUS.x + Math.sin(a) * Math.cos(e) * dist, FOCUS.y + Math.sin(e) * dist, FOCUS.z + Math.cos(a) * Math.cos(e) * dist);
     /** A block (a tree, a hill) between this point of the house and the camera. */
@@ -619,7 +621,7 @@ export async function showTitle(ctx: Ctx, game: Game, loader: Loader | null): Pr
     /** Looks from the side where trees and hills hide the least of the house (worlds differ). */
     const pickView = () => {
       const dist = viewDist();
-      const targets = [at(4.5, 2, 7.3), at(2.5, 2.5, 7.3), at(6.5, 2.5, 7.3), at(4.5, 6.5, 3.5), at(4.5, 1.6, 9.5), at(1, 4, 7.5), at(8, 4, 7.5), at(-4, 2, 10), at(13, 2, 10), at(4.5, 2, 13)];
+      const targets = [at(DX, 2, SZ + 0.3), at(2.5, 2.5, SZ + 0.3), at(SX - 2.5, 2.5, SZ + 0.3), at(DX, 6.5, SZ / 2), at(DX, 1.6, SZ + 2.5), at(1, 4, SZ + 0.5), at(SX - 1, 4, SZ + 0.5), at(-4, 2, SZ + 3), at(SX + 4, 2, SZ + 3), at(DX, 2, SZ + 6)];
       let best = { a: 0, e: 0.45, score: Infinity };
       for (const e of [0.34, 0.42, 0.5]) {
         for (let a = -0.9; a <= 0.901; a += 0.15) {
@@ -684,7 +686,7 @@ export async function showTitle(ctx: Ctx, game: Game, loader: Loader | null): Pr
       p0.copy(camera.position);
       l0.copy(look);
       // the front window on the camera's side
-      win = Math.abs(p0.x - WINDOWS[0][0].x) < Math.abs(p0.x - WINDOWS[1][0].x) ? WINDOWS[0][0] : WINDOWS[1][0];
+      win = Math.abs(p0.x - DIVE_WINDOWS[0][0].x) < Math.abs(p0.x - DIVE_WINDOWS[1][0].x) ? DIVE_WINDOWS[0][0] : DIVE_WINDOWS[1][0];
       // the bricks fly from the button outwards, nearest first
       const bx = (button.position.x - logo.position.x) / logo.scale.x;
       const by = (button.position.y - logo.userData.y) / logo.scale.x;

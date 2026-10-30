@@ -1,12 +1,12 @@
 /**
  * Соломія: long chestnut hair down to the waist, side-swept fringe with a pink
  * clip, pink sweater with a ribbed hem and a little heart, light-grey
- * leggings, pink shoes. Bow in the left hand.
+ * leggings, pink shoes. A magic wand with a pink star in the left hand.
  */
 import type { Rig, Skin } from '../../contracts';
 import { faceAtlas } from '../faces';
 import { bipedFrame } from './frames';
-import { addBow } from './gear';
+import { addWand } from './gear';
 import { Kit } from './kit';
 
 const SWEATER = '#f47fb4';
@@ -70,7 +70,7 @@ export function build(skin: Skin): Rig {
       .box([0.13, 0.1, 0.14], [0, -0.37, 0], SKIN)
       .done();
   }
-  const tool = addBow(kit, parts.armL, -0.39);
+  const tool = addWand(kit, parts.armL, -0.39);
 
   return { type: 'biped', root, parts: { ...parts, tool }, height: 1.5, eyes: kit.eyes };
 }

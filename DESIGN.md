@@ -10,7 +10,12 @@ The source of the look is the game's own world, the «Діорама» skin: war
 - **Sized by the screen, not the mock-up**: one unit `--u: clamp(44px, 8.5vmin, 76px)`; the bow ≈ 1.35u, other actions 1u, top pieces ≈ 0.8u. Nothing overlaps at 1280×800, 1024×600, 844×390 or 390×844 (portrait phone uses a compact layout).
 - **Low, out of the way** (the owner's call on 2026-10-29, replacing the tablet ⅔-height rule): on every screen the joystick sits in the bottom-left corner and the actions at the bottom-right edge, so the controls never cover the game. The actions stand in one column hugging the right edge: the kit box on top, the lightning, the bow at the bottom by the thumb (the box and the lightning swapped on the owner's call, 2026-10-29). Just left of the column: the **jump** by the bow (always there); a prompt (moon, fold, chest) by the lightning; by the box the small ✕ while placing, otherwise the note / food / fly / remote.
 - **The tale piece** left of the minimap: the tale step's picture on an 8-stud ring (how far it has come), the asker's face in its corner (Пупся or the race's elder); a tap says the ask again. Hidden while no tale is under way, while sleeping and while the boss bar is up.
-- **Top right**: one hero piece (the current face; a tap fans out the three heroes), album, fullscreen, pause. Pause opens a plate of picture pieces: continue, sound, «?» (the guide), the door (exit: saved, Пупся says goodbye, the installed game closes; in a browser tab it goes back to the title), and «Почати знову» (a sprout on its own stud ring: held, never tapped — the ring lights over 2 s, then a new story on the same world starts at the title, keeping only sound and difficulty; the old save is kept aside in storage; a short tap wiggles it and Пупся says to hold); difficulty as three pieces with 1/2/3 skulls.
+- **Top right**: one hero piece (the current face; a tap fans out the four heroes), album, fullscreen, pause. Pause opens a plate of picture pieces: continue, sound, «?» (the guide), the door (exit: saved, Пупся says goodbye, the installed game closes; in a browser tab it goes back to the title), and «Почати знову» (a sprout on its own stud ring: held, never tapped — the ring lights over 2 s, then a new story on the same world starts at the title, keeping only sound and difficulty; the old save is kept aside in storage; a short tap wiggles it and Пупся says to hold); difficulty as three pieces with 1/2/3 skulls.
+
+## Heroes and weapons
+Four heroes (the owner's call, 2026-10-30): Льоша, Соломія, Пупся and Давид, Льоша's friend (very short light-brown hair, a big smile, a lemon-yellow tee, jeans, a toy sword always in his right hand). Any of them can be woken and played; the others follow (two beside, the third behind).
+- **Everyone shoots far, and the same**: one button, one strength (`HERO_STATS`), each hero with their own weapon and its own whoosh — Льоша's bow (arrows stick in walls), Соломія's wand (spinning pink stars with a sparkle trail), Пупся the battle mage's cat magic (glowing violet purr-balls with a cream paw print, she casts them), Давид's throwing axes (spinning end over end). Stars, purr-balls and axes puff in their colour on a wall. Armour (`bolt`, `lantern`) stops every weapon alike.
+- **The lightning is the child's**: only the lightning button casts it; helpers only shoot.
 
 ## Camera
 The owner's calls on 2026-10-29: the hero is not made smaller, and there is no zoom.
@@ -25,14 +30,15 @@ The owner's calls on 2026-10-29: the hero is not made smaller, and there is no z
 | print-cream | `#ffe3a3` | prints on dark pieces |
 | print-dark | `#4a2c14` | prints and digits on light pieces |
 | mustard | `#eab02b` / `#ffd23a` | number tile, joystick knob, active rim (gold) |
-| coral | `#e0583f` / `#e8463a` | bow tile |
+| coral | `#e0583f` / `#e8463a` | fire tile (each hero's weapon printed on it) |
 | blue | `#2f7fd6` | lightning tile, building brick default |
 | green | `#3fa142` | building palette |
 | pink | `#ee6a82` | Соломія's accents |
+| green (hero) | `#3fa142` | Давид's tile and blanket |
 World colours come from `src/render/skins/diorama.ts`; building colours from `src/world/blocks.ts`.
 
 ## Pieces
-- Round printed tile (bow, lightning, jump — a green tile with a spring and an arrow up, ✓, moon, fold, note, door), heart tile, the game's coin, mustard number tile, round hero tile with the rendered face (active: lifted, gold rim; others keep full colour), book piece (album), round joystick plate with a stud knob, the kit box (a mustard toolbox with a coral lid) on its own stud ring, the kit's buildings as their real models, the lantern as a real toy lantern piece (dark frame and cap, ring handle, warm glass, bright core, a soft glow behind it); the boss bar's lantern slots are small ones.
+- Round printed tile (fire — the current hero's weapon: Льоша's bow, Соломія's star wand, Пупся's paw print, Давид's axe —, lightning, jump — a green tile with a spring and an arrow up, ✓, moon, fold, note, door), heart tile, the game's coin, mustard number tile, round hero tile with the rendered face (active: lifted, gold rim; others keep full colour), book piece (album), round joystick plate with a stud knob, the kit box (a mustard toolbox with a coral lid) on its own stud ring, the kit's buildings as their real models, the lantern as a real toy lantern piece (dark frame and cap, ring handle, warm glass, bright core, a soft glow behind it); the boss bar's lantern slots are small ones.
 - Lightning charge: 8 studs around the tile light one by one; when full the tile pops. The kit box's ring works the same way for its task.
 - Sprites are baked from the game's models with the diorama materials: `tools/hud/` (re-bake after a skin or model change). Runtime cost: images + CSS transforms only.
 
@@ -50,7 +56,7 @@ Nunito 900, vendored woff2 (Cyrillic + Latin), `print-dark` on light pieces. Num
 Every press plays its sound (`src/voice/sfx.ts`).
 
 ## Screens
-- **Start**: «Розбуди героїв» — no words; the heroes asleep in the house, the touched one wakes and becomes the player (`src/ui/wake.ts`); a few seconds later the prologue begins (see «Tales»).
+- **Start**: «Розбуди героїв» — no words; the four heroes asleep in the bedroom, the touched one wakes and becomes the player (`src/ui/wake.ts`); a few seconds later the prologue begins (see «Tales»).
 - **HUD**: as above (`src/ui/hud.ts`, `src/ui/style.css`).
 - **Album, palette, chest prompt, toast, fade**: the same pieces and plates; no white sheets.
 
@@ -113,8 +119,16 @@ No sea (the owner's call): lakes and winding rivers, 5–6 blocks wide with sand
 - The kit's first reward. An arch (teal pillars, mustard keystone, a turning warm swirl) stands in the front yard, left of the campfire.
 - Far from home, a tap on the house on the big map opens a portal where the party stands and carries them out in front of the arch; that field portal stays, with its swirl mark on the map. Walking into the arch takes them back to it; walking into it takes them home. One field portal: the next jump home moves it. Before the reward, the tap gets Пупся's «скоро в нас буде портал».
 
+## Home
+The heroes' house (the owner's call, 2026-10-30: more room for four, and a reason to come back): 13×9 blocks, log corners, plank walls, glass windows, a cobble rim, the stepped tile roof that fades while a hero is inside, the chimney over the stove; the door in the middle of the front, the campfire and the portal arch in the yard (`src/content/house.ts` blueprint and `HOME` spots, models `src/assets/home.ts`, run by `src/systems/house.ts`). Only the shell, the floor and the lantern are blocks; the furniture is props.
+- **Bedroom** (left): a bunk bed — Давид below (green), Льоша on top (blue) with a ladder —, Соломія's bed (pink), the lantern between them, a red rug with Пупся's round cushion.
+- **Kitchen** (right, on a checked floor): a teal counter with a sink under the window, jars on a shelf, a stove with a pot that steams (more while eating) and a glowing oven, a pipe up to the chimney, a fridge with magnets and a drawing; a table with a checked cloth, a plate of pies and four chairs (Пупся's at the end, with a cushion). It is a **food place** like the picnic: inside the house near the table, while someone is hurt, the apple piece breathes; a tap — the party sits down and eats warm pies for 3 s (Пупся a fish), every heart full, «Смачно!», and 20 s of fast running as after ice cream.
+- **Treasure cabinet** («полиця скарбів») on the back wall, the chest in front of it: rows of little teal plinths, one per artifact (at least eight). A found artifact stands on its plinth, turning slowly over a gold glow; the rest wait empty and dark.
+- **Aquarium** by Пупся's cushion: four toy fish swimming loops, a plant, a rock, bubbles.
+- The house lamp (the one real light) hangs in the middle of the room. An old save's small house is pulled down and the big one put up around the same centre (`save.houseV`); kit buildings it now covers go back into the box.
+
 ## Sleep
-- From evening till dawn, inside the house or next to a tent, a moon piece breathes beside the actions (and Пупся says so once a night). A tap: the three lie down (beds at home, side by side in the tent), «На добраніч», a dark fade with warm stars, morning — hearts full, a new day, saved.
+- From evening till dawn, inside the house or next to a tent, a moon piece breathes beside the actions (and Пупся says so once a night). A tap: everyone lies down (the bunk bed, Соломія's bed and the cushion at home, side by side in the tent), «На добраніч», a dark fade with warm stars, morning — hearts full, a new day, saved.
 
 ## Map
 - **Minimap** (always on, `src/ui/map.ts`): a round studded plate ≈ 1.7u under the top-right row (left of the row on short landscape screens). The map is printed on the plate's tilted top: north up, the hero in the middle, ~24 blocks around. Redrawn 5×/s on a 2D canvas.

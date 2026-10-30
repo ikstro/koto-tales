@@ -33,12 +33,13 @@ import { wakeHeroes } from './ui/wake';
 import { voice } from './voice/voice';
 import { B, NATURAL_SURFACES, blockDef } from './world/blocks';
 import { World } from './world/World';
+import { HOUSE } from './content/house';
 
 /** A rainbow tower and a little wall in the front yard, to see built blocks in every skin. */
 function placeDemo(ctx: Ctx): void {
   const o = ctx.house!.origin;
-  const x = o.x + 11;
-  const z = o.z + 9;
+  const x = o.x + HOUSE.sizeX + 2;
+  const z = o.z + HOUSE.sizeZ + 1;
   const y = ctx.world.groundHeight(x, z);
   const rainbow = [B.RED, B.ORANGE, B.YELLOW, B.GREEN, B.BLUE, B.PURPLE];
   rainbow.forEach((id, i) => {
