@@ -1,0 +1,10 @@
+  {{id}}: {
+    id: '{{id}}',
+    name: 'TODO',
+    size: [2, 2],
+    solid: [{ dx: 0, dz: 0, h: 2 }],
+    count: 0,
+    sprite: 'b-{{id}}',
+    firstLine: 'first_{{id}}',
+    rewardLine: 'reward_{{id}}',
+  },

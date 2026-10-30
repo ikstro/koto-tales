@@ -6,10 +6,12 @@ A blocky 3D browser game for a 6-year-old (Льоша) who invents its stories; 
 @CONTENT.md
 
 ## Commands
-- `npm run dev` — dev server (`--host`), URL switches in `src/core/params.ts` (`?skin= &autostart=1 &hero= &x= &z= &time= &freeze=1 &fresh=1 &demo=1 &hud=0 &stats=1 &kit=1 &pause=1`).
+- `npm run dev` — dev server (`--host`), URL switches in `src/core/params.ts` (`?skin= &autostart=1 &hero= &x= &z= &time= &freeze=1 &fresh=1 &demo=1 &hud=0 &stats=1 &kit=1 &pause=1 &spawn=<monster> &give=<card id>`).
 - `npm run check` — tsc + vitest (includes the content check: every card has its model and lines).
 - `npm run shots` — tablet-size screenshots of fixed scenes into `design-lab/shots/`.
 - `npm run voice` — `src/content/lines.json` → `public/voice/*.mp3` (Azure Speech; keys in User env).
+- `npm run hud -- --only b-x,item-y` — bakes only those HUD sprites and merges them (`npm run hud` alone re-bakes all).
+- `npm run new -- <kind> <id>`, `npm run preview -- <kind> <id>` — see «Content pipeline». `npm run serve` serves the built `dist/`.
 
 ## Architecture
 - Seams live in `src/contracts.ts`. World data (`src/world`) is style-neutral; the look is a swappable skin (`src/render/skins`, default `diorama`). Models come from code parts, `.glb` or the child's drawings through one rig convention (`src/assets`).

@@ -31,6 +31,9 @@ const root = fileURLToPath(new URL('../..', import.meta.url));
 const strictVoice = process.env.STRICT_VOICE === '1';
 const PART_FILES = import.meta.glob<Record<string, unknown>>('../assets/parts/*.ts', { eager: true });
 const partFile = (id: string) => PART_FILES[`../assets/parts/${id}.ts`];
+/** Model sources: a stub from `npm run new` leaves a `TODO(<id>)` marker until the model is made. */
+const ASSET_SOURCES = Object.values(import.meta.glob<string>('../assets/**/*.ts', { query: '?raw', import: 'default', eager: true }));
+const modelTodo = (id: string) => ASSET_SOURCES.some((src) => src.includes(`TODO(${id})`));
 const hasMp3 = (id: string) => fs.existsSync(path.join(root, 'public/voice', `${id}.mp3`));
 const hasPng = (sprite: string) => fs.existsSync(path.join(root, 'public/hud', `${sprite}.png`));
 
@@ -58,9 +61,10 @@ class Card {
     if (l && !hasMp3(id)) this.e.unvoiced.push(`mp3 ${id} ✗`);
     return this;
   }
-  /** No field of the card still says TODO (stubs from `npm run new`). */
-  done(card: object): this {
-    return this.need('TODO in the card', !/TODO/.test(JSON.stringify(card)));
+  /** No field of the card still says TODO, and its model is no longer a stub (`npm run new`). */
+  done(card: object, id: string): this {
+    this.need('TODO in the card', !/TODO/.test(JSON.stringify(card)));
+    return this.need(`model still a stub: TODO(${id}) in src/assets`, !modelTodo(id));
   }
   /** A parts model: its file exists and exports `build` (and `face` when the kind has one). */
   parts(ref: ModelRef | undefined, face: boolean): this {
@@ -94,7 +98,7 @@ for (const h of Object.values(HEROES)) card(`hero ${h.id}`).parts(h.model, false
 for (const [key, m] of Object.entries(MONSTERS)) {
   card(`monster ${key}`)
     .need('kind = key', m.kind === key)
-    .done(m)
+    .done(m, key)
     .parts(m.model, true)
     .line(m.spotLine)
     .line(m.defeatLine);
@@ -105,7 +109,7 @@ const builders = new Set<string>(ITEM_IDS);
 for (const [key, it] of Object.entries(ITEMS)) {
   card(`item ${key}`)
     .need('id = key', it.id === key)
-    .done(it)
+    .done(it, key)
     .need('model in ITEM_BUILDERS (src/assets/items.ts)', builders.has(key))
     .need('place in ITEM_ORDER', (it as { album?: false }).album === false || (ITEM_ORDER as string[]).includes(key))
     .need('use: a known effect', validUse((it as { use?: Effect | 'auto' }).use))
@@ -117,7 +121,7 @@ const givesArtifact = new Set<string>([...TALES.flatMap((t) => (t.artifact ? [t.
 for (const [key, a] of Object.entries(ARTIFACTS)) {
   card(`artifact ${key}`)
     .need('id = key', a.id === key)
-    .done(a)
+    .done(a, key)
     .need('model in ARTIFACT_BUILDERS (src/assets/artifacts.ts)', typeof ARTIFACT_BUILDERS[key] === 'function')
     .need('always: an effect that can last (not home)', a.always?.kind in EFFECTS && EFFECTS[a.always.kind].always)
     .need('found at the end of a tale or a castle (TaleCard.artifact / CastleCard.artifact)', givesArtifact.has(key))
@@ -133,7 +137,7 @@ const givesCompanion = new Set<string>([
 for (const [key, c] of Object.entries(COMPANIONS)) {
   card(`companion ${key}`)
     .need('id = key', c.id === key)
-    .done(c)
+    .done(c, key)
     .parts(c.model, true)
     .need('given by a reward, a tale or a castle', givesCompanion.has(key))
     .line(c.lines.hi)
@@ -154,12 +158,19 @@ const given = new Set<string>([
 for (const [key, b] of Object.entries(BUILDINGS)) {
   card(`building ${key}`)
     .need('id = key', b.id === key)
-    .done(b)
+    .done(b, key)
     .need('model in BUILDING_MODELS (src/assets/buildings.ts)', typeof (BUILDING_MODELS as Record<string, unknown>)[key] === 'function')
     .sprite(b.sprite)
     .need('a way to get it (REWARDS, ENDLESS, a prize, or count > 0 at the start)', b.count !== 0 || given.has(key))
     .line(b.firstLine)
     .line(b.rewardLine);
+}
+
+// ─── tales: card + lines + pictures (the steps' rules are in tales.test.ts) ───
+for (const t of TALES) {
+  const c = card(`tale ${t.id}`).need('TODO in the card', !/TODO/.test(JSON.stringify(t))).sprite(t.sticker);
+  for (const l of [t.open, ...t.steps.map((s) => s.ask), t.thanks, t.retell]) c.line(l);
+  for (const s of t.steps) c.sprite(s.picture);
 }
 
 // ─── rewards, villages and castles: their lines ───
