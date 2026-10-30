@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -6,6 +7,9 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig({
   base: './',
   build: { target: 'es2022', chunkSizeWarningLimit: 1500 },
+  // The content check globs model files (src/content/registry.test.ts): a cached transform would
+  // not see a file `npm run new` has just written, so modules are transformed fresh every run.
+  test: { fsModuleCache: false },
   plugins: [
     VitePWA({
       // 'prompt': a new version waits and is applied on the start screen, never mid-game.
