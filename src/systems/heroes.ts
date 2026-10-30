@@ -90,8 +90,9 @@ export async function sendHome(ctx: Ctx): Promise<void> {
   const wake = ctx.house.wake;
   let i = 0;
   for (const h of ctx.heroes.values()) {
-    const off = h === player ? 0 : (i++ === 0 ? -1 : 1);
-    placeOnGround(ctx.world, h.body, wake.x + off * 0.9, wake.z + (h === player ? 0 : 0.9));
+    // the player in front, the helpers in a little row behind
+    const off = h === player ? null : [-1, 1, 0][i++ % 3];
+    placeOnGround(ctx.world, h.body, wake.x + (off ?? 0) * 0.9, wake.z + (off === null ? 0 : off === 0 ? 1.6 : 0.9));
     h.hearts = HERO_STATS.maxHearts;
     h.invulnerable = 2;
     h.model.play('idle');

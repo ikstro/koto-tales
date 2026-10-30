@@ -132,6 +132,19 @@ describe('save', () => {
     expect(s.inv).toEqual({ apple: 3 });
   });
 
+  it('migrates v13 → v14: a house already built is the first one (rebuilt on load), no house stays unbuilt', () => {
+    const built = { ...freshSave(), v: 13, house: [-4, 30, -3], placed: [{ id: 'tent', x: 2, y: 31, z: 2, rot: 0 }] } as Record<string, unknown>;
+    delete built.houseV;
+    const s = migrate(built);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.houseV).toBe(1);
+    expect(s.house).toEqual([-4, 30, -3]);
+    expect(s.placed).toHaveLength(1);
+    const none = { ...freshSave(), v: 13 } as Record<string, unknown>;
+    delete none.houseV;
+    expect(migrate(none).houseV).toBe(0);
+  });
+
   it('keeps the boss as it was left (health, lanterns, beaten day)', () => {
     const boss = { level: 2, site: [150, -20] as [number, number], hp: 12, lanterns: ['1,2,3', '4,5,6'], defeatedDay: null, eatenAt: [150, -20] as [number, number], bites: 5 };
     const s = migrate({ ...freshSave(), day: 7, boss } as unknown as Record<string, unknown>);

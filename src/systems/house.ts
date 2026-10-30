@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import type { HeroId } from '../contracts';
+import { createAquarium, createBunk, createCabinet, createKitchen, createTable, type Aquarium, type Cabinet, type Kitchen } from '../assets/home';
 import { createBed, createCampfire, createChest, createCushion, createDoor, type Bed } from '../assets/props';
+import { ARTIFACT_ORDER } from '../content/artifacts';
 import { HERO_ORDER } from '../content/heroes';
-import { HOUSE } from '../content/house';
+import { HOME, HOUSE, HOUSE_VERSION, rehousedOrigin } from '../content/house';
 import type { Ctx, HouseState } from '../core/ctx';
 import { events } from '../core/events';
 import { B } from '../world/blocks';
+import { addFoodPlace, eatingAt, type FoodPlace } from './food';
 
 const BLANKET: Partial<Record<HeroId, string>> = { lyosha: '#6fb2d6', solomiia: '#ee6a82', david: '#3fa142' };
 /** Lantern light by day and by night (it is the house's own warm lamp). */
@@ -19,18 +22,25 @@ export const LAMP_NIGHT = 6;
 export function buildHouse(ctx: Ctx): HouseState {
   const { world, save, skin, scene } = ctx;
   let origin: THREE.Vector3;
-  if (save.house) {
+  /** Levels the ground under the house and a front yard for the campfire, then puts the house up. */
+  const putUp = (x0: number, z0: number, feetY: number) => {
+    world.flattenArea(x0 - 2, z0 - 2, x0 + HOUSE.sizeX + 1, z0 + HOUSE.sizeZ + 5, feetY, 10);
+    world.placeStructure(x0, feetY - 1, z0, HOUSE.blocks);
+    save.house = [x0, feetY - 1, z0];
+    save.houseV = HOUSE_VERSION;
+    return new THREE.Vector3(x0, feetY - 1, z0);
+  };
+  if (save.house && save.houseV >= HOUSE_VERSION) {
     origin = new THREE.Vector3(...save.house);
+  } else if (save.house) {
+    // an older, smaller house: the flattening clears it away (its walls, floor and lantern) and
+    // the new one goes up around the same centre; kit buildings in the way go back into the box
+    // (systems/kit.ts)
+    const [x0, y0, z0] = rehousedOrigin(save.house, save.houseV || 1);
+    origin = putUp(x0, z0, y0 + 1);
   } else {
     const spawn = world.findSpawn(0, 0);
-    const x0 = Math.floor(spawn.x) - Math.floor(HOUSE.sizeX / 2);
-    const z0 = Math.floor(spawn.z) - Math.floor(HOUSE.sizeZ / 2);
-    const feetY = Math.round(spawn.y);
-    // Level ground under the house and a front yard for the campfire.
-    world.flattenArea(x0 - 2, z0 - 2, x0 + HOUSE.sizeX + 1, z0 + HOUSE.sizeZ + 5, feetY, 10);
-    origin = new THREE.Vector3(x0, feetY - 1, z0);
-    world.placeStructure(origin.x, origin.y, origin.z, HOUSE.blocks);
-    save.house = [origin.x, origin.y, origin.z];
+    origin = putUp(Math.floor(spawn.x) - Math.floor(HOUSE.sizeX / 2), Math.floor(spawn.z) - Math.floor(HOUSE.sizeZ / 2), Math.round(spawn.y));
   }
 
   const at = (s: { dx: number; dy: number; dz: number }) => origin.clone().add(new THREE.Vector3(s.dx, s.dy, s.dz));
@@ -69,7 +79,20 @@ export function buildHouse(ctx: Ctx): HouseState {
   // old saves without touching their edits. Daytime state: blankets folded, door open.
   const beds: HouseState['beds'] = {};
   let cushion: THREE.Group | null = null;
+  const add = (o: THREE.Object3D, dx: number, dz: number, yaw = 0) => {
+    o.position.copy(at({ dx, dy: 1, dz }));
+    o.rotation.y = yaw;
+    o.userData.casts = true;
+    scene.add(o);
+    return o;
+  };
+  // the boys' bunk bed: Давид below, Льоша on top
+  const bunk = createBunk(skin, BLANKET.david!, BLANKET.lyosha!, HOME.bunkLow, HOME.bunkTop);
+  add(bunk.root, HOME.bunk.dx, HOME.bunk.dz);
+  beds.david = bunk.low;
+  beds.lyosha = bunk.top;
   for (const id of HERO_ORDER) {
+    if (beds[id]) continue;
     const s = HOUSE.sleepSpots[id];
     const colour = BLANKET[id];
     if (!colour) {
@@ -78,23 +101,77 @@ export function buildHouse(ctx: Ctx): HouseState {
       scene.add(cushion);
       continue;
     }
-    // On a BED block only the bedding is added; elsewhere a whole bed up to the sleeper.
-    const onBlock = world.getBlock(Math.floor(origin.x + s.dx), origin.y + 1, Math.floor(origin.z + s.dz)) === B.BED;
-    const bed: Bed = onBlock ? createBed(skin, colour, 0) : createBed(skin, colour, s.dy - 1);
-    bed.root.position.copy(at({ dx: s.dx, dy: onBlock ? s.dy : 1, dz: s.dz }));
+    const bed: Bed = createBed(skin, colour, s.dy - 1);
+    bed.root.position.copy(at({ dx: s.dx, dy: 1, dz: s.dz }));
     bed.root.rotation.y = s.yaw;
     scene.add(bed.root);
     beds[id] = bed;
   }
+
+  // the kitchen, its table, the treasure cabinet and the aquarium (DESIGN.md «Home»)
+  kitchen = createKitchen(skin);
+  add(kitchen.root, HOME.kitchen.dx, HOME.kitchen.dz);
+  const table = createTable(skin);
+  add(table.root, HOME.table.dx, HOME.table.dz);
+  cabinet = createCabinet(skin, Math.max(8, ARTIFACT_ORDER().length));
+  add(cabinet.root, HOME.shelf.dx, HOME.shelf.dz);
+  aquarium = createAquarium(skin);
+  add(aquarium.root, HOME.aquarium.dx, HOME.aquarium.dz);
+  const fill = () => {
+    const ids = ARTIFACT_ORDER();
+    cabinet!.fill(
+      ids.map((id) => {
+        if (!save.artifacts.includes(id)) return undefined;
+        try {
+          return ctx.models.artifact(id);
+        } catch {
+          return undefined;
+        }
+      }),
+    );
+  };
+  fill();
+  events.on('artifact:found', fill);
+  // the kitchen is a place to eat (systems/food.ts): warm pies, a fish for Пупся, then fast running
+  kitchenPlace = {
+    centre: at({ dx: HOME.table.dx, dy: 1, dz: HOME.table.dz }),
+    seats: table.seats,
+    fast: KITCHEN_FAST,
+    hungryOnly: true,
+    snack: 'pie',
+    piece: 'food',
+    open: (p) => !!ctx.house && isInside(ctx.house, p),
+    setEat: () => undefined,
+    gone: () => false,
+  };
+  addFoodPlace(kitchenPlace);
+  // For automated checks.
+  (window as unknown as { __kotoHome: object }).__kotoHome = {
+    origin: origin.toArray(),
+    /** Puts the player at a spot relative to the house (block centres are x + 0.5). */
+    to: (dx: number, dz: number) => {
+      ctx.player.body.pos.set(origin.x + dx, origin.y + 1.05, origin.z + dz);
+      ctx.player.body.vel.set(0, 0, 0);
+    },
+    get artifacts() {
+      return [...save.artifacts];
+    },
+    /** Marks an artifact as found and puts it on the shelf (no fanfare). */
+    have: (id: string) => {
+      if (!save.artifacts.includes(id)) save.artifacts.push(id);
+      fill();
+    },
+  };
+
   const door = createDoor(skin);
   door.root.position.copy(at(HOUSE.doorSpot));
   door.root.rotation.y = HOUSE.doorSpot.yaw;
   door.setOpen(1);
   scene.add(door.root);
 
-  // The lantern's light, just in front of the lantern block in the back corner.
-  const lamp = new THREE.PointLight(0xffa64a, LAMP_DAY, 9, 1.4);
-  lamp.position.copy(at({ dx: 6.9, dy: 2.5, dz: 2.3 }));
+  // The house's warm lamp, under the ceiling in the middle of the room.
+  const lamp = new THREE.PointLight(0xffa64a, LAMP_DAY, 14, 1.3);
+  lamp.position.copy(at(HOME.lamp));
   scene.add(lamp);
 
   const i = HOUSE.interior;
@@ -129,11 +206,22 @@ export function isHouseShell(h: HouseState, x: number, y: number, z: number): bo
 
 let wasInside = false;
 let chestOpen = false;
+let kitchen: Kitchen | null = null;
+let cabinet: Cabinet | null = null;
+let aquarium: Aquarium | null = null;
+let kitchenPlace: FoodPlace | null = null;
+/** Seconds of fast running after a meal at home (like the ice cream). */
+const KITCHEN_FAST = 20;
 
 export function updateHouse(ctx: Ctx, dt: number): void {
   const h = ctx.house;
   if (!h) return;
   h.campfire.update(dt);
+  // the home is alive before play too (the start ritual looks at it)
+  const night = 1 - ctx.clock.daylight;
+  kitchen?.update(dt, !!kitchenPlace && eatingAt(kitchenPlace), night);
+  cabinet?.update(dt);
+  aquarium?.update(dt);
   if (!ctx.playing) return; // before play the start ritual (ui/wake.ts) owns the house
   h.lamp.intensity = LAMP_DAY + (LAMP_NIGHT - LAMP_DAY) * (1 - ctx.clock.daylight);
 

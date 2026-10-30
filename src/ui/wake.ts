@@ -17,7 +17,7 @@ import type { CharacterModel, HeroId } from '../contracts';
 import { WAKE_YAWN } from '../assets/animate';
 import { CUSHION_TOP } from '../assets/props';
 import { HEROES, HERO_ORDER } from '../content/heroes';
-import { HOUSE } from '../content/house';
+import { DOOR as DOORWAY, HOUSE } from '../content/house';
 import type { Ctx } from '../core/ctx';
 import type { Game, Intro } from '../core/game';
 import type { HeroHandoff } from '../systems/heroes';
@@ -52,7 +52,7 @@ const STAGGER = 0.15;
 const HOP = 0.37;
 const DOOR = 1.65;
 const DAY: [number, number] = [1.75, 2.8];
-const WALK = [2.4, 2.65, 2.92];
+const WALK = [2.4, 2.65, 2.92, 3.15];
 /** Average walking speed out of the house, blocks per second. */
 const WALK_SPEED = 3.8;
 /** The roof comes back over this long, starting just before the chosen hero reaches the doorstep. */
@@ -207,6 +207,9 @@ export function wakeHeroes(ctx: Ctx, game: Game): Promise<HeroId> {
     const O = house.origin;
     const at = (dx: number, dy: number, dz: number) => new THREE.Vector3(O.x + dx, O.y + dy, O.z + dz);
     const floorY = O.y + 1;
+    // the doorway's middle (x) and the front wall (z), relative to the house
+    const DX = DOORWAY.dx;
+    const FZ = DOORWAY.dz;
     const hemi = scene.children.find((o) => (o as THREE.HemisphereLight).isHemisphereLight) as THREE.HemisphereLight | undefined;
     const sun = scene.children.find((o) => (o as THREE.DirectionalLight).isDirectionalLight) as THREE.DirectionalLight | undefined;
 
@@ -320,7 +323,7 @@ export function wakeHeroes(ctx: Ctx, game: Game): Promise<HeroId> {
     disposables.push(doorMat);
     const doorLight = new THREE.Mesh(doorGeo, doorMat);
     doorLight.scale.set(1.25, 1, 3.6);
-    doorLight.position.copy(at(4.5, 1.03, 4.2));
+    doorLight.position.copy(at(DX, 1.03, FZ - 2.8));
     doorLight.renderOrder = 2;
     fx.add(doorLight);
     noShadow(fx);
@@ -360,9 +363,11 @@ export function wakeHeroes(ctx: Ctx, game: Game): Promise<HeroId> {
     const qz = new THREE.Quaternion();
     const zAxis = new THREE.Vector3(0, 0, 1);
 
-    /** Pre-touch wide view of the room, pulled back on narrow screens so all three beds fit. */
+    /** The middle of the bedroom (the sleepers' spots), where the wide view looks. */
+    const bedroom = sleepers.reduce((v, h) => v.add(h.spot), new THREE.Vector3()).divideScalar(sleepers.length);
+    /** Pre-touch wide view of the bedroom, pulled back on narrow screens so all the beds fit. */
     const wide = (p: THREE.Vector3, l: THREE.Vector3) => {
-      l.copy(at(4.5, 1.0, 3.3));
+      l.set(bedroom.x + 0.3, floorY, bedroom.z - 0.2);
       const fit = Math.max(1, 1.45 / Math.max(0.3, camera.aspect)) ** 0.9;
       p.copy(l).add(tmp.set(0, 11.6, 7.3).multiplyScalar(fit));
       p.x += 0.35 * Math.sin(T * 0.25);
@@ -395,10 +400,11 @@ export function wakeHeroes(ctx: Ctx, game: Game): Promise<HeroId> {
       sfx.ambient('night');
       const others = sleepers.filter((s) => s !== h);
       // places on the doorstep: the chosen in the middle, Льоша's side left, Соломія's right, the fourth behind
-      const middle: P2 = [4.5, 7.6];
-      const left: P2 = [3.3, 8.0];
-      const right: P2 = [5.7, 8.0];
-      const back: P2 = [4.5, 8.9];
+      const middle: P2 = [DX, FZ + 0.6];
+      const left: P2 = [DX - 1.2, FZ + 1.0];
+      const right: P2 = [DX + 1.2, FZ + 1.0];
+      // the fourth a step behind on the left, clear of the campfire
+      const back: P2 = [DX - 2.2, FZ + 1.7];
       const ends = new Map<Sleeper, P2>([[h, middle]]);
       const leftOne = others.find((o) => o.id === 'lyosha') ?? others.find((o) => o.id === 'david') ?? others[0];
       ends.set(leftOne, left);
@@ -406,6 +412,7 @@ export function wakeHeroes(ctx: Ctx, game: Game): Promise<HeroId> {
       ends.set(rightOne, right);
       for (const o of others) if (!ends.has(o)) ends.set(o, back);
 
+      const planned: Sleeper[] = [];
       const plan = (s: Sleeper, order: number) => {
         const isChosen = s === h;
         const k = isChosen ? 0 : order - 1;
@@ -413,8 +420,11 @@ export function wakeHeroes(ctx: Ctx, game: Game): Promise<HeroId> {
         if (s.biped) {
           const h0 = isChosen ? 1.5 : 1.65 + k * STAGGER;
           s.hop = [h0, h0 + HOP];
-          const side = Math.sign(O.x + 4.5 - s.spot.x) || 1;
+          const side = Math.sign(O.x + DX - s.spot.x) || 1;
           s.land.set(s.spot.x + side * 1.05, floorY, s.spot.z + 1.1);
+          // two in one bunk bed: the second lands a step further on
+          if (planned.some((o) => o.land.distanceTo(s.land) < 0.6)) s.land.z += 0.85;
+          planned.push(s);
           s.cheerAt = isChosen ? 1.9 : 2.05 + k * STAGGER;
         } else {
           s.land.copy(s.spot);
@@ -425,9 +435,9 @@ export function wakeHeroes(ctx: Ctx, game: Game): Promise<HeroId> {
         const sz = s.land.z - O.z;
         s.path = [
           [sx, sz],
-          [mix(sx, 4.5, 0.65), 5.3],
-          [4.5, 6.45],
-          [4.5, 7.15],
+          [mix(sx, DX, 0.65), FZ - 1.7],
+          [DX, FZ - 0.55],
+          [DX, FZ + 0.15],
           end,
         ].map(([x, z]) => [O.x + x, O.z + z] as P2);
         const t0 = WALK[order];
@@ -469,9 +479,11 @@ export function wakeHeroes(ctx: Ctx, game: Game): Promise<HeroId> {
         { t: 0.45, p: off(0.1, 5.1, 2.9), l: F.clone().add(new THREE.Vector3(0, 0.1, 0.1)) },
         { t: 1.05, p: off(0.2, 2.4, 2.55), l: F.clone() },
         { t: 1.55, p: off(0.05, 4.9, 2.65), l: F.clone() },
-        { t: 2.1, p: at(4.5, 9.8, 8.9), l: at(4.5, 1.0, 3.9) },
+        { t: 2.1, p: at(mix(bedroom.x - O.x, DX, 0.5), 9.8, FZ + 1.9), l: at(mix(bedroom.x - O.x, DX, 0.5), 1.0, FZ - 3.1) },
+        // over the front wall, watching them come to the door
+        { t: Math.max(2.6, h.walk[1] - 0.95), p: at(DX, 9.8, FZ + 1.4), l: at(DX, 1.0, FZ - 2.0) },
         // out of the door together with the chosen hero, not ahead of them
-        { t: Math.max(2.8, h.walk[1] - 0.15), p: at(4.5, 9.2, 12.2), l: at(4.5, 1.3, 7.0) },
+        { t: Math.max(2.8, h.walk[1] - 0.15), p: at(DX, 9.2, FZ + 5.2), l: at(DX, 1.3, FZ) },
         { t: endT, p: endP, l: endL },
       ];
     };
@@ -565,7 +577,7 @@ export function wakeHeroes(ctx: Ctx, game: Game): Promise<HeroId> {
           if (speed > 0.4) want = Math.atan2(vx, vz);
           else if (tau > h.walk[1]) want = h.endYaw;
           else if (!h.biped && tau > h.wakeAt) want = 0.05;
-          else if (h.hop && tau > h.hop[0]) want = Math.sign(O.x + 4.5 - h.spot.x) * 0.55;
+          else if (h.hop && tau > h.hop[0]) want = Math.sign(O.x + DX - h.spot.x) * 0.55;
           let dy = want - h.yaw;
           dy = Math.atan2(Math.sin(dy), Math.cos(dy));
           h.yaw += dy * (1 - Math.exp(-10 * dt));

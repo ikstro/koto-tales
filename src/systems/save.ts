@@ -32,6 +32,8 @@ export interface SaveData {
   time: number;
   /** House min corner, set once the house is built. */
   house: [number, number, number] | null;
+  /** The blueprint version of the house standing there (content/house.ts HOUSE_VERSION; 0 = not built). An older one is rebuilt on load. */
+  houseV: number;
   /** One-off lines already spoken (tutorial tips, milestones). */
   said: string[];
   /** Chosen in the pause menu. */
@@ -116,7 +118,7 @@ export const freshBoss = (): BossSave => ({ level: 1, site: null, hp: null, lant
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -137,6 +139,7 @@ export function freshSave(): SaveData {
     edits: {},
     time: 0.03,
     house: null,
+    houseV: 0,
     said: [],
     difficulty: 'normal',
     defeated: {},
@@ -207,6 +210,9 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
   11: (d) => ({ ...d, v: 12, tales: { ...freshTales(), done: [PROLOGUE] } }),
   // v13: artifacts and companions (none found or met yet).
   12: (d) => ({ ...d, v: 13, artifacts: [], companions: [] }),
+  // v14: the big house with the kitchen. The house standing in the save is the first (9×7) one:
+  // systems/house.ts pulls it down and puts the new one up around the same centre.
+  13: (d) => ({ ...d, v: 14, houseV: d.house ? 1 : 0 }),
 };
 
 export function migrate(raw: Raw): SaveData {

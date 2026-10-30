@@ -384,7 +384,7 @@ export function createSwings(skin: Skin): BuildingModel {
 
 // ─── snacks ─────────────────────────────────────────────────────────────────
 
-export type SnackKind = 'apple' | 'icecream' | 'fish';
+export type SnackKind = 'apple' | 'icecream' | 'fish' | 'pie';
 
 /** Merges boxes, each with its own vertex colour (one mesh, one draw). */
 function boxes(list: [V3, V3, string, V3?][]): THREE.BufferGeometry {
@@ -431,6 +431,16 @@ const SNACKS: Record<SnackKind, () => THREE.BufferGeometry> = {
       [[0.11, 0.1, 0.11], [0, 0.24, 0], PINK],
       [[0.1, 0.06, 0.1], [0, 0.29, 0], CREAM],
       [[0.04, 0.04, 0.04], [0, 0.33, 0], CORAL],
+    ]),
+  // a warm little pie (пиріжок) from the house's kitchen: a golden pasty with a crimped ridge
+  pie: () =>
+    boxes([
+      [[0.2, 0.07, 0.12], [0, 0.035, 0], WAFFLE],
+      [[0.16, 0.05, 0.08], [0, 0.085, 0], WAFFLE],
+      [[0.14, 0.025, 0.03], [0, 0.12, 0], WAFFLE_DARK],
+      [[0.04, 0.02, 0.13], [0.06, 0.03, 0], WAFFLE_DARK],
+      [[0.04, 0.02, 0.13], [-0.06, 0.03, 0], WAFFLE_DARK],
+      [[0.03, 0.01, 0.03], [0.02, 0.112, 0.042], '#fff1c8'],
     ]),
   fish: () =>
     boxes([

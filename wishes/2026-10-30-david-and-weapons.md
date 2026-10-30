@@ -2,7 +2,7 @@
 - date: 2026-10-30
 - said: «Хочу добавить ещё одного героя Давида, это Лёшин друг. Плюс давай каждому герою дадим собственное оружие» (the owner, for Льоша)
 - kinds: hero (playable), hero weapons
-- status: needs engine
+- status: built, waiting for the owner's yes on Давид's lines (then `npm run voice`)
 - notes:
   - **Давид** — a fourth playable hero, Льоша's friend. Not in CONTENT.md: heroes are hard-coded (three).
     Nearest fit: a companion card (walks along, shoots; not playable). Engine work for a real hero:
@@ -21,4 +21,9 @@
       boss the swing sends a short wave, so he can hit its mouth too.
     Also touched: the bow tile shows the current hero's weapon (new HUD sprites), the guide's
     «shoot» card per hero, armour rules (`bolt`/`lantern`) apply to every weapon alike.
-- ids:
+- ids: david (hero), weapons arrow/star/paw/axe, lines go_david david_hi david_bolt david_yay
+- built (2026-10-30, the owner's answers): Давид playable, in the house with everyone; everyone shoots far
+  and the same — Льоша bow, Соломія star wand, Пупся cat magic (purr-balls with a paw print), Давид throwing
+  axes with his sword always in hand; the lightning only by its button (helpers never cast it); a bigger
+  house (13×9): bunk bed, kitchen with a table for four (a meal = full hearts + fast running), treasure
+  shelf for artifacts, aquarium; old saves get the new house.

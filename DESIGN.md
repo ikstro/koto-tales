@@ -56,7 +56,7 @@ Nunito 900, vendored woff2 (Cyrillic + Latin), `print-dark` on light pieces. Num
 Every press plays its sound (`src/voice/sfx.ts`).
 
 ## Screens
-- **Start**: «Розбуди героїв» — no words; the heroes asleep in the house, the touched one wakes and becomes the player (`src/ui/wake.ts`); a few seconds later the prologue begins (see «Tales»).
+- **Start**: «Розбуди героїв» — no words; the four heroes asleep in the bedroom, the touched one wakes and becomes the player (`src/ui/wake.ts`); a few seconds later the prologue begins (see «Tales»).
 - **HUD**: as above (`src/ui/hud.ts`, `src/ui/style.css`).
 - **Album, palette, chest prompt, toast, fade**: the same pieces and plates; no white sheets.
 
@@ -119,8 +119,16 @@ No sea (the owner's call): lakes and winding rivers, 5–6 blocks wide with sand
 - The kit's first reward. An arch (teal pillars, mustard keystone, a turning warm swirl) stands in the front yard, left of the campfire.
 - Far from home, a tap on the house on the big map opens a portal where the party stands and carries them out in front of the arch; that field portal stays, with its swirl mark on the map. Walking into the arch takes them back to it; walking into it takes them home. One field portal: the next jump home moves it. Before the reward, the tap gets Пупся's «скоро в нас буде портал».
 
+## Home
+The heroes' house (the owner's call, 2026-10-30: more room for four, and a reason to come back): 13×9 blocks, log corners, plank walls, glass windows, a cobble rim, the stepped tile roof that fades while a hero is inside, the chimney over the stove; the door in the middle of the front, the campfire and the portal arch in the yard (`src/content/house.ts` blueprint and `HOME` spots, models `src/assets/home.ts`, run by `src/systems/house.ts`). Only the shell, the floor and the lantern are blocks; the furniture is props.
+- **Bedroom** (left): a bunk bed — Давид below (green), Льоша on top (blue) with a ladder —, Соломія's bed (pink), the lantern between them, a red rug with Пупся's round cushion.
+- **Kitchen** (right, on a checked floor): a teal counter with a sink under the window, jars on a shelf, a stove with a pot that steams (more while eating) and a glowing oven, a pipe up to the chimney, a fridge with magnets and a drawing; a table with a checked cloth, a plate of pies and four chairs (Пупся's at the end, with a cushion). It is a **food place** like the picnic: inside the house near the table, while someone is hurt, the apple piece breathes; a tap — the party sits down and eats warm pies for 3 s (Пупся a fish), every heart full, «Смачно!», and 20 s of fast running as after ice cream.
+- **Treasure cabinet** («полиця скарбів») on the back wall, the chest in front of it: rows of little teal plinths, one per artifact (at least eight). A found artifact stands on its plinth, turning slowly over a gold glow; the rest wait empty and dark.
+- **Aquarium** by Пупся's cushion: four toy fish swimming loops, a plant, a rock, bubbles.
+- The house lamp (the one real light) hangs in the middle of the room. An old save's small house is pulled down and the big one put up around the same centre (`save.houseV`); kit buildings it now covers go back into the box.
+
 ## Sleep
-- From evening till dawn, inside the house or next to a tent, a moon piece breathes beside the actions (and Пупся says so once a night). A tap: the three lie down (beds at home, side by side in the tent), «На добраніч», a dark fade with warm stars, morning — hearts full, a new day, saved.
+- From evening till dawn, inside the house or next to a tent, a moon piece breathes beside the actions (and Пупся says so once a night). A tap: everyone lies down (the bunk bed, Соломія's bed and the cushion at home, side by side in the tent), «На добраніч», a dark fade with warm stars, morning — hearts full, a new day, saved.
 
 ## Map
 - **Minimap** (always on, `src/ui/map.ts`): a round studded plate ≈ 1.7u under the top-right row (left of the row on short landscape screens). The map is printed on the plate's tilted top: north up, the hero in the middle, ~24 blocks around. Redrawn 5×/s on a 2D canvas.

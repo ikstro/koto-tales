@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { placeOnGround } from '../actors/physics';
 import { createPortal, type PortalModel } from '../assets/buildings';
+import { HOUSE } from '../content/house';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
 import { setMapMarker } from '../ui/map';
@@ -31,7 +32,7 @@ interface Gate {
 }
 
 /** The arch stands in the front yard, left of the campfire, facing the camera. */
-const ARCH = { dx: 0.5, dz: 9.5 };
+const ARCH = { dx: HOUSE.campfireSpot.dx - 4, dz: HOUSE.campfireSpot.dz };
 /** How far in front of a gate (or a landing point) the party steps out. */
 export const ARRIVE = 2.2;
 /** Close to home there is no need to jump. */
