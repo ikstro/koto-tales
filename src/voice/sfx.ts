@@ -82,6 +82,36 @@ function hiss(
 
 const note = (semi: number) => 440 * Math.pow(2, semi / 12);
 
+/** A siren's wail: up from `lo` to `hi`, held, back down, with a gentle wobble, softened. */
+function wail(k: K, at: number, dur: number, lo: number, hi: number, vol: number): void {
+  const t0 = k.t + at;
+  const o = k.c.createOscillator();
+  const vib = k.c.createOscillator();
+  const vg = k.c.createGain();
+  const f = k.c.createBiquadFilter();
+  const g = k.c.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(lo * k.p, t0);
+  o.frequency.exponentialRampToValueAtTime(hi * k.p, t0 + dur * 0.42);
+  o.frequency.setValueAtTime(hi * k.p, t0 + dur * 0.55);
+  o.frequency.exponentialRampToValueAtTime(lo * 0.85 * k.p, t0 + dur);
+  vib.frequency.value = 5.5;
+  vg.gain.value = 9 * k.p;
+  vib.connect(vg).connect(o.frequency);
+  f.type = 'lowpass';
+  f.frequency.value = 1500;
+  f.Q.value = 0.7;
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(vol * k.v, t0 + 0.25);
+  g.gain.setValueAtTime(vol * k.v, t0 + dur * 0.7);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(f).connect(g).connect(k.dest);
+  for (const n of [o, vib]) {
+    n.start(t0);
+    n.stop(t0 + dur + 0.05);
+  }
+}
+
 const recipes: Record<SfxName, (k: K) => void> = {
   arrow(k) {
     hiss(k, 0, 0.28, 0.35, 'bandpass', 700, 2600, 1.2, 0.05);
@@ -242,11 +272,9 @@ const recipes: Record<SfxName, (k: K) => void> = {
   },
   // ─── monster cries (MonsterCard.cry): a toy's voice, never scary-loud ───
   cry_siren(k) {
-    // a soft two-tone wail rising and falling twice, like a toy siren
-    for (let i = 0; i < 2; i++) {
-      tone(k, 520, i * 0.7, 0.38, 0.12, 'triangle', 780, 0.06);
-      tone(k, 780, i * 0.7 + 0.36, 0.36, 0.1, 'triangle', 520, 0.03);
-    }
+    // Сиреноголовий: his two horns wail together, a little apart, like a toy air-raid siren —
+    // a slow rise, a hold, a fall — through a soft low-pass, so it is big but never shrill
+    for (const [detune, vol] of [[1, 0.09], [1.5, 0.06]] as const) wail(k, 0, 2.3, 300 * detune, 640 * detune, vol);
   },
   cry_growl(k) {
     // a short rumbly grumble: a low saw wobbling through a soft low-pass

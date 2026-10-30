@@ -93,6 +93,28 @@ export const MONSTERS = {
     spotLine: 'monster_spider_spot',
     defeatLine: 'defeat_spider',
   },
+  sirenhead: {
+    kind: 'sirenhead',
+    model: { kind: 'parts', id: 'sirenhead' },
+    name: 'Сиреноголовий',
+    hp: 6,
+    wanderSpeed: 1,
+    chaseSpeed: 2.2,
+    damage: 1,
+    sight: 11,
+    radius: 0.4,
+    height: 2.5,
+    when: 'night',
+    weight: 1,
+    coins: [2, 4],
+    color: 0x8a5a3c,
+    spotLine: 'monster_sirenhead_spot',
+    defeatLine: 'defeat_sirenhead',
+    // his own wail (voice/sfx.ts cry_siren); arrows bounce, the lightning beats him
+    cry: { kind: 'siren', every: 8 },
+    armor: 'bolt',
+    lyosha: true,
+  },
 } satisfies Record<string, MonsterCard>;
 
 export type MonsterKind = keyof typeof MONSTERS;

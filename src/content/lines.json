@@ -327,5 +327,7 @@
   "tale_aliens_open": { "speaker": "alien", "text": "Прийом, прийом! Це інопланетяни. Ми хочемо дружити з вами!" },
   "tale_aliens_1": { "speaker": "pupsia", "text": "Інопланетяни сіли в далекому кратері. Іди за стрілкою — це найдовша дорога!" },
   "tale_aliens_thanks": { "speaker": "alien", "text": "Земляни прийшли! Ми дуже раді!" },
-  "tale_aliens_retell": { "speaker": "narrator", "text": "Казка про інопланетян: ми дійшли до кратера і подружилися з ними." }
+  "tale_aliens_retell": { "speaker": "narrator", "text": "Казка про інопланетян: ми дійшли до кратера і подружилися з ними." },
+  "monster_sirenhead_spot": { "speaker": "monster", "text": "У-у-у! Я Сиреноголовий! Чому мене ніхто не обіймає?" },
+  "defeat_sirenhead": { "speaker": "narrator", "text": "Сиреноголового переможено! Стало тихо." }
 }
