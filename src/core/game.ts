@@ -24,6 +24,9 @@ import { eating, updateFood } from '../systems/food';
 import { updateSignal } from '../systems/signal';
 import { chestNear, updateCastles } from '../systems/castles';
 import { initTales, updateTales } from '../systems/tales';
+import { exposeEffects, initEffects, updateEffects } from '../systems/effects';
+import { exposeCompanions, initCompanions, updateCompanions } from '../systems/companions';
+import { applyDebugParams } from '../debug/give';
 import { pushBubble } from '../systems/tasks';
 import { updateVillages } from '../systems/villages';
 import { updateLanterns } from '../render/lanterns';
@@ -204,8 +207,13 @@ export class Game {
     initTales(ctx);
     initPortals(ctx);
     initDisco(ctx);
+    initEffects(ctx);
+    initCompanions(ctx);
     exposeMonsters(ctx);
     exposeDefense();
+    exposeEffects(ctx);
+    exposeCompanions(ctx);
+    applyDebugParams(ctx);
     this.cam.snap(ctx.player.pos);
     sfx.ambient(ctx.clock.daylight > 0.4 ? 'day' : 'night');
   }
@@ -319,6 +327,8 @@ export class Game {
       updateDisco(ctx, dt);
       updateDefense(ctx, dt);
       updatePrizes(ctx, dt);
+      updateCompanions(ctx, dt);
+      updateEffects(ctx, dt);
       updateSignal(ctx, dt);
       updateFood(ctx, dt);
       updateProgress(ctx);

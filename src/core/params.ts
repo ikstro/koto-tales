@@ -23,6 +23,8 @@ import { SKIN_NAMES, type AnySkin } from '../render/skins';
  *   ?boss=near  ?bossHp=<n>  ?lanterns=<n>  (test only: start by the boss, set its health / cracked armour)
  *   ?guide=all|boss|move|…  (test only: the picture guide opens after the start — all cards over the pause menu, or one card)
  *   ?tale=<id>  (test only: that tale begins at once, content/tales.ts)
+ *   ?spawn=<monster>[,<monster>…]  (test only: those monsters appear beside the hero, content/monsters.ts)
+ *   ?give=<id>[,<id>…]  (test only: a building into the kit, 3 of an item, an artifact or a companion — any card id)
  *   ?cam=<n>  (test only: another framing from core/camera.ts FRAMINGS, to compare shots)
  */
 export interface Params {
@@ -77,6 +79,10 @@ export interface Params {
   tale: string | null;
   /** Test only (?cam=<n>): another camera framing (core/camera.ts). */
   cam: number | null;
+  /** Test only (?spawn=a,b): monsters beside the hero after the start. */
+  spawn: string[];
+  /** Test only (?give=a,b): buildings, items, artifacts or companions given after the start. */
+  give: string[];
 }
 
 export function readParams(): Params {
@@ -119,5 +125,7 @@ export function readParams(): Params {
     guide: one('guide', ['all', 'move', 'bow', 'bolt', 'build', 'heal', 'map', 'tales', 'boss'] as const),
     tale: q.get('tale'),
     cam: num('cam'),
+    spawn: (q.get('spawn') ?? '').split(',').filter(Boolean),
+    give: (q.get('give') ?? '').split(',').filter(Boolean),
   };
 }

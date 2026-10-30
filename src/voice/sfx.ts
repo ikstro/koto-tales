@@ -240,6 +240,25 @@ const recipes: Record<SfxName, (k: K) => void> = {
     tone(k, 62 + Math.random() * 6, 0, 0.12, 0.3, 'triangle', 44, 0.004);
     hiss(k, 0, 0.07, 0.06, 'lowpass', 500);
   },
+  // ─── monster cries (MonsterCard.cry): a toy's voice, never scary-loud ───
+  cry_siren(k) {
+    // a soft two-tone wail rising and falling twice, like a toy siren
+    for (let i = 0; i < 2; i++) {
+      tone(k, 520, i * 0.7, 0.38, 0.12, 'triangle', 780, 0.06);
+      tone(k, 780, i * 0.7 + 0.36, 0.36, 0.1, 'triangle', 520, 0.03);
+    }
+  },
+  cry_growl(k) {
+    // a short rumbly grumble: a low saw wobbling through a soft low-pass
+    tone(k, 95, 0, 0.5, 0.16, 'sawtooth', 70, 0.04);
+    hiss(k, 0, 0.45, 0.12, 'lowpass', 380, 160, 0.7, 0.05);
+  },
+  cry_hiss(k) {
+    hiss(k, 0, 0.55, 0.16, 'highpass', 2400, 3800, 0.6, 0.08);
+  },
+  cry_beep(k) {
+    for (let i = 0; i < 3; i++) tone(k, [880, 660, 990][i], i * 0.12, 0.09, 0.09, 'square', undefined, 0.004);
+  },
 };
 
 // ─── ambience ───────────────────────────────────────────────────────────────

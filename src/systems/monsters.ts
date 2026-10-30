@@ -8,7 +8,10 @@ import { events } from '../core/events';
 import { hurtHero, throwBone } from './combat';
 import { homeDistance } from './house';
 import { playingSpeakers } from './kit';
-import { inLight } from './power';
+import { inLight, lightZones } from './power';
+import { companionLight } from './companions';
+import { lightAt, peaceAt } from './effects';
+import { sfx } from '../voice/sfx';
 import { sheltered } from './prizes';
 import { inShow } from './signal';
 import { redLight } from './defense';
@@ -64,7 +67,9 @@ function trySpawn(ctx: Ctx): void {
     // the boss's wasteland is its own: no regular monsters spawn there
     if (ctx.boss?.inZone(x, z, 2)) continue;
     // nor where powered lamps and lighthouses shine at night, nor round a tree house
-    if (night && (inLight(x, z) || sheltered(x, z))) continue;
+    if (night && (inLight(x, z) || sheltered(x, z) || companionLight(x, z))) continue;
+    // nor where an item's or artifact's light is around the party
+    if (lightAt(ctx, x, z, night)) continue;
     spawnAt(ctx, kind, x, z);
   }
 }
@@ -105,6 +110,20 @@ function nearestHero(ctx: Ctx, m: Monster): { hero: Hero; dist: number } | null 
   return best ? { hero: best, dist: bestD } : null;
 }
 
+/** Its own voice (voice/sfx.ts `cry_<kind>`), softer further away. */
+function cry(m: Monster, dist: number): void {
+  const c = m.card.cry!;
+  m.cryCd = (c.every ?? 9) * (0.8 + Math.random() * 0.4);
+  sfx.play(`cry_${c.kind}`, { volume: Math.max(0.25, 1 - dist / 16) });
+}
+
+/** The light a light-fearing monster stands in (a working lamp, a light companion, a light effect), or null. */
+function lightFrom(ctx: Ctx, m: Monster): THREE.Vector3 | null {
+  const z = lightZones().find((l) => Math.hypot(l.x - m.pos.x, l.z - m.pos.z) < l.r);
+  if (z) return new THREE.Vector3(z.x, 0, z.z);
+  return companionLight(m.pos.x, m.pos.z) || lightAt(ctx, m.pos.x, m.pos.z, true) ? ctx.player.pos : null;
+}
+
 export function updateMonsters(ctx: Ctx, dt: number): void {
   const tune = tuneOf(ctx);
   if (ctx.playing && !ctx.sleeping) {
@@ -125,8 +144,12 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
     m.stun -= dt;
 
     const home = ctx.house ? homeDistance(ctx, m.pos) : Infinity;
-    // music close by, or a night show over it: it dances
-    const music = speakers.some((sp) => Math.hypot(sp.centre.x - m.pos.x, sp.centre.z - m.pos.z) < sp.dance) || inShow(m.pos.x, m.pos.z);
+    // music close by, a night show over it, or a peace effect around the party: it dances
+    const speaker = speakers.find((sp) => Math.hypot(sp.centre.x - m.pos.x, sp.centre.z - m.pos.z) < sp.dance);
+    const heard = !!speaker || inShow(m.pos.x, m.pos.z) || peaceAt(ctx, m.pos.x, m.pos.z);
+    // a monster that fears music (or light, at night) runs from it instead (MonsterCard.flee)
+    const fear = m.card.flee === 'music' ? (heard ? (speaker?.centre ?? ctx.player.pos) : null) : m.card.flee === 'light' && night ? lightFrom(ctx, m) : null;
+    const music = heard && !fear;
     // a red traffic light close by: it stops and waits (no chasing, no biting)
     if (m.frozen > 0) m.frozen -= dt;
     const red = !music && (redLight(m.pos.x, m.pos.z) || m.frozen > 0);
@@ -139,6 +162,12 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
     if (music) {
       // the music is on: no biting, only dancing
       m.state = 'dance';
+    } else if (fear) {
+      if (m.state !== 'flee') m.model.play('idle');
+      m.state = 'flee';
+      tx = m.pos.x - fear.x;
+      tz = m.pos.z - fear.z;
+      speed = m.card.chaseSpeed;
     } else if (red) {
       if (m.state !== 'wait') m.model.play('idle');
       m.state = 'wait';
@@ -155,6 +184,7 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
       speed = m.card.chaseSpeed * pace;
       if (!m.spotted && seen.hero === ctx.player) {
         m.spotted = true;
+        if (m.card.cry) cry(m, seen.dist);
         events.emit('monster:spot', { kind: m.kind, first: !spottedKinds.has(m.kind) });
         spottedKinds.add(m.kind);
       }
@@ -209,6 +239,12 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
     } else {
       m.body.vel.x *= 1 - dt * 3;
       m.body.vel.z *= 1 - dt * 3;
+    }
+    // a monster with a voice cries now and then while the party is near
+    if (m.card.cry && (m.cryCd -= dt) <= 0) {
+      const d = Math.hypot(m.pos.x - ctx.player.pos.x, m.pos.z - ctx.player.pos.z);
+      if (d < 16 && ctx.playing && !ctx.sleeping) cry(m, d);
+      else m.cryCd = 2;
     }
     stepBody(ctx.world, m.body, dt);
     m.syncModel(dt);

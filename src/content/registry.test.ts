@@ -3,16 +3,21 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { ModelRef } from '../contracts';
+import { ARTIFACT_BUILDERS } from '../assets/artifacts';
 import { BUILDING_MODELS } from '../assets/buildings';
 import { ITEM_IDS } from '../assets/items';
 import { SPRITES } from '../ui/hudSprites';
+import { ARTIFACTS } from './artifacts';
 import { BUILDINGS, KIT_ORDER } from './buildings';
 import { CASTLE_CARDS } from './castles';
+import { COMPANIONS } from './companions';
+import { EFFECTS, type Effect } from './effects';
 import { HEROES } from './heroes';
 import { ITEMS, ITEM_ORDER } from './items';
 import { LINES } from './lines';
 import { MONSTERS } from './monsters';
 import { ENDLESS, REWARDS } from './progress';
+import { TALES } from './tales';
 import { RACE_CARDS } from './villages';
 
 /**
@@ -103,8 +108,41 @@ for (const [key, it] of Object.entries(ITEMS)) {
     .done(it)
     .need('model in ITEM_BUILDERS (src/assets/items.ts)', builders.has(key))
     .need('place in ITEM_ORDER', (it as { album?: false }).album === false || (ITEM_ORDER as string[]).includes(key))
+    .need('use: a known effect', validUse((it as { use?: Effect | 'auto' }).use))
     .line(it.line);
 }
+
+// ─── artifacts: card + builder + line + a lasting effect + a tale or castle that gives it ───
+const givesArtifact = new Set<string>([...TALES.flatMap((t) => (t.artifact ? [t.artifact] : [])), ...Object.values(CASTLE_CARDS).flatMap((c) => (c.artifact ? [c.artifact] : []))]);
+for (const [key, a] of Object.entries(ARTIFACTS)) {
+  card(`artifact ${key}`)
+    .need('id = key', a.id === key)
+    .done(a)
+    .need('model in ARTIFACT_BUILDERS (src/assets/artifacts.ts)', typeof ARTIFACT_BUILDERS[key] === 'function')
+    .need('always: an effect that can last (not home)', a.always?.kind in EFFECTS && EFFECTS[a.always.kind].always)
+    .need('found at the end of a tale or a castle (TaleCard.artifact / CastleCard.artifact)', givesArtifact.has(key))
+    .line(a.line);
+}
+
+// ─── companions: card + part file (build, face) + 2 lines + a way to meet it ───
+const givesCompanion = new Set<string>([
+  ...TALES.flatMap((t) => (t.companion ? [t.companion] : [])),
+  ...Object.values(CASTLE_CARDS).flatMap((c) => (c.companion ? [c.companion] : [])),
+  ...REWARDS.flatMap((r) => (r.companion ? [r.companion] : [])),
+]);
+for (const [key, c] of Object.entries(COMPANIONS)) {
+  card(`companion ${key}`)
+    .need('id = key', c.id === key)
+    .done(c)
+    .parts(c.model, true)
+    .need('given by a reward, a tale or a castle', givesCompanion.has(key))
+    .line(c.lines.hi)
+    .line(c.lines.yay);
+}
+
+// ─── references: every artifact / companion a card names exists ───
+for (const id of givesArtifact) card(`artifact ref ${id}`).need(`artifact card "${id}" (content/artifacts.ts)`, id in ARTIFACTS);
+for (const id of givesCompanion) card(`companion ref ${id}`).need(`companion card "${id}" (content/companions.ts)`, id in COMPANIONS);
 
 // ─── buildings: card + model + sprite + lines + a way to get it ───
 const given = new Set<string>([
@@ -134,6 +172,10 @@ for (const [race, r] of Object.entries(RACE_CARDS)) {
 for (const [race, k] of Object.entries(CASTLE_CARDS)) {
   const c = card(`castle ${race}`).sprite(k.sticker).sprite(k.item).sprite(k.mark);
   for (const l of [k.hello, k.thanks, k.open, k.prizeLine, k.seen, k.pointer, ...Object.values(k.ask)]) c.line(l);
+}
+
+function validUse(u: Effect | 'auto' | undefined): boolean {
+  return u === undefined || u === 'auto' || (typeof u === 'object' && u.kind in EFFECTS);
 }
 
 describe('registry: every card has all its pieces', () => {

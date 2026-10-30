@@ -1,4 +1,5 @@
 import { BUILDINGS } from '../content/buildings';
+import { giveCompanion } from './companions';
 import { TASKS, nextReward, taskFor, type Reward, type TaskKind } from '../content/progress';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
@@ -100,6 +101,7 @@ function give(ctx: Ctx, r: Reward): void {
   p.start = null;
   for (const [id, n] of r.items ?? []) addToKit(ctx, id, n);
   if (r.upgrade) raiseLevel(ctx, r.upgrade);
+  if (r.companion) giveCompanion(ctx, r.companion);
   if (r.coins) {
     ctx.save.coins += r.coins;
     events.emit('coins:changed', { coins: ctx.save.coins });

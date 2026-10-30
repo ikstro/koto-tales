@@ -40,6 +40,14 @@ export interface GameEvents {
   /** A tale began / was done (content/tales.ts). */
   'tale:start': { id: string };
   'tale:done': { id: string };
+  /** An effect began (content/effects.ts): an item used, or the debug hook. */
+  'effect:start': { kind: string };
+  /** A carried item was used up (a tap in the kit plate, or a key by its lock). */
+  'item:used': { item: ItemId };
+  /** An artifact was found (content/artifacts.ts); its lasting power is on from now. */
+  'artifact:found': { id: string };
+  /** A companion joined the party (content/companions.ts). */
+  'companion:joined': { id: string };
 }
 
 type Handler<T> = (payload: T) => void;

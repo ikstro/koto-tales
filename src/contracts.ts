@@ -248,6 +248,8 @@ export interface IModels {
   preload(refs: ModelRef[]): Promise<void>;
   character(ref: ModelRef): CharacterModel;
   item(id: ItemId): THREE.Object3D;
+  /** An artifact's model (content/artifacts.ts), built like an item. */
+  artifact(id: string): THREE.Object3D;
   setSkin(skin: Skin): void;
 }
 
@@ -310,7 +312,12 @@ export type SfxName =
   /** A deep rumble: the boss's stomp and roar. */
   | 'rumble'
   /** One putt of a toy engine (the generator, a few times a second). */
-  | 'chug';
+  | 'chug'
+  /** Monsters' own voices (MonsterCard.cry), made in code. */
+  | 'cry_siren'
+  | 'cry_growl'
+  | 'cry_hiss'
+  | 'cry_beep';
 
 export interface IVoice {
   /** Must be called from a user gesture once (mobile audio unlock). */

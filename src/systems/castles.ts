@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { giveArtifact } from './artifacts';
+import { giveCompanion } from './companions';
 import type { CharacterModel } from '../contracts';
 import { createPortal, type PortalModel } from '../assets/buildings';
 import { createCastle, createCastleItem, type CastleModel, type CastleTick } from '../assets/castles';
@@ -328,6 +330,8 @@ function openChest(ctx: Ctx, b: Built): void {
   ctx.effects.coinBurst(b.chestAt.clone().setY(b.chestAt.y + 0.8), 10);
   ctx.player.model.play('cheer');
   voice.say(b.card.prizeLine, { priority: 9, interrupt: true });
+  if (b.card.artifact) giveArtifact(ctx, b.card.artifact);
+  if (b.card.companion) giveCompanion(ctx, b.card.companion);
   events.emit('castle:freed', { race: b.site.race });
   marks(ctx);
 }

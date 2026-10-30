@@ -27,6 +27,14 @@ export interface MonsterCard {
   defeatLine: LineId;
   /** Throws from a distance (on difficulties that allow it): keeps `keep` blocks away, throws every `every` s. */
   ranged?: { range: number; keep: number; every: number; speed: number };
+  /** Its own voice, made in code (voice/sfx.ts `cry_<kind>`): when it spots a hero, then every `every` s (default 9) while near. */
+  cry?: { kind: 'siren' | 'growl' | 'hiss' | 'beep'; every?: number };
+  /** Arrows bounce off it with a «дзинь»: 'bolt' — only the lightning hurts it; 'lantern' — arrows hurt it only near a placed lantern. */
+  armor?: 'bolt' | 'lantern';
+  /** Runs away instead of chasing: from working lights at night ('light') or from playing music instead of dancing ('music'). */
+  flee?: 'light' | 'music';
+  /** Льоша made it up: its album sticker has the gold rim. */
+  lyosha?: true;
 }
 
 export const MONSTERS = {

@@ -27,6 +27,10 @@ export interface CastleCard {
   kid?: { model: string; face: string; found: LineId };
   /** In the chest on the balcony. */
   prize: BuildingId;
+  /** Also in the chest: the castle's artifact (content/artifacts.ts id). */
+  artifact?: string;
+  /** Joins the party when the chest is opened (content/companions.ts id). */
+  companion?: string;
   /** Пупся the first time the castle comes into sight. */
   seen: LineId;
   /** The village's elder, once friends: the castle is over there. */

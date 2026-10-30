@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { CharacterModel, IModels, ItemId, ModelRef, Rig, RigType, Skin } from '../contracts';
 import { animate } from './animate';
+import { buildArtifact } from './artifacts';
 import { buildItem } from './items';
 import { buildAlien1, buildAlien2, buildAlien3, buildAlienCaptain, buildAlienElder, buildAlienKid } from './parts/alien';
 import { buildElf1, buildElf2, buildElf3, buildElfElder, buildElfKid, buildElfQueen } from './parts/elf';
@@ -122,6 +123,16 @@ export class Models implements IModels {
     if (!t) {
       t = buildItem(id, this.skin);
       this.items.set(id, t);
+    }
+    return t.clone(true);
+  }
+
+  artifact(id: string): THREE.Object3D {
+    const key = `artifact:${id}` as ItemId;
+    let t = this.items.get(key);
+    if (!t) {
+      t = buildArtifact(id, this.skin);
+      this.items.set(key, t);
     }
     return t.clone(true);
   }

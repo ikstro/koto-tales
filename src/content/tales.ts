@@ -61,6 +61,10 @@ export interface TaleCard {
   retell: LineId;
   sticker: string;
   coins: number;
+  /** Found at the end (content/artifacts.ts id): its lasting power is on from then. */
+  artifact?: string;
+  /** Joins the party at the end (content/companions.ts id). */
+  companion?: string;
 }
 
 /** The first tale of a new story: it begins as the heroes wake, and teaches one thing a step. */
