@@ -2,7 +2,7 @@
 - date: 2026-10-30
 - said: «Хочу добавить ещё одного героя Давида, это Лёшин друг. Плюс давай каждому герою дадим собственное оружие» (the owner, for Льоша)
 - kinds: hero (playable), hero weapons
-- status: built, waiting for the owner's yes on Давид's lines (then `npm run voice`)
+- status: shipped (2026-10-30: the owner said yes to Давид's lines, voiced)
 - notes:
   - **Давид** — a fourth playable hero, Льоша's friend. Not in CONTENT.md: heroes are hard-coded (three).
     Nearest fit: a companion card (walks along, shoots; not playable). Engine work for a real hero:
