@@ -1,0 +1,19 @@
+name: ci
+
+# Every pull request gets the same typecheck and tests as the deploy.
+# A line without its mp3 is allowed here: voice is generated after the lines are approved.
+on:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npx vite build
