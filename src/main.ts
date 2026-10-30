@@ -11,6 +11,7 @@ import { Quality } from './core/quality';
 import { applyWaitingUpdate, bootStarted, bootSucceeded, registerPWA } from './pwa';
 import { Effects } from './render/effects';
 import { initLanterns } from './render/lanterns';
+import { initHeroMark } from './render/heroMark';
 import { createSkin } from './render/skins';
 import { bossStartSpot, initBoss } from './systems/boss';
 import { buildHouse } from './systems/house';
@@ -127,6 +128,7 @@ async function boot(): Promise<void> {
   if (params.demo) placeDemo(ctx);
   initBoss(ctx);
   initLanterns(ctx);
+  initHeroMark(ctx);
   // ?boss=near: the party starts in front of the boss's mouth
   const near = params.boss === 'near' ? bossStartSpot(ctx) : null;
   if (near) [params.x, params.z] = [near.x, near.z];

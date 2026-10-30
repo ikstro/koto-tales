@@ -5,10 +5,10 @@ import * as THREE from 'three';
  * shoulders on that line dissolve, so a tree crown or a tall tower never
  * hides the child's character. Shared by every skin's world materials.
  *
- * Tree crowns open much wider (a material that knows its leaves passes a
- * `LeafCut`): a clearing around the hero and a broad way to the camera, whole
- * leaf blocks at a time, so in a forest the child sees the ground around, not
- * only the hero. Trunks stay.
+ * Tree crowns open a round window instead (a material that knows its leaves
+ * passes a `LeafCut`): only leaf blocks that stand between the camera and the
+ * hero and cover the hero's part of the screen go, whole blocks at a time with
+ * a dotted rim; every other crown stays whole, so a forest stays a forest.
  *
  * The game sets `cutaway.from` (camera) and `cutaway.to` (hero chest) each
  * frame; `cutaway.on.value = 0` turns it off (start screen).
@@ -46,10 +46,9 @@ uniform float uCutOn;
 varying vec3 vCutPos;
 `;
 
-/** Leaves go when their block is above the shoulders and within this of the hero (across the ground)… */
-const LEAF_CLEAR = 5.0;
-/** …or this close to the camera–hero line (at the hero, at the camera). */
-const LEAF_WAY = [6.0, 7.5];
+/** The crown window's radius on screen, in blocks at the hero's distance, and its dotted rim. */
+const LEAF_WINDOW = 3.6;
+const LEAF_RIM = 0.9;
 
 /** Which fragments are tree crowns and which block each belongs to (fragment GLSL), plus what that needs. */
 export interface LeafCut {
@@ -84,9 +83,18 @@ if (uCutOn > 0.5 && (${c.leaf})) {
   vec3 cell = ${c.cell};
   if (cell.y > uCutTo.y + 0.3) {
     vec3 ab = uCutFrom - uCutTo;
-    float t = clamp(dot(cell - uCutTo, ab) / dot(ab, ab), 0.0, 1.0);
-    float d = length(cell - (uCutTo + ab * t));
-    if (d < mix(${LEAF_WAY[0].toFixed(2)}, ${LEAF_WAY[1].toFixed(2)}, t) || length(cell.xz - uCutTo.xz) < ${LEAF_CLEAR.toFixed(2)}) discard;
+    float len = length(ab);
+    vec3 rel = cell - uCutTo;
+    // how far from the hero towards the camera, and how far off that line as seen on screen
+    float s = dot(rel, ab) / len;
+    if (s > -0.6) {
+      float side = length(rel - ab * (s / len)) * len / max(len - s, 0.5);
+      if (side < ${LEAF_WINDOW.toFixed(2)}) {
+        float edge = (${LEAF_WINDOW.toFixed(2)} - side) / ${LEAF_RIM.toFixed(2)};
+        float n = fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453);
+        if (edge > 1.0 || n < edge) discard;
+      }
+    }
   }
 }
 `;

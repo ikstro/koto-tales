@@ -27,12 +27,13 @@ import { initTales, updateTales } from '../systems/tales';
 import { pushBubble } from '../systems/tasks';
 import { updateVillages } from '../systems/villages';
 import { updateLanterns } from '../render/lanterns';
+import { updateHeroMark } from '../render/heroMark';
 import { cutaway } from '../render/skins/cutaway';
 import { music } from '../voice/music';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { tuneOf } from '../systems/tune';
-import { FollowCamera } from './camera';
+import { FRAMINGS, FollowCamera } from './camera';
 import type { Ctx } from './ctx';
 import { events } from './events';
 import { probeDrawCalls } from './perfProbe';
@@ -83,7 +84,7 @@ export class Game {
     readonly ctx: Ctx,
     private quality: Quality,
   ) {
-    this.cam = new FollowCamera(ctx.camera);
+    this.cam = new FollowCamera(ctx.camera, FRAMINGS[ctx.params.cam ?? 1] ?? FRAMINGS[1]);
     initNarration(ctx);
     events.on('attack:bolt', ({ hero }) => {
       if (hero === ctx.player?.id) this.cam.shake(0.3);
@@ -337,6 +338,7 @@ export class Game {
     updateHouse(ctx, dt);
     updateDayNight(ctx, dt);
     updateLanterns(ctx, dt);
+    updateHeroMark(ctx, dt);
 
     const focus = ctx.playing ? ctx.player.pos : ctx.house!.centre;
     ctx.world.update(focus);

@@ -23,6 +23,7 @@ import { SKIN_NAMES, type AnySkin } from '../render/skins';
  *   ?boss=near  ?bossHp=<n>  ?lanterns=<n>  (test only: start by the boss, set its health / cracked armour)
  *   ?guide=all|boss|move|…  (test only: the picture guide opens after the start — all cards over the pause menu, or one card)
  *   ?tale=<id>  (test only: that tale begins at once, content/tales.ts)
+ *   ?cam=<n>  (test only: another framing from core/camera.ts FRAMINGS, to compare shots)
  */
 export interface Params {
   /** ?mute=1 silences everything (automated checks). */
@@ -74,6 +75,8 @@ export interface Params {
   guide: 'all' | 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'tales' | 'boss' | null;
   /** Test only (?tale=<id>): that tale begins at once. */
   tale: string | null;
+  /** Test only (?cam=<n>): another camera framing (core/camera.ts). */
+  cam: number | null;
 }
 
 export function readParams(): Params {
@@ -115,5 +118,6 @@ export function readParams(): Params {
     lanterns: num('lanterns'),
     guide: one('guide', ['all', 'move', 'bow', 'bolt', 'build', 'heal', 'map', 'tales', 'boss'] as const),
     tale: q.get('tale'),
+    cam: num('cam'),
   };
 }

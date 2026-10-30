@@ -130,7 +130,7 @@ export interface BrickShaderStyle {
   tilt?: number;
   /** How dark the seam between bricks is. */
   seam?: number;
-  /** Fragment GLSL, true on a tree crown (`vKind` is the block's kind): crowns open wide around the hero (cutaway.ts). */
+  /** Fragment GLSL, true on a tree crown (`vKind` is the block's kind): crowns open a window over the hero (cutaway.ts). */
   leaf?: string;
 }
 
