@@ -3,6 +3,7 @@
 A blocky 3D browser game for a 6-year-old (Льоша) who invents its stories; his friend Соломія and the cat Пупся are the other heroes. Ukrainian voice-over, Android tablet (PWA, offline), published from `main` to https://ikstro.com/koto-tales/ by `.github/workflows/deploy.yml`.
 
 @DESIGN.md
+@CONTENT.md
 
 ## Commands
 - `npm run dev` — dev server (`--host`), URL switches in `src/core/params.ts` (`?skin= &autostart=1 &hero= &x= &z= &time= &freeze=1 &fresh=1 &demo=1 &hud=0 &stats=1 &kit=1 &pause=1`).
@@ -20,3 +21,8 @@ A blocky 3D browser game for a 6-year-old (Льоша) who invents its stories; 
 - Generic toy-brick aesthetic only: no brand names, logos on studs, minifigure shapes, or copies of real games' UI.
 - No losing; home is safe; nothing must require reading.
 - No digging or loose bricks: the ground never changes; achievements open ready-made buildings in the kit (DESIGN.md «Kit»), each with a real use.
+
+## Content pipeline
+- Льоша's ideas go in through `/wish` (`.claude/skills/wish`): logged in `wishes/`, split into kinds, built by the per-kind skills.
+- `CONTENT.md` is the vocabulary: what each kind of card can say and do, ids, lines, the ship steps.
+- `npm run new -- <kind> <id>` → stubs; `npm run check` lists what is missing; `npm run preview -- <kind> <id>` → a picture.
