@@ -93,6 +93,27 @@ export const MONSTERS = {
     spotLine: 'monster_spider_spot',
     defeatLine: 'defeat_spider',
   },
+  siren: {
+    kind: 'siren',
+    model: { kind: 'parts', id: 'siren' },
+    name: 'Сиренка',
+    hp: 6,
+    wanderSpeed: 1,
+    chaseSpeed: 2.3,
+    damage: 1,
+    sight: 9,
+    radius: 0.35,
+    height: 2.4,
+    when: 'any',
+    weight: 2,
+    coins: [1, 3],
+    color: 0x7fb8b0,
+    spotLine: 'monster_siren_spot',
+    defeatLine: 'defeat_siren',
+    cry: { kind: 'siren', every: 7 },
+    armor: 'bolt',
+    lyosha: true,
+  },
 } satisfies Record<string, MonsterCard>;
 
 export type MonsterKind = keyof typeof MONSTERS;

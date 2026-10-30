@@ -20,7 +20,9 @@ export interface ArtifactCard {
 }
 
 /** The cards, in the album's order. */
-export const ARTIFACTS: Record<string, ArtifactCard> = {};
+export const ARTIFACTS: Record<string, ArtifactCard> = {
+  zz_star: { id: 'zz_star', name: 'Зірочка-ліхтарик', line: 'artifact_zz_star', always: { kind: 'light', reach: 10 } },
+};
 
 export type ArtifactId = string;
 export const ARTIFACT_ORDER = (): string[] => Object.keys(ARTIFACTS);

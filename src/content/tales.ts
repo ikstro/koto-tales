@@ -148,6 +148,8 @@ export const TALES: TaleCard[] = [
     retell: 'tale_yarn_retell',
     sticker: 'item-yarn',
     coins: 15,
+    artifact: 'zz_star',
+    companion: 'zz_pal',
   },
   {
     id: 'light',

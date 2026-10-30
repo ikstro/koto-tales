@@ -26,6 +26,15 @@ export interface CompanionCard {
   lines: { hi: LineId; yay: LineId };
 }
 
-export const COMPANIONS: Record<string, CompanionCard> = {};
+export const COMPANIONS: Record<string, CompanionCard> = {
+  zz_pal: {
+    id: 'zz_pal',
+    name: 'Бляшанчик',
+    model: { kind: 'parts', id: 'zz_pal' },
+    speaker: 'robot',
+    trick: { kind: 'shoot', reach: 9 },
+    lines: { hi: 'companion_zz_pal_hi', yay: 'companion_zz_pal_yay' },
+  },
+};
 
 export type CompanionId = string;

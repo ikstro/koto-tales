@@ -203,6 +203,7 @@ describe('registry: every card has all its pieces', () => {
 
   it('missing voice (warns; STRICT_VOICE=1 fails above)', () => {
     const unvoiced = entries.filter((e) => e.unvoiced.length);
-    if (unvoiced.length && !strictVoice) console.warn(`[registry] not voiced yet — npm run voice:\n${unvoiced.map((e) => `  ${e.name}: ${e.unvoiced.join(', ')}`).join('\n')}`);
+    // straight to stderr: vitest keeps console output of passing tests quiet
+    if (unvoiced.length && !strictVoice) process.stderr.write(`[registry] not voiced yet — npm run voice:\n${unvoiced.map((e) => `  ${e.name}: ${e.unvoiced.join(', ')}`).join('\n')}\n`);
   });
 });

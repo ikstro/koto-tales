@@ -46,6 +46,7 @@ export const ITEMS = {
   eater_heart: { id: 'eater_heart', name: 'Серце Пожирача', line: 'item_eater_heart', biomes: 'any', weight: 0, color: 0xffa526 },
   /** Dropped by monsters (never lies around by itself); picking it up gives a heart back. Not an album sticker. */
   heart: { id: 'heart', name: 'Сердечко', line: 'item_heart', biomes: 'any', weight: 0, color: 0xff4d6d, album: false },
+  crystal_song: { id: 'crystal_song', name: 'Кристал-пісенька', line: 'item_crystal_song', biomes: ['hills', 'meadow'], weight: 1, color: 0xd98bff, use: { kind: 'peace', for: 10 }, lyosha: true },
 } satisfies Record<string, ItemCard>;
 
 export type ItemId = keyof typeof ITEMS;
@@ -67,6 +68,7 @@ export const ITEM_ORDER: ItemId[] = [
   'earth_seed',
   'key_gold',
   'eater_heart',
+  'crystal_song',
 ];
 
 export const PICKUPS = {
