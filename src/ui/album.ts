@@ -1,4 +1,5 @@
-import { ITEMS, ITEM_ORDER } from '../content/items';
+import { ARTIFACTS, ARTIFACT_ORDER } from '../content/artifacts';
+import { ITEMS, ITEM_ORDER, type ItemCard } from '../content/items';
 import { MONSTERS, MONSTER_ORDER } from '../content/monsters';
 import { CASTLE_CARDS } from '../content/castles';
 import { TALES } from '../content/tales';
@@ -19,7 +20,9 @@ const HEAD = 104;
  * Found stickers are bright printed tiles that speak their name when tapped (with
  * «×N» when there are several); missing ones are dark tiles with a silhouette that
  * make the empty spots tempting. Numbers only, no words. The book of tales follows on a row of
- * its own: a page per tale, its picture once the tale is done; a tap retells it.
+ * its own: a page per tale, its picture once the tale is done; a tap retells it. Then the treasures
+ * («скарби»), the artifacts, on a row of their own, each with a gold rim. A card Льоша made up
+ * (`lyosha: true`) has the gold rim wherever it is.
  */
 export class Album {
   private root = document.createElement('div');
@@ -48,10 +51,11 @@ export class Album {
     const entries: { img: string; got: boolean; line: string; count: number; gold?: boolean }[] = [];
     for (const id of ITEM_ORDER) {
       const count = id === 'coin' ? save.coins : (save.inv[id] ?? 0);
-      entries.push({ img: this.portraits.items[id], got: found.has(id), line: ITEMS[id].line, count });
+      entries.push({ img: this.portraits.items[id], got: found.has(id), line: ITEMS[id].line, count, gold: (ITEMS[id] as ItemCard).lyosha });
     }
     for (const kind of MONSTER_ORDER) {
-      entries.push({ img: this.portraits.monsters[kind], got: found.has(`m:${kind}`), line: MONSTERS[kind].spotLine, count: save.defeated?.[kind] ?? 0 });
+      const m: { spotLine: string; lyosha?: true } = MONSTERS[kind];
+      entries.push({ img: this.portraits.monsters[kind], got: found.has(`m:${kind}`), line: m.spotLine, count: save.defeated?.[kind] ?? 0, gold: m.lyosha });
     }
     // places: a lighthouse the child lit (×N lit)
     entries.push({ img: `${import.meta.env.BASE_URL}hud/map-lighthouse-lit.png`, got: found.has('lighthouse'), line: 'lighthouse_lit', count: save.lit.length });
@@ -72,9 +76,18 @@ export class Album {
       entries.push({ img: `${import.meta.env.BASE_URL}hud/${t.sticker}.png`, got: found.has(`t:${t.id}`), line: t.retell, count: 0, gold: t.lyosha });
     }
 
+    // the treasures: the artifacts, from a row of their own, always with the gold rim
+    const treasures = entries.length;
+    for (const id of ARTIFACT_ORDER()) {
+      entries.push({ img: this.portraits.artifacts[id], got: found.has(`a:${id}`), line: ARTIFACTS[id].line, count: 0, gold: true });
+    }
+
+    // each part starts a row of its own: finds, the book of tales, the treasures
+    const parts = [0, book, treasures, entries.length].filter((v, i, a) => i === 0 || v > a[i - 1] || i === a.length - 1);
+    const rowsOf = (cols: number) => parts.slice(1).reduce((n, end, i) => n + Math.ceil((end - parts[i]) / cols), 0);
     // as many columns as keep the stickers biggest on this screen
     const size = (cols: number) => {
-      const rows = Math.ceil(book / cols) + Math.ceil((entries.length - book) / cols);
+      const rows = rowsOf(cols);
       const pw = PAD * 2 + cols * CELL;
       const ph = HEAD + rows * CELL + 36;
       return { pw, ph, s: Math.min(k * 1.1, (W - 20) / (pw + 16), (H - 20) / (ph + 20)) };
@@ -82,7 +95,14 @@ export class Album {
     let cols = W >= H ? 6 : 4;
     for (let c = cols + 1; c <= (W >= H ? 10 : 5); c++) if (size(c).s > size(cols).s + 1e-3) cols = c;
     const { pw, ph, s } = size(cols);
-    const slot = (i: number) => (i < book ? i : Math.ceil(book / cols) * cols + (i - book));
+    const slot = (i: number) => {
+      let row = 0;
+      for (let p = 1; p < parts.length; p++) {
+        if (i < parts[p]) return row * cols + (i - parts[p - 1]);
+        row += Math.ceil((parts[p] - parts[p - 1]) / cols);
+      }
+      return row * cols;
+    };
 
     const panel = document.createElement('div');
     panel.className = 'alb-panel';

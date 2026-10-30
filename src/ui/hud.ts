@@ -320,6 +320,14 @@ export interface KitItem {
   level?: number;
 }
 
+/** Something the party carries and can use (the kit plate's second row): its picture and how many. */
+export interface CarriedItem {
+  id: string;
+  /** The item's rendered picture (ui/portraits.ts). */
+  img: string;
+  count: number;
+}
+
 /** A piece that breathes by the action pieces when something can be done here. */
 export type PromptKind = 'moon' | 'fold' | 'chest';
 
@@ -332,6 +340,8 @@ export class Hud {
   /** The kit plate opened / the next reward's task piece was tapped. */
   onKitOpen: (() => void) | null = null;
   onKitTask: (() => void) | null = null;
+  /** A carried item was tapped in the kit plate's second row (systems/effects.ts uses one). */
+  onCarriedUse: ((id: string) => void) | null = null;
   onPause: ((paused: boolean) => void) | null = null;
   /** The screen has gone dark (sleep, travel): a moment nobody sees a frame stall. */
   onDark: (() => void) | null = null;
@@ -408,6 +418,8 @@ export class Hud {
   private kitItems: KitItem[] = [];
   private kitCells = new Map<string, { p: Piece; count: Counter | null; studs: HTMLElement[] }>();
   private kitNext: { sprite: string; task: string } | null = null;
+  private carriedItems: CarriedItem[] = [];
+  private carriedCells = new Map<string, { p: Piece; count: Counter }>();
   private kitSelected: string | null = null;
   private kitLitN = -1;
   private guide: Guide;
@@ -871,10 +883,14 @@ export class Hud {
     K.inner.replaceChildren();
     K.pieces.length = 0;
     this.kitCells.clear();
+    this.carriedCells.clear();
     const n = this.kitItems.length + (this.kitNext ? 1 : 0);
+    const nc = this.carriedItems.length;
     // up to two rows while it fits: wider before taller (short landscape screens)
-    const cols = n <= 4 ? Math.max(1, n) : n <= 8 ? 4 : Math.min(6, Math.ceil(n / 2));
-    const rows = Math.ceil(n / cols);
+    const cols = n <= 4 ? Math.max(1, n, Math.min(4, nc)) : n <= 8 ? 4 : Math.min(6, Math.ceil(n / 2));
+    // what the party carries starts a row of its own under the buildings (the owner's call 2026-10-30)
+    const bRows = Math.ceil(n / cols);
+    const rows = bRows + Math.ceil(nc / cols);
     const cell = 118;
     const tw = cols * cell + 60;
     const th = rows * cell + 60;
@@ -927,6 +943,26 @@ export class Hud {
       );
       K.pieces.push(p, task);
     }
+    this.carriedItems.forEach((item, j) => {
+      const [cx, cy] = at(bRows * cols + j);
+      const holder = div('tb kb carry', K.inner);
+      holder.style.cssText = `left:${cx}px;top:${cy}px`;
+      // the item's sticker tile, as in the album, with how many on a number tile
+      const p = new Piece(holder, 'sticker-on', 0, 0, 'sticker-sh');
+      const img = document.createElement('img');
+      img.className = 'stk-img';
+      img.src = item.img;
+      img.alt = '';
+      img.draggable = false;
+      img.style.top = `${-TOP - 46}px`;
+      p.pr.appendChild(img);
+      const ch = div('kc', holder);
+      ch.style.cssText = `left:44px;top:4px`;
+      const count = new Counter(new Piece(ch, 'numtile', 0, 0, null));
+      this.press(p, p.target(cell, cell, 34), () => this.useCarried(item.id), { ui: true });
+      K.pieces.push(p);
+      this.carriedCells.set(item.id, { p, count });
+    });
     K.minX = -tw / 2;
     K.minY = -th / 2;
     K.w = tw + 16;
@@ -937,6 +973,7 @@ export class Hud {
   }
 
   private refreshKitCells(): void {
+    for (const item of this.carriedItems) this.carriedCells.get(item.id)?.count.set(item.count, false);
     for (const item of this.kitItems) {
       const c = this.kitCells.get(item.id);
       if (!c) continue;
@@ -945,6 +982,17 @@ export class Hud {
       c.p.el.classList.toggle('empty', item.count === 0);
       c.p.el.classList.toggle('on', item.id === this.kitSelected);
     }
+  }
+
+  /** A tap on a carried item: the plate closes and one is used (the effect starts at once). */
+  private useCarried(id: string): void {
+    const item = this.carriedItems.find((i) => i.id === id);
+    if (!item || item.count <= 0) {
+      this.carriedCells.get(id)?.p.bump('translateX(-6px) rotate(-8deg)');
+      return;
+    }
+    this.toggleKit(false);
+    this.onCarriedUse?.(id);
   }
 
   private pickKit(id: string): void {
@@ -1253,6 +1301,14 @@ export class Hud {
     const same = items.length === this.kitItems.length && items.every((it, i) => it.id === this.kitItems[i].id);
     this.kitItems = items.map((i) => ({ ...i }));
     if (same && this.kitCells.size) this.refreshKitCells();
+    else this.buildKit();
+  }
+
+  /** What the party carries and can use: the kit plate's second row (empty: no row). */
+  setCarried(items: CarriedItem[]): void {
+    const same = items.length === this.carriedItems.length && items.every((it, i) => it.id === this.carriedItems[i].id);
+    this.carriedItems = items.map((i) => ({ ...i }));
+    if (same && (this.carriedCells.size || !items.length)) this.refreshKitCells();
     else this.buildKit();
   }
 

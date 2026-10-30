@@ -1,16 +1,16 @@
 import * as THREE from 'three';
-import { Arrow, turnTowards, yawOf, type Hero } from '../actors/entities';
-import { makeBody, placeOnGround, stepBody, type Body } from '../actors/physics';
+import { Arrow, type Hero } from '../actors/entities';
+import { makeBody, placeOnGround } from '../actors/physics';
 import { HERO_STATS } from '../content/heroes';
 import type { LineId } from '../content/lines';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
-import { nearestMonster } from './combat';
 import { landingSpot, moveFollower, nearestStanding, packAway, relocate, selectedBuilding, spotNear, standingWhere, working, type Standing } from './kit';
 import { castleLanding } from './castles';
 import { ARRIVE, travelTo } from './travel';
+import { followSlot, shootStep, stepFollower, type Follower } from './follow';
 import { tuneOf } from './tune';
 import { villageLanding } from './villages';
 
@@ -201,37 +201,14 @@ export function healing(p: THREE.Vector3): boolean {
 
 // the robot helper: walks with the party, shoots like a helper, cannot be hurt
 
-interface Bot {
-  body: Body;
-  yaw: number;
-  moving: boolean;
-  stuck: number;
-  fireCd: number;
+interface Bot extends Follower {
   shot: number;
 }
 const bots = new WeakMap<Standing, Bot>();
-/** How far behind the player the robot comes to rest, and how far the player may get before it walks. */
-const BOT_REST = 2.6;
-const BOT_GO = 3.6;
-const BOT_SPEED = 6;
-const BOT_JUMP = 22;
 const boltGeo = new THREE.BoxGeometry(0.12, 0.12, 0.42);
 const boltMat = new THREE.MeshBasicMaterial({ color: 0x7ff3ff, toneMapped: false });
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
-
-/** Where the robot belongs: behind the player, in the middle (the helpers walk at the sides). */
-function botSlot(ctx: Ctx, i: number, out: THREE.Vector3): THREE.Vector3 {
-  const p = ctx.player.pos;
-  const fx = Math.sin(ctx.player.yaw);
-  const fz = Math.cos(ctx.player.yaw);
-  const side = i === 0 ? 0 : i % 2 ? 1 : -1;
-  out.set(p.x - fx * BOT_REST + fz * side * 1.4, p.y, p.z - fz * BOT_REST - fx * side * 1.4);
-  const fy = Math.floor(p.y + 0.01);
-  // that spot is inside a wall: right next to the player instead
-  if (ctx.world.isSolid(Math.floor(out.x), fy, Math.floor(out.z)) || ctx.world.isSolid(Math.floor(out.x), fy + 1, Math.floor(out.z))) out.set(p.x - fx * 0.8, p.y, p.z - fz * 0.8);
-  return out;
-}
 
 function botOf(s: Standing): Bot {
   let b = bots.get(s);
@@ -249,7 +226,7 @@ function snapBots(ctx: Ctx): void {
   standingWhere((c) => !!c.follow).forEach((s, i) => {
     const b = botOf(s);
     if (b.body.pos.distanceTo(ctx.player.pos) < 6) return;
-    const at = botSlot(ctx, i, tmpA);
+    const at = followSlot(ctx, i, tmpA);
     placeOnGround(ctx.world, b.body, at.x, at.z);
     b.moving = false;
     b.yaw = ctx.player.yaw;
@@ -289,60 +266,12 @@ function robots(ctx: Ctx, dt: number): void {
       s.extra.walk = 0;
       return;
     }
-    const p = ctx.player.pos;
-    const slot = botSlot(ctx, i, tmpA);
-    const far = Math.hypot(p.x - b.body.pos.x, p.z - b.body.pos.z);
-    const dx = slot.x - b.body.pos.x;
-    const dz = slot.z - b.body.pos.z;
-    const dist = Math.hypot(dx, dz);
-    if (far > BOT_JUMP || (b.stuck > 2.5 && dist > 3)) {
-      ctx.effects.poof(tmpB.copy(b.body.pos).setY(b.body.pos.y + 0.6), 0x7ff3ff, 8);
-      placeOnGround(ctx.world, b.body, slot.x, slot.z);
-      b.stuck = 0;
-      b.moving = false;
-      ctx.effects.poof(tmpB.copy(b.body.pos).setY(b.body.pos.y + 0.6), 0x7ff3ff, 8);
-    }
-    // it walks only when the party has gone on a bit, and stops in its place behind them
-    if (!b.moving && far > BOT_GO) b.moving = true;
-    if (b.moving && dist < 0.6) b.moving = false;
-    let vx = 0;
-    let vz = 0;
-    if (b.moving && !ctx.sleeping) {
-      const spd = Math.min(BOT_SPEED, dist * 2.4 + 1);
-      vx = (dx / dist) * spd;
-      vz = (dz / dist) * spd;
-      b.yaw = turnTowards(b.yaw, yawOf(dx, dz), dt * 10);
-    }
-    const k = 1 - Math.exp(-dt * 10);
-    b.body.vel.x += (vx - b.body.vel.x) * k;
-    b.body.vel.z += (vz - b.body.vel.z) * k;
-    stepBody(ctx.world, b.body, dt);
-    b.stuck = b.body.blocked && b.moving ? b.stuck + dt : 0;
-
-    // it shoots like a helper: the nearest monster in reach, never a dancing one; the boss only with its mouth open
-    b.fireCd -= dt;
-    const target = nearestMonster(ctx, b.body.pos, s.card.follow!.reach, undefined, dancers);
-    if (target) {
-      const ty = yawOf(target.pos.x - b.body.pos.x, target.pos.z - b.body.pos.z);
-      if (!b.moving) b.yaw = turnTowards(b.yaw, ty, dt * 12);
-      if (b.fireCd <= 0 && Math.abs(wrapAngle(ty - b.yaw)) < 0.6) {
-        const [lo, hi] = tuneOf(ctx).helperFireEvery;
-        b.fireCd = lo + Math.random() * (hi - lo);
-        fireBolt(ctx, b, tmpA.copy(target.pos).setY(target.pos.y + target.body.height * 0.5));
-      }
-    } else if (b.fireCd <= 0 && ctx.boss?.isTarget(b.body.pos, 13)) {
-      const [lo, hi] = tuneOf(ctx).helperFireEvery;
-      b.fireCd = lo + Math.random() * (hi - lo);
-      const m = ctx.boss.mouthPoint(tmpA);
-      b.yaw = yawOf(m.x - b.body.pos.x, m.z - b.body.pos.z);
-      fireBolt(ctx, b, m);
-    }
+    stepFollower(ctx, b, followSlot(ctx, i, tmpA), dt, 0x7ff3ff);
+    shootStep(ctx, b, s.card.follow!.reach, dancers, dt, (to) => fireBolt(ctx, b, to));
     s.extra.walk = Math.hypot(b.body.vel.x, b.body.vel.z);
     moveFollower(s, b.body.pos, b.yaw);
   });
 }
-
-const wrapAngle = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
 
 /** A line said once the current one has finished (the robot's «hi» after the first-time narration). */
 let after: { line: LineId; wait: number; until: number } | null = null;

@@ -1,4 +1,5 @@
 import type { Biome, ModelRef } from '../contracts';
+import type { Effect } from './effects';
 import type { LineId } from './lines';
 
 export interface ItemCard {
@@ -14,6 +15,16 @@ export interface ItemCard {
   weight: number;
   /** Sparkle colour. */
   color: number;
+  /** false: not an album sticker (left out of ITEM_ORDER on purpose). */
+  album?: false;
+  /**
+   * The party carries it and can use it (the owner's call 2026-10-30): it shows in the kit plate's
+   * second row with a count; a tap uses one and the effect starts. 'auto': never in the row, it
+   * fires by itself near its lock (a key).
+   */
+  use?: Effect | 'auto';
+  /** Льоша made it up: its album sticker has the gold rim. */
+  lyosha?: true;
 }
 
 export const ITEMS = {
@@ -28,13 +39,13 @@ export const ITEMS = {
   mushroom_brown: { id: 'mushroom_brown', name: 'Коричневий гриб', line: 'item_mushroom_brown', biomes: ['forest', 'meadow'], weight: 3, color: 0x8d6e63 },
   feather: { id: 'feather', name: 'Пір’їнка', line: 'item_feather', biomes: ['meadow', 'beach'], weight: 3, color: 0xe3f2fd },
   earth_seed: { id: 'earth_seed', name: 'Насіння землі', line: 'item_earth_seed', biomes: 'any', weight: 0.6, color: 0x76ff03 },
-  key_gold: { id: 'key_gold', name: 'Золотий ключ', line: 'item_key_gold', biomes: 'any', weight: 0.25, color: 0xffca28 },
+  key_gold: { id: 'key_gold', name: 'Золотий ключ', line: 'item_key_gold', biomes: 'any', weight: 0.25, color: 0xffca28, use: 'auto' },
   flower_yellow: { id: 'flower_yellow', name: 'Жовта квітка', line: 'item_flower_yellow', biomes: ['meadow'], weight: 4, color: 0xffeb3b },
   flower_blue: { id: 'flower_blue', name: 'Синя квітка', line: 'item_flower_blue', biomes: ['meadow', 'snow'], weight: 3, color: 0x64b5f6 },
   // The Land Eater's trophy: only dropped by the boss (weight 0 — never lies around).
   eater_heart: { id: 'eater_heart', name: 'Серце Пожирача', line: 'item_eater_heart', biomes: 'any', weight: 0, color: 0xffa526 },
   /** Dropped by monsters (never lies around by itself); picking it up gives a heart back. Not an album sticker. */
-  heart: { id: 'heart', name: 'Сердечко', line: 'item_heart', biomes: 'any', weight: 0, color: 0xff4d6d },
+  heart: { id: 'heart', name: 'Сердечко', line: 'item_heart', biomes: 'any', weight: 0, color: 0xff4d6d, album: false },
 } satisfies Record<string, ItemCard>;
 
 export type ItemId = keyof typeof ITEMS;

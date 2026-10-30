@@ -86,69 +86,46 @@ export interface BuildingModel {
   seats?: THREE.Object3D[];
 }
 
+/**
+ * Every building's model, one entry per card (content/buildings.ts): a missing one is a type error.
+ * A new building's model usually lives in its own file (like food.ts) and is listed here.
+ */
+export const BUILDING_MODELS: Record<BuildingId, (skin: Skin) => BuildingModel> = {
+  tent: createTent,
+  boombox: createBoombox,
+  // the lantern is a block in the world; this is only its ghost while placing
+  lantern: () => createLanternGhost(),
+  windmill: createWindmill,
+  pole: createPole,
+  lamp: createLamp,
+  solar: createSolar,
+  battery: createBattery,
+  generator: createGenerator,
+  bigspeaker: createBigSpeaker,
+  dancefloor: createDanceFloor,
+  discoball: createDiscoBall,
+  djconsole: createDjConsole,
+  tesla: createTesla,
+  trafficlight: createTrafficLight,
+  garland: createGarland,
+  carousel: createCarousel,
+  searchlight: createSearchlight,
+  trampoline: createTrampoline,
+  treehouse: createTreehouse,
+  golem: createGolem,
+  robohelper: createRobohelper,
+  saucer: createSaucer,
+  wifi: createWifi,
+  transmitter: createTransmitter,
+  radar: createRadar,
+  picnic: createPicnic,
+  icecream: createIcecream,
+  swings: createSwings,
+  station: createStation,
+};
+
 export function createBuilding(skin: Skin, id: BuildingId): BuildingModel {
-  switch (id) {
-    case 'tent':
-      return createTent(skin);
-    case 'boombox':
-      return createBoombox(skin);
-    case 'windmill':
-      return createWindmill(skin);
-    case 'pole':
-      return createPole(skin);
-    case 'lamp':
-      return createLamp(skin);
-    case 'solar':
-      return createSolar(skin);
-    case 'battery':
-      return createBattery(skin);
-    case 'generator':
-      return createGenerator(skin);
-    case 'bigspeaker':
-      return createBigSpeaker(skin);
-    case 'dancefloor':
-      return createDanceFloor(skin);
-    case 'discoball':
-      return createDiscoBall(skin);
-    case 'djconsole':
-      return createDjConsole(skin);
-    case 'tesla':
-      return createTesla(skin);
-    case 'trafficlight':
-      return createTrafficLight(skin);
-    case 'garland':
-      return createGarland(skin);
-    case 'carousel':
-      return createCarousel(skin);
-    case 'searchlight':
-      return createSearchlight(skin);
-    case 'trampoline':
-      return createTrampoline(skin);
-    case 'treehouse':
-      return createTreehouse(skin);
-    case 'golem':
-      return createGolem(skin);
-    case 'robohelper':
-      return createRobohelper(skin);
-    case 'saucer':
-      return createSaucer(skin);
-    case 'wifi':
-      return createWifi(skin);
-    case 'transmitter':
-      return createTransmitter(skin);
-    case 'radar':
-      return createRadar(skin);
-    case 'picnic':
-      return createPicnic(skin);
-    case 'icecream':
-      return createIcecream(skin);
-    case 'swings':
-      return createSwings(skin);
-    case 'station':
-      return createStation(skin);
-    default:
-      return createLanternGhost();
-  }
+  return BUILDING_MODELS[id](skin);
 }
 
 /**

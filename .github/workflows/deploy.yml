@@ -32,7 +32,10 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # a line without its mp3 never ships: the content check fails on it (the owner's call, 2026-10-30)
       - run: npm run check
+        env:
+          STRICT_VOICE: '1'
       - run: npx vite build
       - uses: actions/upload-pages-artifact@v3
         with:

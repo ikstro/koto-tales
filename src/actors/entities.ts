@@ -84,6 +84,8 @@ export class Monster {
   /** Ranged monsters: seconds until the next throw. */
   throwCd = 1.5;
   stun = 0;
+  /** Monsters with a cry (MonsterCard.cry): seconds until it cries again. */
+  cryCd = 2 + Math.random() * 4;
   spotted = false;
   alive = true;
 

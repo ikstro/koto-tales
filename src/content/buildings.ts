@@ -8,37 +8,6 @@ import type { LineId } from './lines';
  * src/assets/buildings.ts; the ground under it is never changed.
  */
 
-export type BuildingId =
-  | 'tent'
-  | 'boombox'
-  | 'lantern'
-  | 'windmill'
-  | 'pole'
-  | 'lamp'
-  | 'solar'
-  | 'battery'
-  | 'generator'
-  | 'bigspeaker'
-  | 'dancefloor'
-  | 'discoball'
-  | 'djconsole'
-  | 'tesla'
-  | 'trafficlight'
-  | 'garland'
-  | 'carousel'
-  | 'searchlight'
-  | 'trampoline'
-  | 'treehouse'
-  | 'golem'
-  | 'robohelper'
-  | 'saucer'
-  | 'wifi'
-  | 'transmitter'
-  | 'radar'
-  | 'picnic'
-  | 'icecream'
-  | 'swings'
-  | 'station';
 
 /**
  * What a building does in the power network (DESIGN.md «Power»): buildings closer than
@@ -61,8 +30,10 @@ export interface PowerCard {
   arcs?: boolean;
 }
 
-export interface BuildingCard {
-  id: BuildingId;
+/** A card, with its id typed loosely while the cards are being read (`BuildingCard` is the strict one). */
+interface Card<Id extends string = string> {
+  /** The same as its key in BUILDINGS. */
+  id: Id;
   /** Ukrainian name, for debug and the parents' captions. */
   name: string;
   /** Footprint in blocks across (x) and deep (z) before turning; the front faces +z. */
@@ -118,7 +89,7 @@ export interface BuildingCard {
   power?: PowerCard;
 }
 
-export const BUILDINGS: Record<BuildingId, BuildingCard> = {
+const CARDS = {
   tent: {
     id: 'tent',
     name: 'Намет',
@@ -510,44 +481,18 @@ export const BUILDINGS: Record<BuildingId, BuildingCard> = {
     rewardLine: 'reward_station',
     power: { give: 20, reach: 24, arcs: true },
   },
-};
+} satisfies Record<string, Card>;
+
+/** Defined by the cards: a new building is one card here (and one model in assets/buildings.ts). */
+export type BuildingId = keyof typeof CARDS;
+export type BuildingCard = Card<BuildingId>;
+export const BUILDINGS: Record<BuildingId, BuildingCard> = CARDS as Record<BuildingId, BuildingCard>;
 
 /** A lighthouse by the water (world/landmarks.ts) in the power network. */
 export const LIGHTHOUSE_POWER: PowerCard = { take: 2, light: 16 };
 
-/** Order of the kit plate. */
-export const KIT_ORDER: BuildingId[] = [
-  'tent',
-  'boombox',
-  'lantern',
-  'windmill',
-  'pole',
-  'lamp',
-  'solar',
-  'battery',
-  'generator',
-  'bigspeaker',
-  'dancefloor',
-  'discoball',
-  'djconsole',
-  'tesla',
-  'trafficlight',
-  'garland',
-  'carousel',
-  'searchlight',
-  'trampoline',
-  'treehouse',
-  'golem',
-  'robohelper',
-  'saucer',
-  'wifi',
-  'transmitter',
-  'radar',
-  'picnic',
-  'icecream',
-  'swings',
-  'station',
-];
+/** Order of the kit plate: the cards' order. */
+export const KIT_ORDER = Object.keys(CARDS) as BuildingId[];
 
 /** The boombox's music (the smallest speaker): how far it carries and how close monsters dance. */
 export const MUSIC = { hear: 18, dance: 9 };

@@ -7,9 +7,9 @@
  * (`npx playwright install chromium-headless-shell` once).
  */
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { findShell } from '../lib/shell.mjs';
 
 const arg = (name, def) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -27,14 +27,6 @@ const SCENES = [
   { id: 'evening', label: 'Вечір', q: 'autostart=1&hero=pupsia&time=0.66&freeze=1&x=6&z=14&demo=1' },
 ];
 
-function findShell() {
-  const base = path.join(process.env.LOCALAPPDATA ?? os.homedir(), 'ms-playwright');
-  for (const d of fs.existsSync(base) ? fs.readdirSync(base) : []) {
-    const exe = path.join(base, d, 'chrome-headless-shell-win64', 'chrome-headless-shell.exe');
-    if (d.startsWith('chromium_headless_shell') && fs.existsSync(exe)) return exe;
-  }
-  throw new Error('headless shell not found: run `npx playwright install chromium-headless-shell`');
-}
 
 const shell = findShell();
 fs.mkdirSync(out, { recursive: true });

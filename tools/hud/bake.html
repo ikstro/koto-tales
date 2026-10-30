@@ -22,6 +22,7 @@ import { createCastle, createCastleItem } from '/src/assets/castles.ts';
 import { createChest } from '/src/assets/props.ts';
 import { createPlane, createTaleThing } from '/src/assets/tales.ts';
 import { B } from '/src/world/blocks.ts';
+import { BUILDINGS } from '/src/content/buildings.ts';
 
 const U = 40, DPR = 2, LO = 1.5, TILT = THREE.MathUtils.degToRad(34);
 const canvas = document.getElementById('c');
@@ -436,6 +437,12 @@ function face(id, yaw, bg) {
 // --- shoot ---------------------------------------------------------------------
 const out = {};
 const nine = {};
+// `npm run hud -- --only a,b` opens this page with ?only=a,b: only those sprites (and their own
+// `<name>-sh` shadows) are rendered; bake.mjs merges them into what is already there.
+const ONLY = new URLSearchParams(location.search).get('only')?.split(',').filter(Boolean);
+const only = ONLY ? new Set(ONLY) : null;
+/** Every sprite name asked for, rendered or skipped (the generic building loop at the end uses it). */
+const called = new Set();
 /** Alpha bounding box of a 2D canvas, in its pixels; null if empty. */
 function bbox(cv) {
   const { width: W, height: H } = cv; const d = cv.getContext('2d').getImageData(0, 0, W, H).data;
@@ -484,6 +491,10 @@ function frameCam(w, h, oy, top = false) {
 function toFrame(v, w, h) { const p = v.clone().project(cam); return [(p.x + 1) / 2 * w, (1 - p.y) / 2 * h]; }
 
 function shoot(name, obj, w, h, { shadow = name + '-sh', oy = 0, dpr = DPR, top = false } = {}) {
+  called.add(name);
+  if (only && !only.has(name)) return out[name] ?? { w, h, oy, x: 0, y: 0, cw: w, ch: h };
+  // a shared shadow (tile6-sh…) is re-baked only when asked for by name
+  if (only && shadow && shadow !== name + '-sh' && !only.has(shadow)) shadow = null;
   obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   scene.add(obj); obj.updateMatrixWorld(true);
   frameCam(w, h, oy, top);
@@ -984,6 +995,17 @@ shoot('jump', roundTile(1, C.green, printSpring, 0.6), 130, 130, { shadow: 'tile
   const PW = { linked: true, on: true, low: false, charge: 0.5, sunYaw: 0.55, sunUp: 0.85 };
   const lamp = createBuilding(skin, 'lamp'); lamp.update(1, { beat: 0, playing: false, night: 0.8, power: PW });
   shoot('tale-lamp', roundTile(1, C.navy, modelPrint(still(lamp.root), C.navy, -0.4, 0.5), 0.6), 130, 130, { shadow: 'tile6-sh' });
+}
+
+// --- any building whose sprite has no hand-tuned shot above: lit, fed, fitted into the cell
+{
+  const PW = { linked: true, on: true, low: false, charge: 0.5, sunYaw: 0.55, sunUp: 0.85 };
+  for (const [id, card] of Object.entries(BUILDINGS)) {
+    if (card.block || called.has(card.sprite)) continue;
+    const b = createBuilding(skin, id); b.update(3.2, { beat: 1.05, playing: true, night: 0, power: PW });
+    const glows = []; b.root.traverse((o) => { if (o.isMesh && o.material.blending === THREE.AdditiveBlending) glows.push(o); }); glows.forEach((o) => o.parent.remove(o));
+    shoot(card.sprite, fittedBox(b.root, 3.2, 3.6, -0.4), 200, 200, { oy: 1.0 });
+  }
 }
 
 document.getElementById('out').textContent = JSON.stringify({ sprites: out, nine });

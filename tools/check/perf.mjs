@@ -15,10 +15,10 @@
  * the page). Needs `npx playwright install chromium-headless-shell` once.
  */
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
+import { findShell } from '../lib/shell.mjs';
 
 const arg = (name, def) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -28,14 +28,6 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const tier = arg('tier', '1');
 const [W, H] = arg('size', '800x500').split('x').map(Number);
 
-function findShell() {
-  const base = path.join(process.env.LOCALAPPDATA ?? os.homedir(), 'ms-playwright');
-  for (const d of fs.existsSync(base) ? fs.readdirSync(base) : []) {
-    const exe = path.join(base, d, 'chrome-headless-shell-win64', 'chrome-headless-shell.exe');
-    if (d.startsWith('chromium_headless_shell') && fs.existsSync(exe)) return exe;
-  }
-  throw new Error('headless shell not found: run `npx playwright install chromium-headless-shell`');
-}
 
 let server = null;
 let base = arg('url', null);

@@ -67,6 +67,10 @@ export interface SaveData {
   upgrades: Partial<Record<BuildingId, number>>;
   /** The tales (content/tales.ts): the one under way, its step, the ones done. */
   tales: TalesSave;
+  /** Artifacts found (content/artifacts.ts ids): their lasting powers are on. */
+  artifacts: string[];
+  /** Companions walking with the party (content/companions.ts ids). */
+  companions: string[];
 }
 
 /** A building put up from the kit: footprint min corner, the height its floor stands on, quarter turns. */
@@ -112,7 +116,7 @@ export const freshBoss = (): BossSave => ({ level: 1, site: null, hp: null, lant
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 12;
+export const SAVE_VERSION = 13;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -151,6 +155,8 @@ export function freshSave(): SaveData {
     castles: {},
     upgrades: {},
     tales: freshTales(),
+    artifacts: [],
+    companions: [],
   };
 }
 
@@ -199,6 +205,8 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
   // v12: the tales. A story already under way skips the prologue (it teaches the first steps):
   // the first letter or dream comes next.
   11: (d) => ({ ...d, v: 12, tales: { ...freshTales(), done: [PROLOGUE] } }),
+  // v13: artifacts and companions (none found or met yet).
+  12: (d) => ({ ...d, v: 13, artifacts: [], companions: [] }),
 };
 
 export function migrate(raw: Raw): SaveData {

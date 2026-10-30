@@ -1,0 +1,97 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Preview</title>
+<style>html,body{margin:0;background:#2f918b}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+// `npm run preview -- <kind> <id>` (tools/preview/preview.mjs): one new thing on a studded teal
+// plate under the world's warm sun, with the diorama skin's plastic, at tablet scale.
+//   monster / companion: two poses side by side (standing, mid-step)
+//   building: fed and lit at dusk (its bulb and glows on)
+//   item / artifact: big on a sticker tile, as in the album
+// Next to a monster, companion or building stands one cream 1-block brick: the scale (a hero is ~1.6).
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { createSkin } from '/src/render/skins/index.ts';
+import { Models } from '/src/assets/models.ts';
+import { createBuilding } from '/src/assets/buildings.ts';
+import { MONSTERS } from '/src/content/monsters.ts';
+import { COMPANIONS } from '/src/content/companions.ts';
+
+const q = new URLSearchParams(location.search);
+const kind = q.get('kind'), id = q.get('id');
+const W = 1280, H = 800;
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H); renderer.setPixelRatio(1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setClearColor(0xf4e6c4);
+const skin = createSkin('diorama');
+const models = new Models(skin);
+const M = (c) => skin.partMaterial(c);
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.45;
+scene.add(new THREE.HemisphereLight(0xe8ecdc, 0x6e5a32, 1.0));
+const sun = new THREE.DirectionalLight(0xffd9a0, 3.4);
+sun.position.set(-8, 12, 6); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, near: 1, far: 40 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
+scene.add(sun, new THREE.DirectionalLight(0xffc887, 0.5));
+
+// the studded teal plate (DESIGN.md «plate»)
+function plate(cols, rows, color) {
+  const g = new THREE.Group(); const m = M(color);
+  const b = new THREE.Mesh(new RoundedBoxGeometry(cols, 0.4, rows, 4, 0.08), m); b.position.y = -0.2; b.receiveShadow = true; g.add(b);
+  const stud = new THREE.CylinderGeometry(0.3, 0.3, 0.2, 24);
+  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) { const s = new THREE.Mesh(stud, m); s.position.set(i + 0.5 - cols / 2, 0.1, j + 0.5 - rows / 2); s.receiveShadow = true; g.add(s); }
+  return g;
+}
+const shadows = (o) => o.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+const things = [];
+let span = 4;
+
+if (kind === 'monster' || kind === 'companion') {
+  const ref = (kind === 'monster' ? MONSTERS : COMPANIONS)[id]?.model;
+  if (!ref) throw new Error(`no ${kind} "${id}"`);
+  for (const [x, t, speed] of [[-1.1, 0, 0], [1.1, 0.23, 2.2]]) {
+    const m = models.character(ref); m.update(0, 0); for (let i = 0; i < 8; i++) m.update(t / 8, speed);
+    m.root.position.x = x; m.root.rotation.y = x < 0 ? 0.35 : -0.35; things.push(m.root);
+  }
+  span = Math.max(4, (things[0] && new THREE.Box3().setFromObject(things[0]).getSize(new THREE.Vector3()).y) * 2.2);
+} else if (kind === 'building') {
+  const b = createBuilding(skin, id);
+  const PW = { linked: true, on: true, low: false, charge: 0.5, sunYaw: 0.55, sunUp: 0.85 };
+  b.update(3.2, { beat: 1.05, playing: true, night: 0.35, power: PW });
+  b.root.rotation.y = -0.35; things.push(b.root);
+  const sz = new THREE.Box3().setFromObject(b.root).getSize(new THREE.Vector3());
+  span = Math.max(4, sz.x * 1.6, sz.y * 1.4, sz.z * 1.6);
+} else if (kind === 'item' || kind === 'artifact') {
+  const o = kind === 'item' ? models.item(id) : models.artifact(id);
+  const tile = new THREE.Mesh(new RoundedBoxGeometry(1.4, 0.3, 1.4, 4, 0.1), M(kind === 'artifact' ? '#ffd23a' : '#8fd3ff'));
+  tile.position.y = 0.15; things.push(tile);
+  o.scale.setScalar(1.8); o.position.y = 0.3; o.rotation.y = 0.5; things.push(o);
+  span = 3.2;
+} else throw new Error(`kind "${kind}": monster | companion | building | item | artifact`);
+
+// the scale: one cream 1-block brick to the right (a hero is ~1.6 blocks tall)
+if (kind !== 'item' && kind !== 'artifact') {
+  const all = new THREE.Box3(); for (const t of things) all.expandByObject(t);
+  const brick = new THREE.Mesh(new RoundedBoxGeometry(1, 1, 1, 3, 0.06), M('#ffe3a3'));
+  brick.position.set(all.max.x + 1.1, 0.5, 0); things.push(brick);
+}
+const n = Math.ceil(span) + 2;
+scene.add(plate(n + 2, n, '#2f918b'));
+// things stand on the studs' tops, as on a toy table
+for (const t of things) { shadows(t); t.position.y += 0.2; scene.add(t); }
+const box = new THREE.Box3(); for (const t of things) box.expandByObject(t);
+const c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+const cam = new THREE.PerspectiveCamera(30, W / H, 0.1, 200);
+const r = Math.max(sz.x / (W / H), sz.y, sz.z) * 0.95 + 0.6;
+cam.position.set(c.x, c.y + r * 1.15, c.z + r * 2.1); cam.lookAt(c.x, c.y * 0.8, c.z);
+renderer.render(scene, cam);
+document.title = 'done';
+</script></body></html>

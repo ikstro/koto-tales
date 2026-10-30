@@ -27,6 +27,14 @@ export interface MonsterCard {
   defeatLine: LineId;
   /** Throws from a distance (on difficulties that allow it): keeps `keep` blocks away, throws every `every` s. */
   ranged?: { range: number; keep: number; every: number; speed: number };
+  /** Its own voice, made in code (voice/sfx.ts `cry_<kind>`): when it spots a hero, then every `every` s (default 9) while near. */
+  cry?: { kind: 'siren' | 'growl' | 'hiss' | 'beep'; every?: number };
+  /** Arrows bounce off it with a «дзинь»: 'bolt' — only the lightning hurts it; 'lantern' — arrows hurt it only near a placed lantern. */
+  armor?: 'bolt' | 'lantern';
+  /** Runs away instead of chasing: from working lights at night ('light') or from playing music instead of dancing ('music'). */
+  flee?: 'light' | 'music';
+  /** Льоша made it up: its album sticker has the gold rim. */
+  lyosha?: true;
 }
 
 export const MONSTERS = {
@@ -85,11 +93,34 @@ export const MONSTERS = {
     spotLine: 'monster_spider_spot',
     defeatLine: 'defeat_spider',
   },
+  sirenhead: {
+    kind: 'sirenhead',
+    model: { kind: 'parts', id: 'sirenhead' },
+    name: 'Сиреноголовий',
+    hp: 6,
+    wanderSpeed: 1,
+    chaseSpeed: 2.2,
+    damage: 1,
+    sight: 11,
+    radius: 0.4,
+    height: 2.5,
+    when: 'night',
+    weight: 1,
+    coins: [2, 4],
+    color: 0x8a5a3c,
+    spotLine: 'monster_sirenhead_spot',
+    defeatLine: 'defeat_sirenhead',
+    // his own wail (voice/sfx.ts cry_siren); arrows bounce, the lightning beats him
+    cry: { kind: 'siren', every: 8 },
+    armor: 'bolt',
+    lyosha: true,
+  },
 } satisfies Record<string, MonsterCard>;
 
 export type MonsterKind = keyof typeof MONSTERS;
 
-export const MONSTER_ORDER: MonsterKind[] = ['zombie', 'skeleton', 'spider'];
+/** The album's (and spawning's) order is the cards' order: a new monster is one card. */
+export const MONSTER_ORDER = Object.keys(MONSTERS) as MonsterKind[];
 
 /** Where monsters appear; how many and how often is set by the difficulty (content/difficulty.ts). */
 export const SPAWN = {

@@ -521,7 +521,7 @@ body {
   filter: brightness(0) opacity(0.4);
 }
 
-/* a page of a tale Льоша made up: a gold glow round the sticker */
+/* a treasure, or anything Льоша made up (a tale's page, a monster, an item): a gold glow round the sticker */
 .got.gold > .bd {
   filter: drop-shadow(0 0 3px #ffd23a) drop-shadow(0 0 7px #eab02b);
 }

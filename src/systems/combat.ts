@@ -9,6 +9,7 @@ import { voice } from '../voice/voice';
 import { dropCoins, dropHeart } from './pickups';
 import { sendHome } from './heroes';
 import { tuneOf } from './tune';
+import { B } from '../world/blocks';
 
 const tmp = new THREE.Vector3();
 const tmp2 = new THREE.Vector3();
@@ -251,6 +252,24 @@ function updateBones(ctx: Ctx, dt: number): void {
   bones = bones.filter((b) => b.life > 0);
 }
 
+/**
+ * Whether arrows bounce off this monster: armour 'bolt' always (only the lightning hurts it),
+ * 'lantern' unless a placed lantern stands within 6 blocks.
+ */
+function bounces(ctx: Ctx, m: Monster): boolean {
+  if (m.card.armor === 'bolt') return true;
+  if (m.card.armor !== 'lantern') return false;
+  const x0 = Math.floor(m.pos.x);
+  const y0 = Math.floor(m.pos.y);
+  const z0 = Math.floor(m.pos.z);
+  for (let dx = -6; dx <= 6; dx++)
+    for (let dz = -6; dz <= 6; dz++) {
+      if (dx * dx + dz * dz > 36) continue;
+      for (let dy = -2; dy <= 3; dy++) if (ctx.world.getBlock(x0 + dx, y0 + dy, z0 + dz) === B.LANTERN) return false;
+    }
+  return true;
+}
+
 export function updateCombat(ctx: Ctx, dt: number): void {
   updateBones(ctx, dt);
   const { input, player } = ctx;
@@ -269,6 +288,13 @@ export function updateCombat(ctx: Ctx, dt: number): void {
       for (const m of ctx.monsters) {
         if (!m.alive) continue;
         if (centreOf(m, tmp2).distanceTo(a.pos) < m.body.radius + 0.45 + m.body.height * 0.3) {
+          if (bounces(ctx, m)) {
+            // armour (MonsterCard.armor): the arrow bounces off with a «дзинь»
+            sfx.play('clink');
+            ctx.effects.sparkle(a.pos, 0xfff6c2);
+            a.dead = true;
+            break;
+          }
           damageMonster(ctx, m, a.damage, tmp.copy(a.vel).setY(0).normalize(), a.by ?? player);
           a.dead = true;
           break;

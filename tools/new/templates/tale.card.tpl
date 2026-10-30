@@ -1,0 +1,11 @@
+  {
+    id: '{{id}}',
+    from: 'pupsia',
+    lyosha: true,
+    open: 'tale_{{id}}_open',
+    steps: [{ kind: 'visit', at: 'home', ask: 'tale_{{id}}_1', picture: 'map-house' }],
+    thanks: 'tale_{{id}}_thanks',
+    retell: 'tale_{{id}}_retell',
+    sticker: 'TODO',
+    coins: 20,
+  },

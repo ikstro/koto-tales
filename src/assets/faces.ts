@@ -13,9 +13,6 @@ export type FaceId =
   | 'lyosha'
   | 'solomiia'
   | 'pupsia'
-  | 'zombie'
-  | 'skeleton'
-  | 'spider'
   | 'elf'
   | 'elf_elder'
   | 'elf_queen'
@@ -41,7 +38,11 @@ export function swatchUV(i: number): [number, number] {
   return [(8 + i + 0.5) / ATLAS_W, 0.5];
 }
 
-interface FaceDef {
+/**
+ * An 8×8 face: swatches, a palette and the open / closed rows. Monsters and companions keep
+ * theirs in their own part file (`export const face: FaceSpec`) and pass it to `faceAtlas`.
+ */
+export interface FaceSpec {
   /** Swatch colours; swatch 0 is the head's base colour (skin / fur / bone). */
   swatches: string[];
   /** Palette of the face rows. '.' is always swatch 0. */
@@ -52,7 +53,7 @@ interface FaceDef {
 }
 
 /** Big dark almond eyes on a bare head; `rows` may override the face rows (kids, elders). */
-function alienDef(skin: string, shade: string, extra: Partial<FaceDef> = {}): FaceDef {
+function alienDef(skin: string, shade: string, extra: Partial<FaceSpec> = {}): FaceSpec {
   return {
     // skin, shade, antenna ball cream, ball coral
     swatches: [skin, shade, '#ffe3a3', '#e0583f'],
@@ -72,7 +73,7 @@ function alienDef(skin: string, shade: string, extra: Partial<FaceDef> = {}): Fa
   };
 }
 
-const DEFS_FOLK: Record<string, FaceDef> = {
+const DEFS_FOLK: Record<string, FaceSpec> = {
   elf: {
     // skin, ear shade
     swatches: ['#f3d0a8', '#e0b58c'],
@@ -243,7 +244,7 @@ const DEFS_FOLK: Record<string, FaceDef> = {
   }),
 };
 
-const DEFS: Record<FaceId, FaceDef> = {
+const DEFS: Record<FaceId, FaceSpec> = {
   lyosha: {
     // skin, hair, hair shade, ear, cheek
     swatches: ['#f6c9a2', '#f4d064', '#dcae3c', '#eab48c', '#f29b8c'],
@@ -292,69 +293,21 @@ const DEFS: Record<FaceId, FaceDef> = {
     ],
     closed: { 3: '........', 4: '.KK..KK.' },
   },
-  zombie: {
-    // green skin, hair, leaf, stem, stitch
-    swatches: ['#93c45a', '#3f5230', '#5fd36a', '#7a5a34', '#4a6b2f'],
-    pal: { d: '#7aa948', W: '#ffffff', K: '#26301c', T: '#fffbe6', M: '#5b2f3c' },
-    open: [
-      '........',
-      '.d......',
-      '........',
-      '.WW...W.',
-      '.WK..WK.',
-      '......d.',
-      '..MTMM..',
-      '...MM...',
-    ],
-    closed: { 3: '........', 4: '.KK..KK.' },
-  },
-  skeleton: {
-    // bone, bone shade, socket dark, bow tie red, bow tie dark
-    swatches: ['#f1ece0', '#d6ccb6', '#3a3048', '#ff6b4a', '#c94a32'],
-    pal: { s: '#d6ccb6', K: '#3a3048', W: '#ffffff', B: '#7fd0ff' },
-    open: [
-      '........',
-      '........',
-      '.KK..KK.',
-      '.KB..KB.',
-      '...KK...',
-      '........',
-      '.K....K.',
-      '..KsKK..',
-    ],
-    closed: { 2: '........', 3: '.KK..KK.' },
-  },
-  spider: {
-    // body, legs, belly, fang
-    swatches: ['#5c6bc0', '#3f4a9a', '#9fa8da', '#ffffff'],
-    pal: { K: '#16163a', W: '#ffffff', R: '#ff8a80', F: '#ffffff', P: '#ff9ec7' },
-    open: [
-      'K......K',
-      '........',
-      '.KW..KW.',
-      '.KK..KK.',
-      '.KK..KK.',
-      'P......P',
-      '..F..F..',
-      '..F..F..',
-    ],
-    closed: { 2: '........', 3: '........', 4: '.KK..KK.' },
-  },
   ...(DEFS_FOLK as Record<
     'elf' | 'elf_elder' | 'elf_queen' | 'gnome' | 'gnome_elder' | 'gnome_kid' | 'robot' | 'robot_elder' | 'robot_kid' | 'alien' | 'alien_lilac' | 'alien_mint' | 'alien_elder' | 'alien_kid',
-    FaceDef
+    FaceSpec
   >),
 };
 
 export interface FaceAtlas {
-  id: FaceId;
+  id: string;
   open: THREE.Texture;
   closed: THREE.Texture;
 }
 
-const cache = new Map<FaceId, FaceAtlas>();
+const cache = new Map<string, FaceAtlas>();
 
-function paint(def: FaceDef, rows: string[]): THREE.CanvasTexture {
+function paint(def: FaceSpec, rows: string[]): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = ATLAS_W;
   canvas.height = ATLAS_H;
@@ -384,11 +337,15 @@ function paint(def: FaceDef, rows: string[]): THREE.CanvasTexture {
   return tex;
 }
 
-/** Cached for the whole session: the textures are shared by every instance. */
-export function faceAtlas(id: FaceId): FaceAtlas {
+/**
+ * Cached for the whole session: the textures are shared by every instance. A part file with its
+ * own face passes it as `spec` (the id then only names the cache entry).
+ */
+export function faceAtlas(id: FaceId | string, spec?: FaceSpec): FaceAtlas {
   let a = cache.get(id);
   if (a) return a;
-  const def = DEFS[id];
+  const def = spec ?? DEFS[id as FaceId];
+  if (!def) throw new Error(`no face "${id}": export \`face\` from its part file and pass it to faceAtlas`);
   const closedRows = def.open.map((r, i) => def.closed[i] ?? r);
   a = { id, open: paint(def, def.open), closed: paint(def, closedRows) };
   cache.set(id, a);

@@ -15,6 +15,8 @@ import { B } from '../world/blocks';
 import type { LighthouseSite } from '../world/landmarks';
 import { homeDistance } from './house';
 import { owned, selectedBuilding } from './kit';
+import { giveArtifact } from './artifacts';
+import { giveCompanion } from './companions';
 import { spawnAt } from './monsters';
 import { giveCoins, musicNear, offerBubble, runWave, spotAround, type Wave, type WaveRule } from './tasks';
 
@@ -276,6 +278,9 @@ function complete(ctx: Ctx, t: TaleCard, at?: THREE.Vector3): void {
   ctx.effects.poof(ctx.player.pos.clone().setY(ctx.player.pos.y + 1.2), 0xffd23a, 24);
   for (const h of ctx.heroes.values()) h.model.play('cheer');
   tell(t.thanks, 'tale_page');
+  // the tale's rare thing and a friend who joins, when the card has them
+  if (t.artifact) giveArtifact(ctx, t.artifact);
+  if (t.companion) giveCompanion(ctx, t.companion);
   events.emit('tale:done', { id: t.id });
   syncRun(ctx);
 }

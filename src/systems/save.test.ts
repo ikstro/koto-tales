@@ -119,6 +119,19 @@ describe('save', () => {
     expect(freshSave().tales.done).toEqual([]);
   });
 
+  it('migrates v12 → v13: no artifact found, no companion met, everything else kept', () => {
+    const v12 = { ...freshSave(), v: 12, coins: 42, found: ['apple', 't:fish'], inv: { apple: 3 } } as Record<string, unknown>;
+    delete v12.artifacts;
+    delete v12.companions;
+    const s = migrate(v12);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.artifacts).toEqual([]);
+    expect(s.companions).toEqual([]);
+    expect(s.coins).toBe(42);
+    expect(s.found).toEqual(['apple', 't:fish']);
+    expect(s.inv).toEqual({ apple: 3 });
+  });
+
   it('keeps the boss as it was left (health, lanterns, beaten day)', () => {
     const boss = { level: 2, site: [150, -20] as [number, number], hp: 12, lanterns: ['1,2,3', '4,5,6'], defeatedDay: null, eatenAt: [150, -20] as [number, number], bites: 5 };
     const s = migrate({ ...freshSave(), day: 7, boss } as unknown as Record<string, unknown>);

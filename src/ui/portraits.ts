@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { HeroId, IModels, ItemId, MonsterKind } from '../contracts';
 import { HEROES, HERO_ORDER } from '../content/heroes';
+import { ARTIFACT_ORDER } from '../content/artifacts';
 import { ITEM_ORDER } from '../content/items';
 import { MONSTERS, MONSTER_ORDER } from '../content/monsters';
 
@@ -9,6 +10,7 @@ export interface Portraits {
   heroes: Record<HeroId, string>;
   monsters: Record<MonsterKind, string>;
   items: Record<ItemId, string>;
+  artifacts: Record<string, string>;
 }
 
 /**
@@ -74,9 +76,11 @@ export function makePortraits(renderer: THREE.WebGLRenderer, models: IModels, si
   }
   const items = {} as Record<ItemId, string>;
   for (const id of ITEM_ORDER) items[id] = shoot(models.item(id), 0.5);
+  const artifacts: Record<string, string> = {};
+  for (const id of ARTIFACT_ORDER()) artifacts[id] = shoot(models.artifact(id), 0.5);
 
   renderer.setRenderTarget(prevTarget);
   renderer.setClearColor(prevClear, prevAlpha);
   target.dispose();
-  return { heroes, monsters, items };
+  return { heroes, monsters, items, artifacts };
 }

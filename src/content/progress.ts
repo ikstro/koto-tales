@@ -68,6 +68,8 @@ export interface Reward {
   coins?: number;
   /** A building raised a level (content/upgrades.ts). */
   upgrade?: BuildingId;
+  /** A friend joins the party (content/companions.ts id). */
+  companion?: string;
 }
 
 /** Rewards in order; new stages add cards here (a save gets them on its next level-ups). */

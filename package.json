@@ -6,14 +6,16 @@
   "scripts": {
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --host",
+    "serve": "vite preview --host",
     "typecheck": "tsc --noEmit",
     "voice": "node tools/voice/gen.mjs",
     "test": "vitest run",
     "check": "tsc --noEmit && vitest run",
     "shots": "node tools/check/shots.mjs",
     "perf": "node tools/check/perf.mjs",
-    "hud": "node tools/hud/bake.mjs"
+    "hud": "node tools/hud/bake.mjs",
+    "new": "node tools/new/new.mjs",
+    "preview": "node tools/preview/preview.mjs"
   },
   "dependencies": {
     "simplex-noise": "^4.0.3",

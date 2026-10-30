@@ -4,15 +4,33 @@
  * tie, because he dresses up for visitors.
  */
 import type { Rig, Skin } from '../../contracts';
-import { faceAtlas } from '../faces';
+import { faceAtlas, type FaceSpec } from '../faces';
 import { bipedFrame } from './frames';
 import { Kit } from './kit';
 
 const BONE = '#f1ece0';
 const TIE = '#ff5a3c';
 
+/** The 8×8 face printed on the head's front (`src/assets/faces.ts`). */
+export const face: FaceSpec = {
+  // bone, bone shade, socket dark, bow tie red, bow tie dark
+  swatches: ['#f1ece0', '#d6ccb6', '#3a3048', '#ff6b4a', '#c94a32'],
+  pal: { s: '#d6ccb6', K: '#3a3048', W: '#ffffff', B: '#7fd0ff' },
+  open: [
+    '........',
+    '........',
+    '.KK..KK.',
+    '.KB..KB.',
+    '...KK...',
+    '........',
+    '.K....K.',
+    '..KsKK..',
+  ],
+  closed: { 2: '........', 3: '.KK..KK.' },
+};
+
 export function build(skin: Skin): Rig {
-  const kit = new Kit('skeleton', skin, faceAtlas('skeleton'));
+  const kit = new Kit('skeleton', skin, faceAtlas('skeleton', face));
   const { root, parts } = bipedFrame({ legH: 0.56, hipX: 0.1, bodyH: 0.5, armX: 0.27, shoulderY: 0.46 });
 
   for (const leg of [parts.legL, parts.legR]) {

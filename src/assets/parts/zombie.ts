@@ -5,7 +5,7 @@
  * feet. Arms reach forward in the rest pose.
  */
 import type { Rig, Skin } from '../../contracts';
-import { faceAtlas } from '../faces';
+import { faceAtlas, type FaceSpec } from '../faces';
 import { bipedFrame } from './frames';
 import { Kit } from './kit';
 
@@ -14,8 +14,26 @@ const SHIRT = '#8a6bbd';
 const PATCH = '#f0a040';
 const TROUSERS = '#6d5a44';
 
+/** The 8×8 face printed on the head's front (`src/assets/faces.ts`). */
+export const face: FaceSpec = {
+  // green skin, hair, leaf, stem, stitch
+  swatches: ['#93c45a', '#3f5230', '#5fd36a', '#7a5a34', '#4a6b2f'],
+  pal: { d: '#7aa948', W: '#ffffff', K: '#26301c', T: '#fffbe6', M: '#5b2f3c' },
+  open: [
+    '........',
+    '.d......',
+    '........',
+    '.WW...W.',
+    '.WK..WK.',
+    '......d.',
+    '..MTMM..',
+    '...MM...',
+  ],
+  closed: { 3: '........', 4: '.KK..KK.' },
+};
+
 export function build(skin: Skin): Rig {
-  const kit = new Kit('zombie', skin, faceAtlas('zombie'));
+  const kit = new Kit('zombie', skin, faceAtlas('zombie', face));
   const { root, parts } = bipedFrame({ legH: 0.54, hipX: 0.12, bodyH: 0.5, armX: 0.33, shoulderY: 0.45 });
 
   for (const leg of [parts.legL, parts.legR]) {
