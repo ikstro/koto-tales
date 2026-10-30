@@ -25,3 +25,5 @@ A thing only for a tale's gather step is a `TaleItem` (`new-tale`), not an item.
 ## Gotchas
 - Album pictures of items and artifacts are rendered at runtime — no HUD bake needed.
 - Using consumes the item from `save.inv`; the album sticker stays (found), its ×N count goes down.
+- A usable item that also lies about (`weight` > 0) is found often; for a strong effect keep `weight` ≤ 1 so the second row stays short.
+- An artifact needs its giver in the same change (`artifact:` on a tale or castle card) — the registry fails without one.

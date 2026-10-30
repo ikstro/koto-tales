@@ -8,6 +8,7 @@
 //   monster / companion: two poses side by side (standing, mid-step)
 //   building: fed and lit at dusk (its bulb and glows on)
 //   item / artifact: big on a sticker tile, as in the album
+// Next to a monster, companion or building stands one cream 1-block brick: the scale (a hero is ~1.6).
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
@@ -76,6 +77,12 @@ if (kind === 'monster' || kind === 'companion') {
   span = 3.2;
 } else throw new Error(`kind "${kind}": monster | companion | building | item | artifact`);
 
+// the scale: one cream 1-block brick to the right (a hero is ~1.6 blocks tall)
+if (kind !== 'item' && kind !== 'artifact') {
+  const all = new THREE.Box3(); for (const t of things) all.expandByObject(t);
+  const brick = new THREE.Mesh(new RoundedBoxGeometry(1, 1, 1, 3, 0.06), M('#ffe3a3'));
+  brick.position.set(all.max.x + 1.1, 0.5, 0); things.push(brick);
+}
 const n = Math.ceil(span) + 2;
 scene.add(plate(n + 2, n, '#2f918b'));
 // things stand on the studs' tops, as on a toy table

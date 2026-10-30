@@ -29,5 +29,9 @@ Then fill the card's own fields yourself (numbers, verbs, where it is given).
 ## 5. On yes
 `npm run voice` (only new lines; never `--draft`) → `npm run check` green → play it: `npm run dev`, `?autostart=1&spawn=<monster>` / `&give=<id>` / `&tale=<id>` → `wishes/…md` `status: in game`, ids filled → commit on a branch. Push to `main` only when the owner asks (it deploys to the live game).
 
-## Lessons from the dry run (2026-10-30)
-See the per-kind skills' «Gotchas»; the pipeline itself: stubs typecheck, so the only failing tests are the registry checklist — read it, don't guess.
+## Lessons from the dry run (2026-10-30, «Сиренка» + the singing crystal, removed after)
+- Stubs typecheck, so after `npm run new` the only failing tests are the registry checklist — read it, don't guess. Lines not yet voiced are listed under «[registry] not voiced yet» (a failure only with `STRICT_VOICE=1`, as in the deploy).
+- Run the agents in parallel only on different files: each model-builder owns its model file, the lines-writer owns `lines.json`; you own the cards.
+- Write the card's `speaker` (companions) and verbs before the lines-writer runs: it takes speakers from the TODO entries.
+- Playing it: `?autostart=1&spawn=<monster>&give=<item>,<artifact>,<companion>` (an item comes 3 at a time, so the kit plate's second row shows it); `window.__kotoMonsters.list`, `__kotoEffects.timed` / `.lasting`, `__kotoCompanions.list`. Open the box, the album (B) to see rows and gold rims.
+- After a change to `vite.config.ts` restart `npm run dev` (a running one answers «Outdated Optimize Dep» and the game never starts).

@@ -6,11 +6,11 @@ effort: low
 ---
 
 Run, from the repo root:
-1. `npm run check 2>&1 | tail -60`
+1. `npm run check 2>&1 | grep -E "✗|not voiced|^  [a-z]+ .*mp3|Tests |error TS"` (the checklist, the voice list and the totals; do not cut the output with `tail`)
 2. For each id you were given: `npm run preview -- <kind> <id>`.
 
 Report, in plain lines, nothing else:
 - `check: green` or the failing checklist lines exactly as printed (`<kind> <id>: … ✗, … ✗`), one per card;
 - the voice warning list if present (`[registry] not voiced yet …`);
-- each preview PNG path, or the error it printed.
+- each preview PNG path as printed (relative to the repo root), or the error it printed.
 Do not edit any file. Do not run `npm run voice`, `npm run hud` or git.

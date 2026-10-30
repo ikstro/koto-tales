@@ -22,3 +22,5 @@ A friend who comes along. "A new hero" also lands here until playable heroes exi
 
 ## Gotchas
 - Companions cannot be hurt and never leave; `save.companions` keeps them.
+- Set the card's `speaker` before the lines-writer runs (the stub says `narrator`); the lines take the card's speaker.
+- A shooting companion's arrows bounce off armoured monsters like the heroes' do.

@@ -24,4 +24,6 @@ id = snake_case latin (`siren`); `kind` = the key. Lines short, funny not scary,
 
 ## Gotchas
 - Pass the face to the atlas: `faceAtlas('<id>', face)` — the id alone is not enough for a new monster.
-- Tall monsters: set `height` on the card close to the rig's `height` (hit box and arrows aim at the middle).
+- Tall monsters: set `height` on the card close to the rig's `height` (hit box and arrows aim at the middle). Сиренка (2.4) was fine to play; taller than ~2.6 hides the hero behind it on the steep camera.
+- `armor: 'bolt'` makes the bow useless against it: keep `hp` ≤ 6 so two lightnings win (the lightning does 3, chains a little), and give it `weight` ≤ 1 so it stays a treat.
+- A borrowed character's model: the model-builder's first try can read as something else (Сиренка's siren cap read as a Santa hat) — look at the preview before showing the owner.

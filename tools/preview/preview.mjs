@@ -3,7 +3,9 @@
  *
  * A picture of one new thing for the owner and Льоша to look at before it goes in: rendered by
  * tools/preview/preview.html in Playwright's headless shell (the game's own models and skin), saved
- * to design-lab/new/<id>.png (git-excluded). Needs `npx playwright install chromium-headless-shell`.
+ * to design-lab/new/<id>.png (git-excluded). It renders the source files as they are now (a fresh
+ * Vite server each run). Monsters and companions stand twice: still (left) and mid-step (right); a
+ * cream 1-block brick beside them shows the scale. Needs `npx playwright install chromium-headless-shell`.
  */
 import fs from 'node:fs';
 import path from 'node:path';
