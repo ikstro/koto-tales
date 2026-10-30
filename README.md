@@ -140,5 +140,5 @@ Wishes keep only the child's words: no surnames, places or photos.
 
 ## License
 
-The source code is under the [MIT License](LICENSE). The characters, stories, artwork and voice recordings
-are © the author and are not covered by it.
+The source code is under the [MIT License](LICENSE). The characters, stories, artwork and the generated
+voice-over are © the author and are not covered by it.
