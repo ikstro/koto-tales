@@ -192,6 +192,7 @@ Always one tale under way: a little story of 1–4 steps made of things the game
 - The first time a save enters the boss's wasteland, after its roar the game pauses on the boss card alone (with guide_boss) and a ▶; any tap continues. Remembered in save.said as guide_boss.
 
 ## Voice frequency
+- **Every line is voiced before it ships** (the owner's call, 2026-10-30): the deploy runs the content check with `STRICT_VOICE=1`, so a line without its mp3 stops publishing. Lines are shown to the owner first and voiced only after the yes.
 - Пупся is chatty on purpose (the owner's call): she keeps the child company. Rules in `src/systems/pacing.ts` (tested) only stop her talking over herself: a thought every ~2–3 minutes, waiting for any playing line to end; the night tip every night.
 - Boss fight: the stone hint whenever arrows bounce off the armour (at most every 25 s); the mouth hint after the armour breaks and when shots hit the closed mouth (at most every 35 s); the stomp warning once per session; one line per lantern. A boss card that popped up counts as the hint it explained.
 
