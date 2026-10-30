@@ -182,33 +182,6 @@ const ITEM_BUILDERS: Record<ItemId, Builder> = {
       .box([0.06, 0.06, 0.14], [0, 0.1, 0], deep)
       .box([0.06, 0.06, 0.012], [-0.1, 0.47, 0.085], { c: '#ffd1da', glow: true });
   },
-  // «Кристал-пісенька»: a lilac-pink glowing crystal cluster on a little grey rock,
-  // with two mustard music notes (head + stem + flag) floating beside it.
-  crystal_song: (p) => {
-    const lilac = { c: '#e07cff', glow: true };
-    const pink = { c: '#ff8fc8', glow: true };
-    const shine = { c: '#ffe0f4', glow: true };
-    const note = { c: '#ffd23a', glow: true };
-    const noteDark = '#eab02b';
-    const turn: [number, number, number] = [0, Math.PI / 4, 0];
-    p.box([0.34, 0.07, 0.28], [0, 0.035, 0], '#8d8a99')
-      .box([0.24, 0.05, 0.2], [-0.02, 0.09, -0.01], '#a9a6b6')
-      // crystal points: tall lilac centre, pink side points
-      .box([0.14, 0.3, 0.14], [-0.03, 0.25, 0], lilac, turn)
-      .box([0.09, 0.09, 0.09], [-0.03, 0.43, 0], lilac, turn)
-      .box([0.045, 0.045, 0.045], [-0.03, 0.5, 0], shine, turn)
-      .box([0.09, 0.2, 0.09], [0.07, 0.17, 0.05], pink, [0, Math.PI / 4, -0.45])
-      .box([0.08, 0.17, 0.08], [-0.13, 0.15, -0.02], pink, [0, Math.PI / 4, 0.5])
-      .box([0.028, 0.18, 0.028], [-0.06, 0.26, 0.07], shine);
-    // two music notes: a head, a stem up the right side, a flag off the top
-    const music = (x: number, y: number, z: number, s: number, tilt: number) =>
-      p
-        .box([0.07 * s, 0.055 * s, 0.035], [x, y, z], note, [0, 0, tilt])
-        .box([0.022 * s, 0.17 * s, 0.025], [x + 0.03 * s, y + 0.085 * s, z], noteDark, [0, 0, tilt])
-        .box([0.06 * s, 0.03 * s, 0.025], [x + 0.055 * s, y + 0.155 * s, z], noteDark, [0, 0, tilt - 0.6]);
-    music(0.17, 0.3, 0.06, 1, 0.15);
-    music(0.2, 0.12, 0.1, 0.75, -0.1);
-  },
 };
 
 export const ITEM_IDS = Object.keys(ITEM_BUILDERS) as ItemId[];

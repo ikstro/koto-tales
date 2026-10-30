@@ -9,13 +9,7 @@ import { Kit, type PartBuilder } from './parts/kit';
 type Builder = (p: PartBuilder) => void;
 
 /** One builder per artifact card, keyed by its id. */
-export const ARTIFACT_BUILDERS: Record<string, Builder> = {
-  zz_star: (p) =>
-    p
-      .box([0.12, 0.3, 0.12], [0, 0.15, 0], '#8d6e63')
-      .box([0.3, 0.3, 0.08], [0, 0.42, 0], { c: '#ffd23a', glow: true }, [0, 0, Math.PI / 4])
-      .box([0.3, 0.3, 0.08], [0, 0.42, 0], { c: '#ffd23a', glow: true }),
-};
+export const ARTIFACT_BUILDERS: Record<string, Builder> = {};
 
 /** Builds one artifact template (callers clone it). */
 export function buildArtifact(id: string, skin: Skin): THREE.Group {

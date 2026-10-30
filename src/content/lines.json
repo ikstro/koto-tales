@@ -327,11 +327,5 @@
   "tale_aliens_open": { "speaker": "alien", "text": "Прийом, прийом! Це інопланетяни. Ми хочемо дружити з вами!" },
   "tale_aliens_1": { "speaker": "pupsia", "text": "Інопланетяни сіли в далекому кратері. Іди за стрілкою — це найдовша дорога!" },
   "tale_aliens_thanks": { "speaker": "alien", "text": "Земляни прийшли! Ми дуже раді!" },
-  "tale_aliens_retell": { "speaker": "narrator", "text": "Казка про інопланетян: ми дійшли до кратера і подружилися з ними." },
-  "monster_siren_spot": { "speaker": "monster", "text": "У-у-у-у-і! Я Сиренка! Голова сяє, а я виваю!" },
-  "defeat_siren": { "speaker": "narrator", "text": "Сиренку переможено! Стало тихо." },
-  "item_crystal_song": { "speaker": "narrator", "text": "Це кристал-пісенька! Торкнись у коробці — і монстри затанцюють." },
-  "artifact_zz_star": { "speaker": "pupsia", "text": "Зірочка-ліхтарик! Вночі монстри до нас не підійдуть." },
-  "companion_zz_pal_hi": { "speaker": "robot", "text": "Біп-біп! Я Бляшанчик! Йду з вами!" },
-  "companion_zz_pal_yay": { "speaker": "robot", "text": "Піф-паф! Влучив! Біп-біп-ура!" }
+  "tale_aliens_retell": { "speaker": "narrator", "text": "Казка про інопланетян: ми дійшли до кратера і подружилися з ними." }
 }
