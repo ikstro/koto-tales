@@ -84,6 +84,7 @@ async function boot(): Promise<void> {
 
   const portraits = makePortraits(renderer, models);
   const input = new Input();
+  input.watchTaps(renderer.domElement);
   const hud = new Hud(ui, input, portraits);
   const album = new Album(ui, portraits);
   const map = new GameMap(ui, hud);

@@ -8,7 +8,8 @@ describe('upgrades', () => {
     expect(upgraded(BUILDINGS.radar, 2).scan?.radius).toBe(80);
     expect(upgraded(BUILDINGS.wifi, 3).signal?.zone).toBe(24);
     expect(upgraded(BUILDINGS.tesla, 3).zap).toEqual({ reach: 7, every: 0.55 });
-    expect(upgraded(BUILDINGS.bigspeaker, 1).music).toEqual({ hear: 35, dance: 16 });
+    // it still plays its own song as loud: only the reach grows
+    expect(upgraded(BUILDINGS.bigspeaker, 1).music).toEqual({ hear: 35, dance: 16, song: 'rock', loud: 1.3 });
     expect(upgraded(BUILDINGS.station, 2).power).toMatchObject({ give: 30, reach: 24, arcs: true });
   });
 

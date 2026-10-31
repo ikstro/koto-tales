@@ -311,7 +311,7 @@ export class Game {
     if (this.paused) {
       // Paused: the world stays drawn and still; nothing moves, nobody spawns.
       ctx.input.clearPresses();
-      music.update(dt, 0, false);
+      music.update(dt, -1, 0, false);
       ctx.world.update(ctx.player.pos); // keeps streaming if paused before the world finished loading
       ctx.skin.updateScene(ctx.clock.daylight, ctx.player.pos);
       ctx.skin.render(ctx.renderer, ctx.scene, ctx.camera);

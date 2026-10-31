@@ -1,6 +1,7 @@
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
-import { music, SONGS } from '../voice/music';
+import { SONG_IDS, songOf } from '../content/music';
+import { music } from '../voice/music';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { nearestStanding, selectedBuilding, standingWhere, working } from './kit';
@@ -8,7 +9,7 @@ import { nearestStanding, selectedBuilding, standingWhere, working } from './kit
 /**
  * The disco (DESIGN.md «Music»): heroes on a working dance floor dance at once; the time
  * the child's hero dances is counted (the kit box's «dance» task); next to a working DJ
- * console a note piece breathes — a tap plays the next song on every speaker.
+ * console a note piece breathes — a tap plays the console's next song (the speakers keep theirs).
  */
 
 const SONG_LINES = ['song_disco', 'song_rock', 'song_happy', 'song_lullaby'] as const;
@@ -31,12 +32,11 @@ export function djNear(ctx: Ctx): boolean {
 }
 
 export function initDisco(ctx: Ctx): void {
-  music.setSong(ctx.save.song);
   // For automated checks.
   (window as unknown as { __kotoDisco: object }).__kotoDisco = {
     next: () => ctx.input.press('prompt:note'),
     get state() {
-      return { song: music.songIndex, danced: +ctx.save.stats.danced.toFixed(1), dj: djNear(ctx), dancing: ctx.player.dancing };
+      return { heard: SONG_IDS[music.songHeard], dj: SONG_IDS[songOf('dj', ctx.save.song)], danced: +ctx.save.stats.danced.toFixed(1), djNear: djNear(ctx), dancing: ctx.player.dancing };
     },
   };
 }
@@ -44,8 +44,7 @@ export function initDisco(ctx: Ctx): void {
 export function updateDisco(ctx: Ctx, dt: number): void {
   if (ctx.player.dancing) ctx.save.stats.danced += dt;
   if (ctx.input.take('prompt:note') && djNear(ctx)) {
-    const next = (music.songIndex + 1) % SONGS.length;
-    music.setSong(next);
+    const next = (songOf('dj', ctx.save.song) + 1) % SONG_IDS.length;
     ctx.save.song = next;
     sfx.play('sticker', { pitch: 1.2 });
     ctx.player.model.play('cheer');

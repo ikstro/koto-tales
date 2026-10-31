@@ -1,14 +1,16 @@
 import * as THREE from 'three';
 import type { HeroId } from '../contracts';
-import { createAquarium, createBunk, createCabinet, createKitchen, createTable, type Aquarium, type Cabinet, type Kitchen } from '../assets/home';
+import type { Hero } from '../actors/entities';
+import { createAquarium, createBunk, createCabinet, createKitchen, createTable, TABLE_H, type Aquarium, type Cabinet, type Kitchen } from '../assets/home';
 import { createBed, createCampfire, createChest, createCushion, createDoor, type Bed } from '../assets/props';
 import { ARTIFACT_ORDER } from '../content/artifacts';
 import { HERO_ORDER } from '../content/heroes';
 import { HOME, HOUSE, HOUSE_VERSION, rehousedOrigin } from '../content/house';
 import type { Ctx, HouseState } from '../core/ctx';
 import { events } from '../core/events';
+import { sfx } from '../voice/sfx';
 import { B } from '../world/blocks';
-import { addFoodPlace, eatingAt, type FoodPlace } from './food';
+import { addFoodPlace, eating, eatingAt, sitOn, type FoodPlace } from './food';
 
 const BLANKET: Partial<Record<HeroId, string>> = { lyosha: '#6fb2d6', solomiia: '#ee6a82', david: '#3fa142' };
 /** Lantern light by day and by night (it is the house's own warm lamp). */
@@ -132,9 +134,11 @@ export function buildHouse(ctx: Ctx): HouseState {
   };
   fill();
   events.on('artifact:found', fill);
-  // the kitchen is a place to eat (systems/food.ts): warm pies, a fish for Пупся, then fast running
+  // the kitchen is a place to eat (systems/food.ts): warm pies, a fish for Пупся, then fast running;
+  // the apple shows only when someone is hurt, a tap on the table itself works any time
+  const tableAt = at({ dx: HOME.table.dx, dy: 1, dz: HOME.table.dz });
   kitchenPlace = {
-    centre: at({ dx: HOME.table.dx, dy: 1, dz: HOME.table.dz }),
+    centre: tableAt,
     seats: table.seats,
     fast: KITCHEN_FAST,
     hungryOnly: true,
@@ -143,6 +147,7 @@ export function buildHouse(ctx: Ctx): HouseState {
     open: (p) => !!ctx.house && isInside(ctx.house, p),
     setEat: () => undefined,
     gone: () => false,
+    tap: { at: tableAt.clone().setY(tableAt.y + TABLE_H), reach: 1.1 },
   };
   addFoodPlace(kitchenPlace);
   // For automated checks.
@@ -155,6 +160,15 @@ export function buildHouse(ctx: Ctx): HouseState {
     },
     get artifacts() {
       return [...save.artifacts];
+    },
+    /** Where the kitchen table is on screen (px), to tap it. */
+    get table() {
+      const v = tableAt.clone().setY(tableAt.y + TABLE_H).project(ctx.camera);
+      const r = ctx.renderer.domElement.getBoundingClientRect();
+      return [r.left + (v.x * 0.5 + 0.5) * r.width, r.top + (-v.y * 0.5 + 0.5) * r.height];
+    },
+    get sitting() {
+      return !!chair;
     },
     /** Marks an artifact as found and puts it on the shelf (no fanfare). */
     have: (id: string) => {
@@ -212,6 +226,40 @@ let aquarium: Aquarium | null = null;
 let kitchenPlace: FoodPlace | null = null;
 /** Seconds of fast running after a meal at home (like the ice cream). */
 const KITCHEN_FAST = 20;
+/** The chair the player sits on at the kitchen table, if any. */
+let chair: { seat: THREE.Object3D; by: Hero } | null = null;
+let stillAtChair = 0;
+const seatPos = new THREE.Vector3();
+
+/** Standing still at a chair of the kitchen table, the player sits down on it (like the swings); a step gets up. */
+function chairs(ctx: Ctx, dt: number, inside: boolean): void {
+  const h = ctx.player;
+  const moving = Math.hypot(ctx.input.moveX, ctx.input.moveY) > 0.2;
+  // a meal seats everyone itself; afterwards the player is still on a chair and stays there
+  if (eating() || ctx.sleeping) {
+    chair = null;
+    stillAtChair = 0;
+    return;
+  }
+  if (chair && (moving || h !== chair.by || !inside)) {
+    chair = null;
+    h.model.play('idle');
+  }
+  if (!chair) {
+    let found: THREE.Object3D | null = null;
+    if (inside && kitchenPlace)
+      for (const o of kitchenPlace.seats) {
+        o.getWorldPosition(seatPos);
+        if (Math.hypot(h.pos.x - seatPos.x, h.pos.z - seatPos.z) < 0.6 && Math.abs(h.pos.y - seatPos.y) < 1.2) found = o;
+      }
+    stillAtChair = found && !moving ? stillAtChair + dt : 0;
+    if (!found || stillAtChair < 0.4) return;
+    chair = { seat: found, by: h };
+    sfx.play('switch', { pitch: 1.5 });
+  }
+  sitOn(h, chair.seat);
+  h.model.play('sit');
+}
 
 export function updateHouse(ctx: Ctx, dt: number): void {
   const h = ctx.house;
@@ -237,6 +285,8 @@ export function updateHouse(ctx: Ctx, dt: number): void {
     m.opacity = h.roofFade;
     m.depthWrite = h.roofFade > 0.98;
   }
+
+  chairs(ctx, dt, inside);
 
   const near = ctx.player.pos.distanceTo(h.chest.pos) < 2.2;
   if (near !== chestOpen) {
