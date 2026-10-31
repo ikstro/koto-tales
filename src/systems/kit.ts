@@ -3,6 +3,7 @@ import type { IWorld } from '../contracts';
 import { overlapsBlock } from '../actors/physics';
 import { breatheGhost, createBuilding, createGhost, type BuildingModel, type BuildingTick } from '../assets/buildings';
 import { BUILDINGS, KIT_ORDER, type BuildingCard, type BuildingId } from '../content/buildings';
+import { hear, songOf } from '../content/music';
 import { MAX_LEVEL, upgraded } from '../content/upgrades';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
@@ -574,16 +575,13 @@ export function playingSpeakers(): { centre: THREE.Vector3; hear: number; dance:
   return standing.filter((s) => s.card.music && working(s)).map((s) => ({ centre: s.centre, hear: s.card.music!.hear, dance: s.card.music!.dance }));
 }
 
-/** How loud the speakers are at (x, z): 0 out of earshot; a big speaker close by goes past 1. */
-export function musicLevel(x: number, z: number): number {
-  let level = 0;
-  for (const sp of playingSpeakers()) {
-    const near = Math.min(1, Math.max(0, (sp.hear - Math.hypot(x - sp.centre.x, z - sp.centre.z)) / (sp.hear - 4)));
-    level = Math.max(level, Math.pow(near, 1.3) * (sp.hear > MUSIC_BIG ? 1.25 : 1));
-  }
-  return level;
+/** The song heard at (x, z) and how loud (content/music.ts); the DJ console plays the song its note picked. */
+function hearing(ctx: Ctx, x: number, z: number): { song: number; level: number } {
+  const speakers = standing
+    .filter((s) => s.card.music && working(s))
+    .map((s) => ({ x: s.centre.x, z: s.centre.z, hear: s.card.music!.hear, loud: s.card.music!.loud, song: songOf(s.card.music!.song, ctx.save.song) }));
+  return hear(speakers, x, z, music.songHeard);
 }
-const MUSIC_BIG = 20;
 
 /** Tents and tree houses standing (sleep spots away from home). */
 export function tentNear(ctx: Ctx): Standing | null {
@@ -620,8 +618,10 @@ export function updateKit(ctx: Ctx, dt: number): void {
   const beat = music.beat();
   const night = 1 - ctx.clock.daylight;
   const p = ctx.player.pos;
-  const heard = musicLevel(p.x, p.z) > 0;
-  const song = music.songIndex;
+  const tune = hearing(ctx, p.x, p.z);
+  const heard = tune.song >= 0;
+  // the DJ console's screen glows in the colour of its own song
+  const song = ctx.save.song;
   const feet = [...ctx.heroes.values()].map((h) => h.pos);
   for (let i = standing.length - 1; i >= 0; i--) {
     const s = standing[i];
@@ -648,7 +648,7 @@ export function updateKit(ctx: Ctx, dt: number): void {
       s.model!.update(dt, { beat, playing, night, power: s.site?.view, song, feet: s.card.floor ? feet : undefined, ...s.extra });
     }
   }
-  music.update(dt, ctx.playing ? musicLevel(p.x, p.z) : 0, voice.isSpeaking());
+  music.update(dt, ctx.playing ? tune.song : -1, tune.level, voice.isSpeaking());
 
   // a working engine-generator putts quietly, louder as the hero comes closer
   engineT -= dt;

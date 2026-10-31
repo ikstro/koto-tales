@@ -24,7 +24,7 @@ export const UPGRADES: Partial<Record<BuildingId, Upgrade>> = {
   wifi: { raise: (c, n) => ({ ...c, signal: { zone: (c.signal?.zone ?? 0) + 4 * n } }), line: 'up_wifi' },
   tesla: { raise: (c, n) => ({ ...c, zap: { reach: c.zap?.reach ?? 0, every: (c.zap?.every ?? 0) - 0.25 * n } }), line: 'up_tesla' },
   bigspeaker: {
-    raise: (c, n) => ({ ...c, music: { hear: (c.music?.hear ?? 0) + 5 * n, dance: (c.music?.dance ?? 0) + 2 * n } }),
+    raise: (c, n) => ({ ...c, music: c.music && { ...c.music, hear: c.music.hear + 5 * n, dance: c.music.dance + 2 * n } }),
     line: 'up_bigspeaker',
     lastLine: 'up_bigspeaker_gold',
   },

@@ -49,7 +49,7 @@ function rescan(): void {
 
 function startShow(ctx: Ctx, net: number[]): void {
   show = { ants: net.map((i) => antennas[i]), nodes: [], all: [], t: 0, pop: 0 };
-  music.setSong(0);
+  music.setShow(true);
   sfx.play('sticker', { pitch: 1.1 });
   ctx.player.model.play('cheer');
   voice.say('show_start', { priority: 8, interrupt: true });
@@ -82,8 +82,8 @@ function updateShow(ctx: Ctx, dt: number): void {
   if (done) {
     for (const s of shown) s.extra.show = undefined;
     shown.clear();
-    // back to the DJ's song (a tap on the console during the show is kept)
-    music.setSong(ctx.save.song);
+    // every speaker back to its own song (a tap on the console during the show is kept)
+    music.setShow(false);
     show = null;
   }
 }

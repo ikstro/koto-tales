@@ -1,6 +1,7 @@
 import { TERRAIN_VERSION, type HeroId, type ItemId, type MonsterKind } from '../contracts';
 import { BUILDINGS, KIT_ORDER, type BuildingId } from '../content/buildings';
 import type { Difficulty } from '../content/difficulty';
+import { DJ_FIRST_SONG } from '../content/music';
 import type { TaskKind } from '../content/progress';
 import type { CastleSave } from '../content/castles';
 import { freshTales, PROLOGUE, type TalesSave } from '../content/tales';
@@ -59,7 +60,7 @@ export interface SaveData {
   stats: { coins: number; slept: number; danced: number };
   /** Lighthouses (world/landmarks.ts ids) that have been lit at least once. */
   lit: string[];
-  /** The DJ's song (voice/music.ts SONGS). */
+  /** The DJ console's song (an index into content/music.ts SONG_IDS); the speakers play their own. */
   song: number;
   /** The four villages: met, tasks done, the one under way, nights in the guest house. */
   villages: Partial<Record<Race, VillageSave>>;
@@ -153,7 +154,7 @@ export function freshSave(): SaveData {
     portal: null,
     stats: { coins: 0, slept: 0, danced: 0 },
     lit: [],
-    song: 0,
+    song: DJ_FIRST_SONG,
     villages: {},
     castles: {},
     upgrades: {},

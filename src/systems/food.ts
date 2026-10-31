@@ -3,6 +3,7 @@ import { yawOf, type Hero } from '../actors/entities';
 import { holdSnack, type SnackKind } from '../assets/food';
 import { HERO_STATS } from '../content/heroes';
 import type { Ctx } from '../core/ctx';
+import { tappedAt } from '../ui/worldTap';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { selectedBuilding, standingWhere, working, type Standing } from './kit';
@@ -13,7 +14,8 @@ import { selectedBuilding, standingWhere, working, type Standing } from './kit';
  * down at the building's seats and eats for a moment (Пупся gets a fish), then every heart is
  * full and Пупся says «Смачно!». Ice cream also makes the party run fast for a while, with
  * sparkles at their feet. The kitchen at home is one more such place (warm pies, then fast
- * running like the ice cream): see `addFoodPlace`.
+ * running like the ice cream): see `addFoodPlace`; there a tap on the table itself works too,
+ * whenever the hero is in the house.
  */
 
 const EAT_SECONDS = 3;
@@ -44,6 +46,8 @@ export interface FoodPlace {
   setEat(t: number | undefined): void;
   /** Gone in the middle of the meal (folded away): the meal ends. */
   gone(): boolean;
+  /** A tap on it on screen (this point, within `reach` blocks) sits the party down at once, hurt or not (the kitchen table). */
+  tap?: { at: THREE.Vector3; reach: number };
 }
 
 let meal: { s: FoodPlace; t: number; snacks: THREE.Object3D[]; bite: number } | null = null;
@@ -103,7 +107,7 @@ function foodNear(ctx: Ctx): FoodPlace | null {
 }
 
 /** Puts a hero on a seat: hips on it, facing where it faces. */
-function seat(h: Hero, place: THREE.Object3D): void {
+export function sitOn(h: Hero, place: THREE.Object3D): void {
   place.getWorldPosition(at);
   place.getWorldDirection(fwd);
   h.yaw = yawOf(fwd.x, fwd.z);
@@ -122,7 +126,7 @@ function sitDown(ctx: Ctx, s: FoodPlace): void {
   const snacks: THREE.Object3D[] = [];
   const place = (h: Hero, o: THREE.Object3D) => {
     free.splice(free.indexOf(o), 1);
-    seat(h, o);
+    sitOn(h, o);
     h.model.play('eat');
     snacks.push(holdSnack(h.model, h.id === 'pupsia' ? 'fish' : s.snack));
   };
@@ -177,9 +181,16 @@ export function updateFood(ctx: Ctx, dt: number): void {
     if (meal.t >= EAT_SECONDS || meal.s.gone()) finish(ctx);
     return;
   }
-  const s = ctx.sleeping || ctx.map.isOpen || selectedBuilding() ? null : foodNear(ctx);
+  const busy = ctx.sleeping || ctx.map.isOpen || !!selectedBuilding();
+  const s = busy ? null : foodNear(ctx);
   ctx.hud.setFood(s ? s.piece : null);
   if (ctx.input.take('prompt:food') && s) sitDown(ctx, s);
+  else if (!busy) {
+    // a tap on the kitchen table itself: a meal whenever the hero is in the house, hurt or not
+    const p = ctx.player.pos;
+    const t = extra.find((f) => f.tap && f.seats.length && f.open(p) && tappedAt(ctx, f.tap.at, f.tap.reach));
+    if (t) sitDown(ctx, t);
+  }
 }
 
 export function initFood(ctx: Ctx): void {

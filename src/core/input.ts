@@ -1,5 +1,9 @@
 import type { HeroId } from '../contracts';
 
+/** A tap: let go within this long, moved less than this far (px). */
+const TAP_MS = 350;
+const TAP_MOVE = 14;
+
 /**
  * What the player wants this frame, from touch or keyboard. Movement is
  * screen-relative: x right, y down (towards the camera).
@@ -14,6 +18,10 @@ export class Input {
   private joyBase: HTMLElement | null = null;
   private joyKnob: HTMLElement | null = null;
   pendingHero: HeroId | null = null;
+  /** This frame's short taps on the world itself (not on a HUD piece), in screen pixels; `takeTap` hands one to what it hit. */
+  taps: { x: number; y: number }[] = [];
+  private tapsIn: { x: number; y: number }[] = [];
+  private tapStart = new Map<number, { x: number; y: number; t: number }>();
 
   constructor() {
     window.addEventListener('keydown', (e) => {
@@ -76,6 +84,28 @@ export class Input {
     };
     zone.addEventListener('pointerup', end);
     zone.addEventListener('pointercancel', end);
+    // a quick touch that never moved the stick is a tap on whatever lies under it
+    this.watchTaps(zone);
+  }
+
+  /** A short, still touch on `el` (the game's canvas, the joystick's half) is a tap on the world. */
+  watchTaps(el: HTMLElement): void {
+    el.addEventListener('pointerdown', (e) => this.tapStart.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now() }));
+    const end = (e: PointerEvent) => {
+      const s = this.tapStart.get(e.pointerId);
+      this.tapStart.delete(e.pointerId);
+      if (s && e.type === 'pointerup' && performance.now() - s.t < TAP_MS && Math.hypot(e.clientX - s.x, e.clientY - s.y) < TAP_MOVE) this.tapsIn.push({ x: s.x, y: s.y });
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  }
+
+  /** Takes this frame's tap within `radius` px of the screen point (x, y), if there is one. */
+  takeTap(x: number, y: number, radius: number): boolean {
+    const i = this.taps.findIndex((t) => Math.hypot(t.x - x, t.y - y) < radius);
+    if (i < 0) return false;
+    this.taps.splice(i, 1);
+    return true;
   }
 
   private drawJoy(active: boolean): void {
@@ -120,9 +150,13 @@ export class Input {
 
   clearPresses(): void {
     this.presses.clear();
+    this.taps = [];
+    this.tapsIn = [];
   }
 
   update(): void {
+    this.taps = this.tapsIn;
+    this.tapsIn = [];
     let x = 0;
     let y = 0;
     const k = this.keys;

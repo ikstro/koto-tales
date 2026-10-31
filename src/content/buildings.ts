@@ -1,5 +1,6 @@
 import { B } from '../world/blocks';
 import type { LineId } from './lines';
+import type { SpeakerSong } from './music';
 
 /**
  * Ready-made buildings in the kit box (DESIGN.md «Kit»). A building is a card:
@@ -52,8 +53,12 @@ interface Card<Id extends string = string> {
   rewardLine?: LineId;
   /** The lantern is a block in the world (it cracks the boss's armour), not a model. */
   block?: number;
-  /** Plays music around itself while it stands (and has power, if it needs it): heard this far, monsters this close dance. */
-  music?: { hear: number; dance: number };
+  /**
+   * Plays music around itself while it stands (and has power, if it needs it): heard this far,
+   * monsters this close dance; its own song (src/content/music.ts) and how loud it is close by
+   * (the bigger, the louder).
+   */
+  music?: { hear: number; dance: number; song: SpeakerSong; loud: number };
   /** Heroes on it dance (a dance floor). */
   floor?: boolean;
   /** A DJ console: next to it a note piece switches the song. */
@@ -107,14 +112,14 @@ const CARDS = {
   boombox: {
     id: 'boombox',
     name: 'Колонка',
-    about: 'Грає музику без струму. Монстри поруч танцюють і не кусаються.',
+    about: 'Тихенько грає диско без струму. Монстри поруч танцюють і не кусаються.',
     size: [1, 1],
     solid: [{ dx: 0, dz: 0, h: 1 }],
     count: 1,
     sprite: 'b-boombox',
     firstLine: 'first_boombox',
     rewardLine: 'reward_boombox',
-    music: { hear: 18, dance: 9 },
+    music: { hear: 18, dance: 9, song: 'disco', loud: 0.8 },
   },
   lantern: {
     id: 'lantern',
@@ -212,14 +217,14 @@ const CARDS = {
   bigspeaker: {
     id: 'bigspeaker',
     name: 'Велика колонка',
-    about: 'Велика колонка на струмі: її чути далеко, монстри навколо танцюють.',
+    about: 'Гучно грає рок на струмі: її чути найдалі, монстри навколо танцюють.',
     size: [1, 1],
     solid: [{ dx: 0, dz: 0, h: 3 }],
     count: 0,
     sprite: 'b-bigspeaker',
     firstLine: 'first_bigspeaker',
     rewardLine: 'reward_bigspeaker_more',
-    music: { hear: 30, dance: 14 },
+    music: { hear: 30, dance: 14, song: 'rock', loud: 1.3 },
     power: { take: 2 },
   },
   dancefloor: {
@@ -250,7 +255,7 @@ const CARDS = {
   djconsole: {
     id: 'djconsole',
     name: 'Пульт діджея',
-    about: 'Біля нього нота перемикає пісню: диско, рок, весела, колискова.',
+    about: 'Грає ту пісню, яку обереш: нота поруч перемикає диско, рок, веселу й колискову.',
     size: [2, 1],
     solid: [
       { dx: 0, dz: 0, h: 1 },
@@ -261,6 +266,7 @@ const CARDS = {
     firstLine: 'first_djconsole',
     rewardLine: 'reward_djconsole',
     dj: true,
+    music: { hear: 24, dance: 11, song: 'dj', loud: 1 },
     power: { take: 1 },
   },
   tesla: {

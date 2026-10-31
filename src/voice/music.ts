@@ -1,15 +1,18 @@
+import { SONG_IDS } from '../content/music';
 import { getCtx, getMaster } from './audio';
 
 /**
  * The speakers' music, made in code on the shared AudioContext (no files, so it plays
- * offline). Four little songs the DJ console switches between (DESIGN.md «Music»):
+ * offline). Four little songs (DESIGN.md «Music»; the order is SONG_IDS in content/music.ts):
  *   0 disco   — kick, clap, hats, octave bass, chord stabs, a bell tune; C–G–Am–F, 120 a minute
  *   1 rock    — kick and snare, chugging power chords, a square-wave riff; A–D–E–D, 132
  *   2 happy   — oom-pah bass, plucked chords, a whistled tune, shaker and woodblock; C–F–G–C, 108
  *   3 lullaby — a music box over a soft pad, no drums; F–C–Dm–Bb, 72
- * One song plays for every speaker; it gets louder as the hero comes closer and dips under
- * the voice. Notes are scheduled a little ahead on the audio clock, so a slow frame never
- * makes the beat stumble; with no speaker in earshot nothing is scheduled at all.
+ * Every kind of speaker plays its own song; one is heard where the hero stands (walking from one
+ * speaker to another, one fades out as the other comes in). It gets louder
+ * as the hero comes closer and dips under the voice. Notes are scheduled a little ahead on the
+ * audio clock, so a slow frame never makes the beat stumble; a song out of earshot schedules
+ * nothing at all.
  */
 
 const LOOP = 64;
@@ -245,74 +248,35 @@ export const SONGS: Song[] = [
   },
 ];
 
-class Music {
+/** One song's player: its own clock and gain, so one song can fade out while another comes in. */
+class Player {
   private out: GainNode | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
-  private start = 0;
+  start = 0;
   private next = 0;
-  private level = 0;
   private quietFor = 0;
-  private volume = 1;
 
-  private song = 0;
+  constructor(readonly song: number) {}
 
-  /** The sound switch (pause menu). */
-  setVolume(v: number): void {
-    this.volume = Math.max(0, Math.min(1, v));
+  get playing(): boolean {
+    return this.timer !== null;
   }
 
-  /** The DJ's song (an index into SONGS); it starts again from its first bar. */
-  setSong(i: number): void {
-    const next = ((i % SONGS.length) + SONGS.length) % SONGS.length;
-    if (next === this.song) return;
-    this.song = next;
-    if (!this.timer) return;
-    try {
-      this.start = getCtx().currentTime + 0.05;
-      this.next = 0;
-    } catch {
-      /* audio unavailable */
-    }
-  }
-
-  get songIndex(): number {
-    return this.song;
-  }
-
-  /**
-   * Every frame: how loud the speakers are where the hero stands (0 = out of earshot; a big
-   * speaker close by goes past 1) and whether a voice line is playing (the music dips under it).
-   */
-  update(dt: number, level: number, voiceOn: boolean): void {
-    this.level = Math.min(1.4, Math.max(0, level));
-    if (this.level > 0 && this.volume > 0) {
+  /** Every frame: how loud it should be now (0 = fading out; after 2 s of quiet it stops). */
+  update(dt: number, target: number): void {
+    if (target > 0) {
       this.quietFor = 0;
       if (!this.timer) this.begin();
     } else if (this.timer && (this.quietFor += dt) > 2) this.stop();
     if (!this.out) return;
     try {
-      const c = getCtx();
-      const target = this.volume * this.level * SONGS[this.song].gain * (voiceOn ? 0.4 : 1) * 0.55;
-      this.out.gain.setTargetAtTime(target, c.currentTime, 0.15);
+      this.out.gain.setTargetAtTime(target * SONGS[this.song].gain, getCtx().currentTime, 0.25);
     } catch {
       /* audio unavailable: stay silent */
     }
   }
 
-  /** Music time in beats; without sound it keeps time by the clock, so the dancing still swings. */
-  beat(): number {
-    const bps = SONGS[this.song].bpm / 60;
-    if (this.timer) {
-      try {
-        return Math.max(0, (getCtx().currentTime - this.start) * bps);
-      } catch {
-        /* fall through */
-      }
-    }
-    return (performance.now() / 1000) * bps;
-  }
-
-  /** Seconds per 16th step of the song playing. */
+  /** Seconds per 16th step. */
   private get stepLen(): number {
     return 60 / SONGS[this.song].bpm / 4;
   }
@@ -351,6 +315,55 @@ class Music {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.quietFor = 0;
+  }
+}
+
+class Music {
+  private players = SONGS.map((_, i) => new Player(i));
+  private volume = 1;
+  private heard = 0;
+  private show = false;
+
+  /** The sound switch (pause menu). */
+  setVolume(v: number): void {
+    this.volume = Math.max(0, Math.min(1, v));
+  }
+
+  /** The night show (DESIGN.md «Signal»): while it is on, every speaker plays disco. */
+  setShow(on: boolean): void {
+    this.show = on;
+  }
+
+  /** The song heard where the hero stands (the last one, when none carries this far). */
+  get songHeard(): number {
+    return this.heard;
+  }
+
+  /**
+   * Every frame: the song heard where the hero stands and how loud (content/music.ts `hear`:
+   * -1 / 0 = out of earshot; a big speaker close by goes past 1) and whether a voice line is
+   * playing (the music dips under it). The other songs fade out.
+   */
+  update(dt: number, song: number, level: number, voiceOn: boolean): void {
+    level = song < 0 ? 0 : Math.min(1.4, level);
+    if (this.show && level > 0) song = SONG_IDS.indexOf('disco');
+    if (song >= 0 && level > 0) this.heard = song;
+    const target = this.volume * level * (voiceOn ? 0.4 : 1) * 0.55;
+    for (const p of this.players) p.update(dt, p.song === song ? target : 0);
+  }
+
+  /** Music time in beats of the song heard; without sound it keeps time by the clock, so the dancing still swings. */
+  beat(): number {
+    const bps = SONGS[this.heard].bpm / 60;
+    const p = this.players[this.heard];
+    if (p.playing) {
+      try {
+        return Math.max(0, (getCtx().currentTime - p.start) * bps);
+      } catch {
+        /* fall through */
+      }
+    }
+    return (performance.now() / 1000) * bps;
   }
 }
 
