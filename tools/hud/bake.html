@@ -259,6 +259,14 @@ const printHelp = (col) => (x, s) => {
   x.quadraticCurveTo(cx, cy + 70, cx, cy + 112); x.stroke();
   x.beginPath(); x.arc(cx, s / 2 + 148, 40, 0, Math.PI * 2); x.fill();
 };
+/** «Зміст гри» in the pause menu: a list, three dots and three bars. */
+const printContents = (col) => (x, s) => {
+  x.fillStyle = col;
+  for (const dy of [-130, 0, 130]) {
+    x.beginPath(); x.arc(s / 2 - 130, s / 2 + dy, 36, 0, Math.PI * 2); x.fill();
+    x.beginPath(); x.roundRect(s / 2 - 66, s / 2 + dy - 30, 236, 60, 30); x.fill();
+  }
+};
 /** 1, 2 or 3 small Зомбік faces (difficulty): the face print clipped into round stickers. */
 const printZombies = (n, drawFace) => (x, s) => {
   const r = n === 1 ? 165 : n === 2 ? 118 : 104;
@@ -807,6 +815,7 @@ shoot('cloud', cloudPiece(), 120, 100, { oy: 0.3, dpr: LO });
 
 // --- the guide (ui/guide.ts): the «?» piece, cards, and pictures the HUD does not have yet
 shoot('help', roundTile(1, C.mint, printHelp(INK), 0.6), 130, 130, { shadow: 'tile6-sh' });
+shoot('contents', roundTile(1, C.sky, printContents(INK), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('apple', itemPiece('apple', 1.5), 100, 110, { oy: 0.4, dpr: LO });
 shoot('boss-cracked', bossPose(false), 220, 210, { oy: 0.75, dpr: LO });
 shoot('boss-open', bossPose(true), 220, 210, { oy: 0.75, shadow: 'boss-cracked-sh', dpr: LO });

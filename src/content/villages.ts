@@ -14,6 +14,10 @@ export interface RaceCard {
   race: Race;
   /** Ukrainian name, for debug and the parents' captions. */
   name: string;
+  /** Who they are and where they live, one sentence for the parents (the «Зміст гри» page). */
+  about: string;
+  /** What their «gather» task collects, in the plural after a number («6 жолудів»). */
+  things: string;
   /** Villager models (assets/models.ts PART_BUILDERS): the elder, three grown-ups, the little one. */
   folk: { elder: string; adults: [string, string, string]; kid: string };
   /** The three tasks, in order (one waiting for a building the child hasn't got moves to the end). */
@@ -41,6 +45,8 @@ export const RACE_CARDS: Record<Race, RaceCard> = {
   elves: {
     race: 'elves',
     name: 'Ельфи',
+    about: 'Ельфи живуть у лісі, у селі з деревом-ліхтарем посередині.',
+    things: 'жолудів',
     folk: { elder: 'elf_elder', adults: ['elf_1', 'elf_2', 'elf_3'], kid: 'elf_kid' },
     tasks: ['find', 'gather', 'disco'],
     item: 'item-elves',
@@ -59,6 +65,8 @@ export const RACE_CARDS: Record<Race, RaceCard> = {
   gnomes: {
     race: 'gnomes',
     name: 'Гноми',
+    about: 'Гноми живуть у горах, у селі з кузнею, що димить.',
+    things: 'кристалів',
     folk: { elder: 'gnome_elder', adults: ['gnome_1', 'gnome_2', 'gnome_3'], kid: 'gnome_kid' },
     tasks: ['gather', 'defend', 'power'],
     item: 'item-gnomes',
@@ -76,6 +84,8 @@ export const RACE_CARDS: Record<Race, RaceCard> = {
   robots: {
     race: 'robots',
     name: 'Роботи',
+    about: 'Роботи живуть на луках, у селі із зарядною щоглою.',
+    things: 'шестерень',
     folk: { elder: 'robot_elder', adults: ['robot_1', 'robot_2', 'robot_3'], kid: 'robot_kid' },
     tasks: ['power', 'gather', 'defend'],
     item: 'item-robots',
@@ -93,6 +103,8 @@ export const RACE_CARDS: Record<Race, RaceCard> = {
   aliens: {
     race: 'aliens',
     name: 'Інопланетяни',
+    about: 'Інопланетяни живуть у піщаному кратері на далеких луках.',
+    things: 'уламків зірок',
     folk: { elder: 'alien_elder', adults: ['alien_1', 'alien_2', 'alien_3'], kid: 'alien_kid' },
     tasks: ['find', 'gather', 'power'],
     item: 'item-aliens',

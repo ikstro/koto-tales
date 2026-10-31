@@ -1,6 +1,7 @@
   {{id}}: {
     id: '{{id}}',
     name: 'TODO',
+    about: 'TODO',
     size: [2, 2],
     solid: [{ dx: 0, dz: 0, h: 2 }],
     count: 0,

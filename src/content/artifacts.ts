@@ -11,6 +11,8 @@ export interface ArtifactCard {
   id: string;
   /** Ukrainian name, for debug and the parents' captions. */
   name: string;
+  /** What it does, one sentence for the parents (the «Зміст гри» page). */
+  about: string;
   /** Said when it is found and when its sticker is tapped (`artifact_<id>`). */
   line: LineId;
   /** On while the party has it (never `home`). */

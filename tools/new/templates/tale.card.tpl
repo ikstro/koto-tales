@@ -1,5 +1,6 @@
   {
     id: '{{id}}',
+    name: 'TODO',
     from: 'pupsia',
     lyosha: true,
     open: 'tale_{{id}}_open',

@@ -1,6 +1,7 @@
   {{id}}: {
     id: '{{id}}',
     name: 'TODO',
+    about: 'TODO',
     model: { kind: 'parts', id: '{{id}}' },
     speaker: 'narrator',
     trick: { kind: 'shoot', reach: 9 },

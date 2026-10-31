@@ -19,6 +19,8 @@ export interface CompanionCard {
   id: string;
   /** Ukrainian name, for debug and the parents' captions. */
   name: string;
+  /** What it does, one sentence for the parents (the «Зміст гри» page). */
+  about: string;
   model: ModelRef;
   speaker: Speaker;
   trick: Trick;

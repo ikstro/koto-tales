@@ -15,6 +15,10 @@ export interface CastleCard {
   race: Race;
   /** Ukrainian name, for debug and the parents' captions. */
   name: string;
+  /** What it is, one sentence for the parents (the «Зміст гри» page). */
+  about: string;
+  /** What its «gather» task collects, in the plural after a number («8 кристалів»). */
+  things?: string;
   /** The ruler's model (assets/models.ts PART_BUILDERS). */
   ruler: string;
   /** The three tasks in order (one waiting for a building the child hasn't got moves to the end). */
@@ -47,6 +51,8 @@ export const CASTLE_CARDS: Record<Race, CastleCard> = {
   elves: {
     race: 'elves',
     name: 'Замок на дереві',
+    about: 'Замок ельфів на величезному дереві, зі сходами довкола стовбура.',
+    things: 'насінин світлячків',
     ruler: 'elf_queen',
     tasks: ['defend', 'gather', 'disco'],
     item: 'item-castle-elves',
@@ -64,6 +70,8 @@ export const CASTLE_CARDS: Record<Race, CastleCard> = {
   gnomes: {
     race: 'gnomes',
     name: 'Фортеця гномів',
+    about: 'Кам’яна фортеця гномів на пагорбі, з кузнею.',
+    things: 'кристалів',
     ruler: 'gnome_king',
     tasks: ['defend', 'gather', 'power'],
     item: 'item-gnomes',
@@ -81,6 +89,7 @@ export const CASTLE_CARDS: Record<Race, CastleCard> = {
   robots: {
     race: 'robots',
     name: 'Вежа роботів',
+    about: 'Вежа роботів з антенами, тарілками та маяком.',
     ruler: 'robot_chief',
     tasks: ['defend', 'power', 'find'],
     item: 'item-robots',
@@ -99,6 +108,7 @@ export const CASTLE_CARDS: Record<Race, CastleCard> = {
   aliens: {
     race: 'aliens',
     name: 'Літаюча тарілка',
+    about: 'Літаюча тарілка інопланетян, що сіла в кратері.',
     ruler: 'alien_captain',
     tasks: ['defend', 'find', 'power'],
     item: 'item-aliens',

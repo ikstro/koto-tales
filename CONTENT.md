@@ -21,6 +21,9 @@ a wish that does not is engine work, done only after the owner's yes.
   `lyosha`, `solomiia`, `david`, `monster`, the races and their rulers). Every line needs its mp3
   (`public/voice/<id>.mp3`); `STRICT_VOICE=1` (the deploy) fails on a missing one.
 - `lyosha: true` on a monster, item, artifact or tale card: its album sticker gets the gold rim.
+- `about` on a monster, item, artifact, building or companion card (a tale has `name`, its title): one plain Ukrainian
+  sentence for the parents — what it does or where it is met — shown in «Зміст гри» (DESIGN.md «Contents»). Not voiced.
+  The stubs say `TODO`; the content check fails until it is written.
 - Borrowed characters (a cartoon, an internet monster like "siren head") become the game's own toy:
   own Ukrainian name, own look, no brand, no copied design. Generic toy-brick look only (CLAUDE.md).
 - No losing, home is safe, nothing to read, no digging (DESIGN.md). A wish never breaks these.

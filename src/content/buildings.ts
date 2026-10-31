@@ -36,6 +36,8 @@ interface Card<Id extends string = string> {
   id: Id;
   /** Ukrainian name, for debug and the parents' captions. */
   name: string;
+  /** What it does, one sentence for the parents (the «Зміст гри» page). */
+  about: string;
   /** Footprint in blocks across (x) and deep (z) before turning; the front faces +z. */
   size: [number, number];
   /** Cells bodies bump into: (dx, dz) from the footprint's min corner, `h` blocks tall. */
@@ -93,6 +95,7 @@ const CARDS = {
   tent: {
     id: 'tent',
     name: 'Намет',
+    about: 'Уночі в ньому можна поспати — і настане ранок, а сердечка повні.',
     size: [3, 3],
     solid: [],
     count: 1,
@@ -104,6 +107,7 @@ const CARDS = {
   boombox: {
     id: 'boombox',
     name: 'Колонка',
+    about: 'Грає музику без струму. Монстри поруч танцюють і не кусаються.',
     size: [1, 1],
     solid: [{ dx: 0, dz: 0, h: 1 }],
     count: 1,
@@ -115,6 +119,7 @@ const CARDS = {
   lantern: {
     id: 'lantern',
     name: 'Ліхтар',
+    about: 'Ніколи не закінчується. Ліхтарі біля Пожирача тріскають його кам’яну броню.',
     size: [1, 1],
     solid: [],
     count: null,
@@ -124,6 +129,7 @@ const CARDS = {
   windmill: {
     id: 'windmill',
     name: 'Вітряк',
+    about: 'Завжди дає струм (+2). Постав поруч стовп, ліхтар або маяк.',
     size: [1, 1],
     solid: [{ dx: 0, dz: 0, h: 4 }],
     count: 0,
@@ -135,6 +141,7 @@ const CARDS = {
   pole: {
     id: 'pole',
     name: 'Стовп',
+    about: 'Несе струм далі: стовпи поруч з’єднуються дротами самі.',
     size: [1, 1],
     solid: [{ dx: 0, dz: 0, h: 3 }],
     count: 0,
@@ -146,6 +153,7 @@ const CARDS = {
   lamp: {
     id: 'lamp',
     name: 'Ліхтар на стовпі',
+    about: 'Бере трохи струму (−1). Уночі поруч не з’являються монстри.',
     size: [1, 1],
     solid: [{ dx: 0, dz: 0, h: 3 }],
     count: 0,
@@ -157,6 +165,7 @@ const CARDS = {
   solar: {
     id: 'solar',
     name: 'Сонячна панель',
+    about: 'Дає струм удень (+3), а вночі спить.',
     size: [2, 2],
     solid: [
       { dx: 0, dz: 0, h: 1 },
@@ -173,6 +182,7 @@ const CARDS = {
   battery: {
     id: 'battery',
     name: 'Акумулятор',
+    about: 'Збирає зайвий струм і віддає, коли бракує, — наприклад, уночі.',
     size: [1, 1],
     solid: [{ dx: 0, dz: 0, h: 2 }],
     count: 0,
@@ -184,6 +194,7 @@ const CARDS = {
   generator: {
     id: 'generator',
     name: 'Двигун-генератор',
+    about: 'Завжди дає багато струму (+6) і тихо туркоче.',
     size: [2, 2],
     solid: [
       { dx: 0, dz: 0, h: 2 },
@@ -201,6 +212,7 @@ const CARDS = {
   bigspeaker: {
     id: 'bigspeaker',
     name: 'Велика колонка',
+    about: 'Велика колонка на струмі: її чути далеко, монстри навколо танцюють.',
     size: [1, 1],
     solid: [{ dx: 0, dz: 0, h: 3 }],
     count: 0,
@@ -213,6 +225,7 @@ const CARDS = {
   dancefloor: {
     id: 'dancefloor',
     name: 'Танцпол',
+    about: 'Плитки світяться в ритм музики. Стань на нього — і герої танцюють.',
     size: [3, 3],
     solid: [],
     count: 0,
@@ -225,6 +238,7 @@ const CARDS = {
   discoball: {
     id: 'discoball',
     name: 'Диско-куля',
+    about: 'Дзеркальна куля: уночі по землі біжать кольорові плями.',
     size: [1, 1],
     solid: [{ dx: 0, dz: 0, h: 3 }],
     count: 0,
@@ -236,6 +250,7 @@ const CARDS = {
   djconsole: {
     id: 'djconsole',
     name: 'Пульт діджея',
+    about: 'Біля нього нота перемикає пісню: диско, рок, весела, колискова.',
     size: [2, 1],
     solid: [
       { dx: 0, dz: 0, h: 1 },
@@ -251,6 +266,7 @@ const CARDS = {
   tesla: {
     id: 'tesla',
     name: 'Тесла-вежа',
+    about: 'Б’є блискавкою найближчого монстра (до 7 блоків).',
     size: [1, 1],
     solid: [{ dx: 0, dz: 0, h: 4 }],
     count: 0,
@@ -263,6 +279,7 @@ const CARDS = {
   trafficlight: {
     id: 'trafficlight',
     name: 'Світлофор',
+    about: 'Коли горить червоне, монстри поруч зупиняються і чекають.',
     size: [1, 1],
     solid: [{ dx: 0, dz: 0, h: 3 }],
     count: 0,
@@ -276,6 +293,7 @@ const CARDS = {
   garland: {
     id: 'garland',
     name: 'Гірлянда',
+    about: 'Лампочки блимають у ритм. Уночі поруч не з’являються монстри.',
     size: [3, 1],
     solid: [
       { dx: 0, dz: 0, h: 3 },
@@ -289,6 +307,7 @@ const CARDS = {
   carousel: {
     id: 'carousel',
     name: 'Карусель',
+    about: 'Крутиться разом із героями; поки катаєшся, сердечка швидко повертаються.',
     size: [3, 3],
     solid: [],
     count: 0,
@@ -300,6 +319,7 @@ const CARDS = {
   searchlight: {
     id: 'searchlight',
     name: 'Прожектор',
+    about: 'Уночі промінь шукає монстрів; спійманий завмирає на 3 секунди.',
     size: [1, 1],
     solid: [{ dx: 0, dz: 0, h: 2 }],
     count: 0,
@@ -311,6 +331,7 @@ const CARDS = {
   trampoline: {
     id: 'trampoline',
     name: 'Батут',
+    about: 'Підкидає героїв на 8 блоків — згори карта відкривається ширше.',
     size: [2, 2],
     solid: [],
     count: 0,
@@ -322,6 +343,7 @@ const CARDS = {
   treehouse: {
     id: 'treehouse',
     name: 'Дерево-хатинка',
+    about: 'Уночі тут можна спати; поруч безпечно, і сердечка повертаються.',
     size: [3, 3],
     solid: [{ dx: 1, dz: 1, h: 2 }],
     count: 0,
@@ -333,6 +355,7 @@ const CARDS = {
   golem: {
     id: 'golem',
     name: "Кам'яний голем",
+    about: 'Кам’яний друг гупає об землю біля найближчого монстра.',
     size: [2, 2],
     solid: [
       { dx: 0, dz: 0, h: 2 },
@@ -348,6 +371,7 @@ const CARDS = {
   robohelper: {
     id: 'robohelper',
     name: 'Робот-помічник',
+    about: 'Ходить разом із героями і стріляє в монстрів.',
     size: [1, 1],
     solid: [],
     count: 0,
@@ -358,6 +382,7 @@ const CARDS = {
   saucer: {
     id: 'saucer',
     name: 'Літаюча тарілка',
+    about: 'Поруч з’являється кнопка польоту: обери на карті, куди летіти.',
     size: [3, 3],
     solid: [
       { dx: 0, dz: 0, h: 2 },
@@ -379,6 +404,7 @@ const CARDS = {
   wifi: {
     id: 'wifi',
     name: 'Wi-Fi антена',
+    about: 'Біля антени з’являється пульт: нічне шоу з вогнями й феєрверком.',
     size: [1, 1],
     solid: [{ dx: 0, dz: 0, h: 4 }],
     count: 0,
@@ -391,6 +417,7 @@ const CARDS = {
   transmitter: {
     id: 'transmitter',
     name: 'Передавач',
+    about: 'Переносить героїв на інший передавач — тап по ньому на карті.',
     size: [3, 3],
     solid: [],
     count: 0,
@@ -403,6 +430,7 @@ const CARDS = {
   radar: {
     id: 'radar',
     name: 'Радар',
+    about: 'Розганяє хмарки на карті й знаходить села, замки та маяки.',
     size: [2, 2],
     solid: [
       { dx: 0, dz: 0, h: 3 },
@@ -421,6 +449,7 @@ const CARDS = {
   picnic: {
     id: 'picnic',
     name: 'Пікнік',
+    about: 'Біля нього з’являється яблуко: герої їдять, і всі сердечка повні.',
     size: [3, 3],
     solid: [],
     count: 0,
@@ -432,6 +461,7 @@ const CARDS = {
   icecream: {
     id: 'icecream',
     name: 'Кіоск з морозивом',
+    about: 'Морозиво: сердечка повні і 20 секунд швидкого бігу.',
     // the kiosk along the back row; two stools and the cat's spot at its counter in front
     size: [3, 2],
     solid: [
@@ -449,6 +479,7 @@ const CARDS = {
   swings: {
     id: 'swings',
     name: 'Гойдалка',
+    about: 'Гойдайся — і блискавка заряджається втричі швидше.',
     size: [4, 1],
     solid: [
       { dx: 0, dz: 0, h: 3 },
@@ -463,6 +494,7 @@ const CARDS = {
   station: {
     id: 'station',
     name: 'Електростанція',
+    about: 'Дуже багато струму (+20) і дістає далеко — на 24 блоки.',
     size: [3, 3],
     solid: [
       { dx: 0, dz: 0, h: 3 },
