@@ -56,6 +56,35 @@ export function taskFor(level: number, got: readonly string[] = []): { kind: Tas
   return { kind, goal: Math.min(t.cap, t.base + t.step * circle) };
 }
 
+/** The save's counters a kit task counts from (they only grow, so nothing can be undone). */
+export interface TaskCounters {
+  defeated: Partial<Record<string, number>>;
+  stats: { coins: number; slept: number; danced: number };
+  explored: readonly string[];
+  boss: { level: number; defeatedDay: number | null };
+  lit: readonly string[];
+}
+
+export function taskCount(s: TaskCounters, kind: TaskKind): number {
+  switch (kind) {
+    case 'monsters':
+      return Object.values(s.defeated).reduce<number>((a, b) => a + (b ?? 0), 0);
+    case 'coins':
+      return s.stats.coins;
+    case 'places':
+      return s.explored.length;
+    case 'nights':
+      return s.stats.slept;
+    case 'boss':
+      // the boss comes back a level higher each time it was beaten
+      return s.boss.level - 1 + (s.boss.defeatedDay !== null ? 1 : 0);
+    case 'lighthouse':
+      return s.lit.length;
+    case 'dance':
+      return Math.floor(s.stats.danced);
+  }
+}
+
 export interface Reward {
   /** Stored in the save's `got` list. */
   id: string;

@@ -4,6 +4,8 @@ import { readParams } from '../core/params';
 import { goFullscreen } from './fullscreen';
 import type { Input } from '../core/input';
 import { sfx } from '../voice/sfx';
+import type { Section } from '../content/contents';
+import { Contents } from './contents';
 import { Guide, type GuideCard } from './guide';
 import { NINE, SPRITES, type SpriteName } from './hudSprites';
 import type { Portraits } from './portraits';
@@ -354,6 +356,8 @@ export class Hud {
   onMapTap: (() => void) | null = null;
   /** A tap on the tale piece (systems/tales.ts says the step's ask again). */
   onTaleTap: (() => void) | null = null;
+  /** «Зміст гри» was opened: what it lists now (content/contents.ts). */
+  onContents: (() => Section[]) | null = null;
 
   private gHearts: Group;
   private gMap: Group;
@@ -425,8 +429,10 @@ export class Hud {
   private kitSelected: string | null = null;
   private kitLitN = -1;
   private guide: Guide;
+  private contents: Contents;
   private soundPiece: Piece;
   private helpPiece: Piece;
+  private contentsPiece: Piece;
   private diffPieces = new Map<Difficulty, Piece>();
   private restartPiece: Piece;
   private restartLit: HTMLImageElement[] = [];
@@ -464,7 +470,7 @@ export class Hud {
   constructor(
     parent: HTMLElement,
     private input: Input,
-    _portraits: Portraits,
+    portraits: Portraits,
   ) {
     setSpringVars();
     const r = this.root;
@@ -572,8 +578,6 @@ export class Hud {
     this.kitPiece = this.gAct.add('kit', COL_X, KIT_Y - TOP);
     this.kitGlow = div('glow');
     this.kitPiece.lf.insertBefore(this.kitGlow, this.kitPiece.pr);
-    this.cancelPiece = this.gAct.add('close', SIDE_X + 6, KIT_Y + 6, 'tile6-sh');
-    this.cancelPiece.el.classList.add('small', 'hidden');
     this.promptPiece = this.gAct.add('moon', SIDE_X, BOLT_Y + 6, 'tile6-sh');
     this.promptPiece.el.classList.add('prompt', 'hidden');
     const jump = this.gAct.add('jump', SIDE_X + 16, -70, 'tile6-sh');
@@ -589,6 +593,9 @@ export class Hud {
     // food: an apple by the picnic, a cone by the ice-cream kiosk (after the note, before the fly piece)
     this.foodPiece = this.gAct.add('food' as SpriteName, SIDE_X + 6, KIT_Y + 6, 'tile6-sh');
     this.foodPiece.el.classList.add('prompt', 'hidden');
+    // the ✕ last: it lies on top of the pieces sharing its place, so placing can always be cancelled
+    this.cancelPiece = this.gAct.add('close', SIDE_X + 6, KIT_Y + 6, 'tile6-sh');
+    this.cancelPiece.el.classList.add('small', 'hidden');
     this.gAct.seal();
     this.press(
       bow,
@@ -620,29 +627,32 @@ export class Hud {
     // The kit plate: a studded plate with the buildings in the box, filled by setKitItems.
     this.gKit = new Group(r, 'g-kit hidden');
 
-    // The pause menu: picture pieces on a plate. ▶ continue, sound, «?» guide, the door, «start again»
-    // (a sprout on its own stud ring, held while the ring fills); difficulty below.
+    // The pause menu: picture pieces on a plate. ▶ continue, sound, «?» guide, «Зміст гри» (the
+    // parents' list), the door, «start again» (a sprout on its own stud ring, held while the ring
+    // fills); difficulty below.
     this.menu = div('pmenu hidden', r);
     this.menu.addEventListener('pointerdown', (e) => {
       if (e.target === this.menu) this.setPaused(false);
     });
     this.gMenu = new Group(this.menu, 'g-menu');
-    const mw = 740;
+    const mw = 858;
     const mh = 330;
     const mp = ninePlate(this.gMenu.inner, mw, mh);
     (mp.previousElementSibling as HTMLElement).style.cssText += ';left:14px;top:18px';
     const play = new Piece(this.gMenu.inner, 'play', 112, 118, 'big-sh');
     this.soundPiece = new Piece(this.gMenu.inner, 'sound-on', 250, 112, 'tile6-sh');
     this.helpPiece = new Piece(this.gMenu.inner, 'help', 368, 112, 'tile6-sh');
+    this.contentsPiece = new Piece(this.gMenu.inner, 'contents', 486, 112, 'tile6-sh');
     // the door out (the house now means «home» through the portal)
-    const exit = new Piece(this.gMenu.inner, 'exit', 486, 112, 'tile6-sh');
+    const exit = new Piece(this.gMenu.inner, 'exit', 604, 112, 'tile6-sh');
     this.press(play, play.target(124), () => this.setPaused(false), { ui: true, paused: true });
     this.press(this.soundPiece, this.soundPiece.target(104), () => this.toggleSound(), { ui: true, paused: true });
     this.press(this.helpPiece, this.helpPiece.target(104), () => this.openGuide(), { ui: true, paused: true });
+    this.press(this.contentsPiece, this.contentsPiece.target(104), () => this.openContents(), { ui: true, paused: true });
     this.press(exit, exit.target(104), () => this.exit(), { ui: true, paused: true });
-    const ring = new Piece(this.gMenu.inner, 'ring', 636, 112 + TOP);
+    const ring = new Piece(this.gMenu.inner, 'ring', 754, 112 + TOP);
     for (let i = 0; i < 8; i++) this.restartLit.push(ring.layer(`ring-lit-${i}` as SpriteName, 'sp lit'));
-    this.restartPiece = new Piece(this.gMenu.inner, 'restart', 636, 112, 'tile6-sh');
+    this.restartPiece = new Piece(this.gMenu.inner, 'restart', 754, 112, 'tile6-sh');
     this.press(this.restartPiece, this.restartPiece.target(120), () => this.holdRestart(true), { ui: true, paused: true, up: () => this.holdRestart(false) });
     this.setRestartStuds(0);
     LEVELS.forEach((lvl, i) => {
@@ -668,6 +678,7 @@ export class Hud {
     parent.appendChild(r);
     // The picture guide lives outside the HUD layer (its own touches), above the pause menu.
     this.guide = new Guide(parent, () => this.k);
+    this.contents = new Contents(parent, portraits);
 
     // Flash and fade live outside the HUD: they work even when it is hidden.
     this.flashEl = div('hud-flash', parent);
@@ -1058,9 +1069,17 @@ export class Hud {
     return this.guide.isOpen;
   }
 
+  /** «Зміст гри», over the pause menu (which stays open under it). */
+  openContents(): void {
+    const sections = this.onContents?.();
+    if (!sections || this.contents.isOpen) return;
+    this.contents.open(sections, () => undefined);
+  }
+
   private *menuPieces(): Iterable<Piece> {
     yield this.soundPiece;
     yield this.helpPiece;
+    yield this.contentsPiece;
     yield this.restartPiece;
     yield* this.diffPieces.values();
   }
@@ -1415,7 +1434,11 @@ export class Hud {
     if (kind === this.foodOn) return;
     this.foodOn = kind;
     if (kind) setSprite(this.foodPiece.img, kind as SpriteName);
-    this.foodShown = false;
+    // hide it for real, so syncFly drops it in again with the new picture (or leaves it hidden)
+    if (this.foodShown) {
+      this.foodShown = false;
+      this.foodPiece.el.classList.add('hidden');
+    }
     this.syncFly();
   }
 

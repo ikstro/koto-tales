@@ -2,6 +2,7 @@
     kind: '{{id}}',
     model: { kind: 'parts', id: '{{id}}' },
     name: 'TODO',
+    about: 'TODO',
     hp: 5,
     wanderSpeed: 1,
     chaseSpeed: 2.3,

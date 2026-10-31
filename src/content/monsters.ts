@@ -5,6 +5,8 @@ export interface MonsterCard {
   kind: string;
   model: ModelRef;
   name: string;
+  /** What it is like, one sentence for the parents (the «Зміст гри» page). */
+  about: string;
   hp: number;
   /** Blocks per second while wandering / while chasing a hero. */
   wanderSpeed: number;
@@ -42,6 +44,7 @@ export const MONSTERS = {
     kind: 'zombie',
     model: { kind: 'parts', id: 'zombie' },
     name: 'Зомбік',
+    about: 'Найчастіший монстр: повільний, ходить і вдень, і вночі.',
     hp: 5,
     wanderSpeed: 1,
     chaseSpeed: 2.3,
@@ -60,6 +63,7 @@ export const MONSTERS = {
     kind: 'skeleton',
     model: { kind: 'parts', id: 'skeleton' },
     name: 'Кістлявчик',
+    about: 'Кидає кістки здалеку і тримається на відстані.',
     hp: 4,
     wanderSpeed: 1.2,
     chaseSpeed: 2.7,
@@ -79,6 +83,7 @@ export const MONSTERS = {
     kind: 'spider',
     model: { kind: 'parts', id: 'spider' },
     name: 'Павучок',
+    about: 'Маленький і дуже швидкий.',
     hp: 3,
     wanderSpeed: 1.6,
     chaseSpeed: 3.5,
@@ -97,6 +102,7 @@ export const MONSTERS = {
     kind: 'sirenhead',
     model: { kind: 'parts', id: 'sirenhead' },
     name: 'Сиреноголовий',
+    about: 'Ходить лише вночі. Стріли від нього відскакують — перемагає тільки блискавка.',
     hp: 6,
     wanderSpeed: 1,
     chaseSpeed: 2.2,

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { HeroId } from '../contracts';
 import { HERO_STATS } from '../content/heroes';
 import { MUSIC, type BuildingId } from '../content/buildings';
+import { contentsOf } from '../content/contents';
 import { updateBoss } from '../systems/boss';
 import { updateCombat } from '../systems/combat';
 import { updateDayNight } from '../systems/daynight';
@@ -255,6 +256,14 @@ export class Game {
       if (held) this.restart();
       else voice.say('restart_hold', { priority: 9, interrupt: true });
     };
+    // «Зміст гри»: everything in the game, where this save stands, the way to what is far away
+    ctx.hud.onContents = () =>
+      contentsOf(ctx.save, {
+        home: ctx.house ? [ctx.house.centre.x, ctx.house.centre.z] : null,
+        villages: ctx.world.villages?.() ?? [],
+        castles: ctx.world.castles?.() ?? [],
+        boss: ctx.save.boss.site,
+      });
     // «Exit»: save, Пупся says goodbye in the dark, then the game closes. A page in a browser tab
     // may not close itself: then it lets go of fullscreen and starts afresh at the title.
     ctx.hud.onExit = () => {

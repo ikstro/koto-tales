@@ -14,11 +14,11 @@ import type { LineId } from './lines';
 
 /** Things lying about for a tale (assets/tales.ts models; the picture is a HUD sprite). */
 export type TaleItem = 'fish' | 'scroll' | 'yarn' | 'chest';
-export const TALE_ITEMS: Record<TaleItem, { icon: string }> = {
-  fish: { icon: 'item-fish' },
-  scroll: { icon: 'item-scroll' },
-  yarn: { icon: 'item-yarn' },
-  chest: { icon: 'chest' },
+export const TALE_ITEMS: Record<TaleItem, { icon: string; /** After a number: one, two to four, five and more (the «Зміст гри» page). */ words: [string, string, string] }> = {
+  fish: { icon: 'item-fish', words: ['рибку', 'рибки', 'рибок'] },
+  scroll: { icon: 'item-scroll', words: ['шматок карти', 'шматки карти', 'шматків карти'] },
+  yarn: { icon: 'item-yarn', words: ['клубочок', 'клубочки', 'клубочків'] },
+  chest: { icon: 'chest', words: ['скриню', 'скрині', 'скринь'] },
 };
 
 /** Where a step happens: home, around the hero when it begins, the nearest dark lighthouse, a village. */
@@ -48,6 +48,8 @@ export type TaleFrom = 'pupsia' | Race;
 
 export interface TaleCard {
   id: string;
+  /** Its title in the book, for the parents (the «Зміст гри» page). */
+  name: string;
   from: TaleFrom;
   /** Льоша made it up: it comes before the others, and its page in the book has a gold rim. */
   lyosha?: boolean;
@@ -73,6 +75,7 @@ export const PROLOGUE = 'fish';
 export const TALES: TaleCard[] = [
   {
     id: 'fish',
+    name: 'Пупсині рибки',
     from: 'pupsia',
     open: 'tale_fish_open',
     steps: [
@@ -88,6 +91,7 @@ export const TALES: TaleCard[] = [
   },
   {
     id: 'treasure',
+    name: 'Пупсин скарб',
     from: 'pupsia',
     open: 'tale_treasure_open',
     steps: [
@@ -101,6 +105,7 @@ export const TALES: TaleCard[] = [
   },
   {
     id: 'party',
+    name: 'Дискотека для ельфів',
     from: 'elves',
     needs: ['boombox', 'bigspeaker'],
     open: 'tale_party_open',
@@ -115,6 +120,7 @@ export const TALES: TaleCard[] = [
   },
   {
     id: 'guard',
+    name: 'Нічна варта',
     from: 'pupsia',
     open: 'tale_guard_open',
     steps: [
@@ -128,6 +134,7 @@ export const TALES: TaleCard[] = [
   },
   {
     id: 'gnomes',
+    name: 'Гноми кличуть',
     from: 'gnomes',
     open: 'tale_gnomes_open',
     steps: [{ kind: 'visit', at: 'gnomes', ask: 'tale_gnomes_1', picture: 'folk-gnomes' }],
@@ -138,6 +145,7 @@ export const TALES: TaleCard[] = [
   },
   {
     id: 'yarn',
+    name: 'Клубочки',
     from: 'pupsia',
     open: 'tale_yarn_open',
     steps: [
@@ -151,6 +159,7 @@ export const TALES: TaleCard[] = [
   },
   {
     id: 'light',
+    name: 'Маяк для гномів',
     from: 'gnomes',
     needs: ['windmill', 'generator', 'solar'],
     open: 'tale_light_open',
@@ -162,6 +171,7 @@ export const TALES: TaleCard[] = [
   },
   {
     id: 'lamps',
+    name: 'Ліхтарі роботів',
     from: 'robots',
     needs: ['lamp'],
     open: 'tale_lamps_open',
@@ -176,6 +186,7 @@ export const TALES: TaleCard[] = [
   },
   {
     id: 'robots',
+    name: 'Роботи кличуть',
     from: 'robots',
     open: 'tale_robots_open',
     steps: [{ kind: 'visit', at: 'robots', ask: 'tale_robots_1', picture: 'folk-robots' }],
@@ -186,6 +197,7 @@ export const TALES: TaleCard[] = [
   },
   {
     id: 'aliens',
+    name: 'Інопланетяни кличуть',
     from: 'aliens',
     open: 'tale_aliens_open',
     steps: [{ kind: 'visit', at: 'aliens', ask: 'tale_aliens_1', picture: 'folk-aliens' }],

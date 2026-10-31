@@ -1,6 +1,6 @@
 import { BUILDINGS } from '../content/buildings';
 import { giveCompanion } from './companions';
-import { TASKS, nextReward, taskFor, type Reward, type TaskKind } from '../content/progress';
+import { TASKS, nextReward, taskCount, taskFor, type Reward, type TaskKind } from '../content/progress';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
 import { sfx } from '../voice/sfx';
@@ -19,26 +19,7 @@ let lastLit = -1;
 /** The level whose task the voice has already named this session. */
 let told = -1;
 
-function counter(ctx: Ctx, kind: TaskKind): number {
-  const s = ctx.save;
-  switch (kind) {
-    case 'monsters':
-      return Object.values(s.defeated).reduce((a, b) => a + (b ?? 0), 0);
-    case 'coins':
-      return s.stats.coins;
-    case 'places':
-      return s.explored.length;
-    case 'nights':
-      return s.stats.slept;
-    case 'boss':
-      // the boss comes back a level higher each time it was beaten
-      return s.boss.level - 1 + (s.boss.defeatedDay !== null ? 1 : 0);
-    case 'lighthouse':
-      return s.lit.length;
-    case 'dance':
-      return Math.floor(s.stats.danced);
-  }
-}
+const counter = (ctx: Ctx, kind: TaskKind): number => taskCount(ctx.save, kind);
 
 const next = (ctx: Ctx): Reward =>
   nextReward(
