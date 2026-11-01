@@ -177,9 +177,16 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
   ];
   const nextIdx = REWARDS.findIndex((r) => !p.got.includes(r.id));
   REWARDS.forEach((r, i) => {
+    const got = p.got.includes(r.id);
+    const status = got ? 'Отримано' : i === nextIdx ? `Наступна нагорода: ${taskNow}` : `Нагорода скриньки №${i + 1}, після «${kit[kit.length - 1].title}»`;
+    // a friend joins the party (the friends section shows it with the heart)
+    if (r.companion) {
+      const c = COMPANIONS[r.companion];
+      kit.push({ key: `reward-${r.id}`, pic: { sprite: 'heart' }, title: c.name, about: c.about, state: got ? 'have' : i === nextIdx ? 'now' : 'later', status, line: r.line });
+      return;
+    }
     const b = r.items?.[0][0];
     const n = r.items?.[0][1] ?? 1;
-    const got = p.got.includes(r.id);
     const title = r.ability === 'portal' ? 'Портал' : `${BUILDINGS[b!].name}${n > 1 ? ` ×${n}` : ''}${r.items && r.items.length > 1 ? ` і ${BUILDINGS[r.items[1][0]].name.toLowerCase()} ×${r.items[1][1]}` : ''}`;
     kit.push({
       key: `reward-${r.id}`,
@@ -187,7 +194,7 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
       title,
       about: r.ability === 'portal' ? 'Арка у дворі. Здалеку торкнись будиночка на карті — і ти вдома; через арку — назад.' : BUILDINGS[b!].about,
       state: got ? 'have' : i === nextIdx ? 'now' : 'later',
-      status: got ? 'Отримано' : i === nextIdx ? `Наступна нагорода: ${taskNow}` : `Нагорода скриньки №${i + 1}, після «${kit[kit.length - 1].title}»`,
+      status,
       line: r.ability === 'portal' ? 'guide_portal' : r.line,
     });
   });

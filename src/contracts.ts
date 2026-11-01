@@ -282,7 +282,7 @@ export interface HouseBlueprint {
 export type Speaker =
   | 'narrator' | 'lyosha' | 'solomiia' | 'pupsia' | 'david' | 'monster'
   | 'elf' | 'elf_kid' | 'gnome' | 'robot' | 'alien' | 'alien_kid'
-  | 'elf_queen' | 'gnome_king' | 'robot_chief' | 'alien_captain';
+  | 'elf_queen' | 'gnome_king' | 'robot_chief' | 'alien_captain' | 'sirko';
 
 /** Entry of src/content/lines.json — the single source for voice generation. */
 export interface Line {

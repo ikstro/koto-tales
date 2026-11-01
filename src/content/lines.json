@@ -333,5 +333,8 @@
   "tale_aliens_thanks": { "speaker": "alien", "text": "Земляни прийшли! Ми дуже раді!" },
   "tale_aliens_retell": { "speaker": "narrator", "text": "Казка про інопланетян: ми дійшли до кратера і подружилися з ними." },
   "monster_sirenhead_spot": { "speaker": "monster", "text": "У-у-у! Я Сиреноголовий! Чому мене ніхто не обіймає?" },
-  "defeat_sirenhead": { "speaker": "narrator", "text": "Сиреноголового переможено! Стало тихо." }
+  "defeat_sirenhead": { "speaker": "narrator", "text": "Сиреноголового переможено! Стало тихо." },
+  "companion_sirko_hi": { "speaker": "sirko", "text": "Гав-гав! Я Сірко! Охороняю ваш дім від монстрів!" },
+  "companion_sirko_yay": { "speaker": "sirko", "text": "Гав! Геть, монстре!" },
+  "reward_sirko": { "speaker": "narrator", "text": "Це Сірко! Вірний пес охоронятиме ваш дім від монстрів." }
 }

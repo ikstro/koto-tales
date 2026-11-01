@@ -28,6 +28,16 @@ export interface CompanionCard {
   lines: { hi: LineId; yay: LineId };
 }
 
-export const COMPANIONS: Record<string, CompanionCard> = {};
+export const COMPANIONS: Record<string, CompanionCard> = {
+  sirko: {
+    id: 'sirko',
+    name: 'Сірко',
+    about: 'Вірний пес із будки біля дому: ходить разом із героями й проганяє монстрів.',
+    model: { kind: 'parts', id: 'sirko' },
+    speaker: 'sirko',
+    trick: { kind: 'shoot', reach: 9 },
+    lines: { hi: 'companion_sirko_hi', yay: 'companion_sirko_yay' },
+  },
+};
 
 export type CompanionId = string;
