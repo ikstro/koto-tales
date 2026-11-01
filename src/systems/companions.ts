@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { Arrow } from '../actors/entities';
-import { makeBody, placeOnGround } from '../actors/physics';
+import { Arrow, turnTowards, yawOf, type Monster } from '../actors/entities';
+import { makeBody, placeOnGround, stepBody } from '../actors/physics';
 import { createArrow } from '../assets/props';
 import type { CharacterModel } from '../contracts';
 import { COMPANIONS, type CompanionCard } from '../content/companions';
@@ -29,11 +29,20 @@ interface Walker extends Follower {
 
 const walkers: Walker[] = [];
 const tmp = new THREE.Vector3();
+const tmp2 = new THREE.Vector3();
 /** «Yay» at most this often (s): the trick is often, the line is a treat. */
 const YAY_EVERY = 75;
 /** A healer reaches hurt heroes this close. */
 const HEAL_NEAR = 6;
 const PUFF = 0xffe3a3;
+/** Where a guard stands: this many blocks from its building's centre, on its front side. */
+const GUARD_AT = 1.15;
+const GUARD_DIRS: readonly (readonly [number, number])[] = [
+  [0, 1],
+  [-1, 0],
+  [0, -1],
+  [1, 0],
+];
 
 function spawn(ctx: Ctx, id: string): void {
   const card = COMPANIONS[id];
@@ -102,13 +111,50 @@ function yay(w: Walker): void {
   voice.say(w.card.lines.yay, { priority: 3 });
 }
 
+/** Where a guarding friend belongs: by the front of its building; false while none stands. */
+function guardPost(ctx: Ctx, w: Walker, out: THREE.Vector3): boolean {
+  const id = w.card.guards;
+  if (!id) return false;
+  const b = ctx.save.placed.find((p) => p.id === id);
+  if (!b) return false;
+  const d = GUARD_DIRS[b.rot & 3]!;
+  out.set(b.x + 0.5 + d[0] * GUARD_AT, b.y, b.z + 0.5 + d[1] * GUARD_AT);
+  return true;
+}
+
+/** One frame of guarding its post: over there if far (a pop when the kennel moved), then rest. */
+function stepGuard(ctx: Ctx, w: Walker, post: THREE.Vector3, dt: number): number {
+  const dx = post.x - w.body.pos.x;
+  const dz = post.z - w.body.pos.z;
+  const dist = Math.hypot(dx, dz);
+  if (dist > 24) placeOnGround(ctx.world, w.body, post.x, post.z);
+  let vx = 0;
+  let vz = 0;
+  if (dist > 0.8) {
+    const spd = Math.min(4.5, dist * 2.2 + 0.5);
+    vx = (dx / dist) * spd;
+    vz = (dz / dist) * spd;
+    w.yaw = turnTowards(w.yaw, yawOf(dx, dz), dt * 10);
+  }
+  const k = 1 - Math.exp(-dt * 10);
+  w.body.vel.x += (vx - w.body.vel.x) * k;
+  w.body.vel.z += (vz - w.body.vel.z) * k;
+  stepBody(ctx.world, w.body, dt);
+  return Math.hypot(w.body.vel.x, w.body.vel.z);
+}
+
 export function updateCompanions(ctx: Ctx, dt: number): void {
   if (!walkers.length) return;
   const dancers = new Set(ctx.monsters.filter((m) => m.state === 'dance'));
   walkers.forEach((w, i) => {
     w.trickT += dt;
     w.yayT += dt;
-    const speed = stepFollower(ctx, w, followSlot(ctx, i + 1, tmp, 3.2), dt, PUFF);
+    const guarding = guardPost(ctx, w, tmp2);
+    const speed = guarding
+      ? stepGuard(ctx, w, tmp2, dt)
+      : stepFollower(ctx, w, followSlot(ctx, i + 1, tmp, 3.2), dt, PUFF);
+    // resting at its post: lying through the day, up and watching at night
+    if (guarding && speed < 0.1 && !ctx.sleeping) w.model.play(ctx.clock.daylight < 0.35 ? 'idle' : 'sleep');
     const t = w.card.trick;
     if (t.kind === 'shoot') {
       if (shootStep(ctx, w, t.reach, dancers, dt, (to) => shoot(ctx, w, to))) yay(w);

@@ -217,6 +217,8 @@ export const SPRITES = {
   'fire-david': {w: 160,h: 160,oy: 0,x: 26,y: 23,cw: 108,ch: 101},
   'mark-david': {w: 76,h: 76,oy: 0,x: 12,y: 12,cw: 52,ch: 46},
   'contents': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
+  'b-doghouse': {w: 200,h: 200,oy: 1,x: 36,y: 56,cw: 128,ch: 131},
+  'b-doghouse-sh': {w: 200,h: 200,oy: 1,x: 44,y: 92,cw: 156,ch: 108},
 } satisfies Record<string, SpriteMeta>;
 
 export type SpriteName = keyof typeof SPRITES;

@@ -55,7 +55,7 @@ describe('contents: everything in the game, for the parents', () => {
 
   it('the box moves on: the windmill had, the lamps next', () => {
     const save = freshSave();
-    save.progress = { level: 2, kind: 'places', start: 0, got: ['portal', 'windmill'] };
+    save.progress = { level: 2, kind: 'places', start: 0, got: ['portal', 'doghouse', 'windmill'] };
     save.kit.windmill = 1;
     save.kit.pole = 4;
     save.explored = save.explored.slice(0, 0).concat(['1,1', '2,2', '3,3']);

@@ -109,6 +109,17 @@ const CARDS = {
     rewardLine: 'reward_tent',
     sleep: true,
   },
+  doghouse: {
+    id: 'doghouse',
+    name: 'Будка',
+    about: 'Дім для Сірка: пес живе біля будки й стереже дім від монстрів.',
+    size: [1, 1],
+    solid: [{ dx: 0, dz: 0, h: 1 }],
+    count: 0,
+    sprite: 'b-doghouse',
+    firstLine: 'first_doghouse',
+    rewardLine: 'reward_doghouse',
+  },
   boombox: {
     id: 'boombox',
     name: 'Колонка',

@@ -19,6 +19,7 @@ import { createGolem, createRobohelper, createSaucer, createTreehouse } from './
 import { createRadar, createTransmitter, createWifi } from './signal';
 import { createIcecream, createPicnic, createSwings } from './food';
 import { createStation } from './station';
+import { createDoghouse } from './doghouse';
 
 /** How a building's power network is doing (systems/power.ts), for its lights and motion. */
 export interface PowerView {
@@ -92,6 +93,7 @@ export interface BuildingModel {
  */
 export const BUILDING_MODELS: Record<BuildingId, (skin: Skin) => BuildingModel> = {
   tent: createTent,
+  doghouse: createDoghouse,
   boombox: createBoombox,
   // the lantern is a block in the world; this is only its ghost while placing
   lantern: () => createLanternGhost(),

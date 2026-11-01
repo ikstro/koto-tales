@@ -104,6 +104,8 @@ export interface Reward {
 /** Rewards in order; new stages add cards here (a save gets them on its next level-ups). */
 export const REWARDS: Reward[] = [
   { id: 'portal', line: 'reward_portal', ability: 'portal' },
+  // the yard dog's kennel, right after the tale «Пес Сірко» brings him home
+  { id: 'doghouse', line: 'reward_doghouse', items: [['doghouse', 1]] },
   // stage B1: power
   { id: 'windmill', line: 'reward_windmill', items: [['windmill', 1], ['pole', 4]] },
   { id: 'lamps', line: 'reward_lamp', items: [['lamp', 3]] },

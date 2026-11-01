@@ -97,6 +97,9 @@ lines `companion_<id>_hi` (joins) and `companion_<id>_yay` (does its trick). Giv
 - `{ kind: 'shoot', reach }` — shoots the nearest monster (the robot helper's way).
 - `{ kind: 'heal', every }` — every `every` s, a hurt hero near it gets a heart.
 - `{ kind: 'light', reach }` — at night no monster appears within `reach` of it.
+- `guards: '<building id>'` — while one of these buildings stands in the world the friend stays at it
+  and does its trick there (the yard dog at its будка): lying by it through the day, up and watching
+  at night. Until one is put up (and if it is ever taken back) it walks with the party.
 
 ## Tale — `src/content/tales.ts`
 Card `TaleCard` (`lyosha: true` puts it first); lines `tale_<id>_open`, `tale_<id>_1..n`, `tale_<id>_thanks`,

@@ -1,4 +1,5 @@
 import type { ModelRef, Speaker } from '../contracts';
+import type { BuildingId } from './buildings';
 import type { LineId } from './lines';
 
 /**
@@ -24,6 +25,12 @@ export interface CompanionCard {
   model: ModelRef;
   speaker: Speaker;
   trick: Trick;
+  /**
+   * While one of these buildings stands in the world the friend stays at it and does its trick
+   * there (the yard dog at its будка): lying by it through the day, up and watching at night.
+   * Without one it walks with the party.
+   */
+  guards?: BuildingId;
   /** `hi`: said when it joins; `yay`: now and then when it does its trick. */
   lines: { hi: LineId; yay: LineId };
 }
@@ -36,6 +43,7 @@ export const COMPANIONS: Record<string, CompanionCard> = {
     model: { kind: 'parts', id: 'sirko' },
     speaker: 'sirko',
     trick: { kind: 'shoot', reach: 9 },
+    guards: 'doghouse',
     lines: { hi: 'companion_sirko_hi', yay: 'companion_sirko_yay' },
   },
 };
