@@ -90,6 +90,21 @@ export const TALES: TaleCard[] = [
     coins: 10,
   },
   {
+    id: 'dog',
+    name: 'Пес Сірко',
+    from: 'pupsia',
+    open: 'tale_dog_open',
+    steps: [
+      { kind: 'defend', at: 'here', goal: 3, ask: 'tale_dog_1', picture: 'zombie' },
+      { kind: 'visit', at: 'home', ask: 'tale_dog_2', picture: 'map-house' },
+    ],
+    thanks: 'tale_dog_thanks',
+    retell: 'tale_dog_retell',
+    sticker: 'heart',
+    coins: 10,
+    companion: 'sirko',
+  },
+  {
     id: 'treasure',
     name: 'Пупсин скарб',
     from: 'pupsia',

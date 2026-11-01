@@ -36,16 +36,12 @@ describe('the kit box goal', () => {
     expect(REWARDS.map((r) => r.id).slice(6, 12)).toEqual(['bigspeaker', 'dancefloor', 'trafficlight', 'discoball', 'tesla', 'djconsole']);
   });
 
-  it('then a friend joins: Сірко the yard dog', () => {
-    expect(REWARDS[12]).toMatchObject({ id: 'sirko', companion: 'sirko' });
-  });
-
   it('then the signal: the radar, the Wi-Fi, two transmitters', () => {
-    expect(REWARDS.slice(13, 16).map((r) => r.items)).toEqual([[['radar', 1]], [['wifi', 1]], [['transmitter', 2]]]);
+    expect(REWARDS.slice(12, 15).map((r) => r.items)).toEqual([[['radar', 1]], [['wifi', 1]], [['transmitter', 2]]]);
   });
 
   it('then food, the swings, and last the power station', () => {
-    expect(REWARDS.slice(16).map((r) => r.id)).toEqual(['picnic', 'icecream', 'swings', 'station']);
+    expect(REWARDS.slice(15).map((r) => r.id)).toEqual(['picnic', 'icecream', 'swings', 'station']);
   });
 
   it('past the list, every other reward raises a building the child has, up to level 3', () => {

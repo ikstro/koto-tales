@@ -117,8 +117,6 @@ export const REWARDS: Reward[] = [
   { id: 'discoball', line: 'reward_discoball', items: [['discoball', 1]] },
   { id: 'tesla', line: 'reward_tesla', items: [['tesla', 1]] },
   { id: 'djconsole', line: 'reward_djconsole', items: [['djconsole', 1]] },
-  // the yard dog: a friend who guards the party (the owner's test wish, 2026-11-01)
-  { id: 'sirko', line: 'reward_sirko', companion: 'sirko' },
   // stage D1: the signal
   { id: 'radar', line: 'reward_radar', items: [['radar', 1]] },
   { id: 'wifi', line: 'reward_wifi', items: [['wifi', 1]] },

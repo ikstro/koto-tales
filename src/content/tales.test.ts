@@ -50,7 +50,7 @@ describe('which tale comes', () => {
   it('a dream waits for a night’s sleep', () => {
     const s = save({ done: ['fish'], after: 1 });
     expect(nextTale(s, all, 1, false)).toBeNull();
-    expect(nextTale(s, all, 1, true)?.id).toBe('treasure');
+    expect(nextTale(s, all, 1, true)?.id).toBe('dog');
   });
 
   it('a whole day without sleep: the next letter comes first, the dream keeps its place', () => {
@@ -58,7 +58,7 @@ describe('which tale comes', () => {
     const t = nextTale(s, all, 2, false);
     expect(t?.id).toBe('party');
     expect(entryOf(t!)).toBe('letter');
-    expect(nextTale(save({ done: ['fish', 'party'], after: 3 }), all, 3, true)?.id).toBe('treasure');
+    expect(nextTale(save({ done: ['fish', 'party'], after: 3 }), all, 3, true)?.id).toBe('dog');
   });
 
   it('a tale waiting for a building is left out until the child has one', () => {
