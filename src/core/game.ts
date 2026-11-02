@@ -42,6 +42,10 @@ import type { Ctx } from './ctx';
 import { events } from './events';
 import { probeDrawCalls } from './perfProbe';
 import type { Quality } from './quality';
+import { applyWaitingUpdate, checkForUpdate, leftTitle } from '../pwa';
+
+/** Away this long, a waiting new version is switched to on coming back (the owner's call, 2026-11-02). */
+const UPDATE_AFTER_AWAY_MS = 10 * 60 * 1000;
 
 const AUTOSAVE_EVERY = 15;
 
@@ -99,8 +103,17 @@ export class Game {
 
     const persist = () => this.persist();
     window.addEventListener('pagehide', persist);
+    // Back after a long break (the tablet keeps the game open for days): a new version that is
+    // waiting is switched to now, from the save just written; otherwise ask the server for one.
+    let hiddenAt = 0;
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') persist();
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = performance.now();
+        persist();
+        return;
+      }
+      if (hiddenAt && performance.now() - hiddenAt >= UPDATE_AFTER_AWAY_MS && applyWaitingUpdate()) return;
+      void checkForUpdate();
     });
     window.addEventListener('resize', () => this.resize());
     this.resize();
@@ -192,6 +205,7 @@ export class Game {
     const ctx = this.ctx;
     const p = ctx.params;
     this.intro = null;
+    leftTitle();
     // A new adventure starts on the doorstep, between the door and the campfire —
     // not inside, where a child would first have to find the door.
     const doorstep = ctx.house!.campfire.root.position.clone().add(new THREE.Vector3(0, 0, -2));
@@ -275,7 +289,7 @@ export class Game {
           window.close();
           setTimeout(() => {
             if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-            location.reload();
+            if (!applyWaitingUpdate()) location.reload();
           }, 300);
         }, 1400),
       );

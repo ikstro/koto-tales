@@ -1,4 +1,6 @@
 import type { Pic, Row, Section, SectionId } from '../content/contents';
+
+declare const __BUILD_DATE__: string;
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { Piece, ninePlate } from './hud';
@@ -106,6 +108,11 @@ export class Contents {
       secEls.set(sec.id, h);
       for (const row of sec.rows) list.appendChild(this.row(row, (id) => this.scrollTo(list, secEls.get(id))));
     }
+    const version = document.createElement('div');
+    version.className = 'ct-version';
+    const built = new Date(__BUILD_DATE__);
+    version.textContent = `Версія від ${built.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' })}, ${built.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}`;
+    list.appendChild(version);
     panel.appendChild(list);
 
     const close = new Piece(panel, 'close', pw - 24, 34, 'tile6-sh');

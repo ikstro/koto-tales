@@ -2,18 +2,26 @@
 import { registerSW } from 'virtual:pwa-register';
 
 let applyUpdate: ((reload?: boolean) => Promise<void>) | null = null;
+let registration: ServiceWorkerRegistration | undefined;
 let waiting = false;
+let onTitle = true;
 
 /**
  * Registers the service worker (offline cache). A new version is downloaded
- * in the background and only switched to from the start screen, so a child
- * is never thrown out of the game by an update.
+ * in the background and only switched to at a break — on the title, at the
+ * exit door, or on coming back after a long absence — so a child is never
+ * thrown out of the game by an update.
  */
 export function registerPWA(): void {
   try {
     applyUpdate = registerSW({
       onNeedRefresh() {
         waiting = true;
+        // Finished downloading while the title is still up: nothing to lose yet.
+        if (onTitle) void applyUpdate?.(true);
+      },
+      onRegisteredSW(_url, r) {
+        registration = r;
       },
     });
   } catch {
@@ -21,11 +29,25 @@ export function registerPWA(): void {
   }
 }
 
-/** Called on the start screen: reloads into the new version if one is waiting. */
+/** The child woke a hero: from here on a waiting version waits for a break. */
+export function leftTitle(): void {
+  onTitle = false;
+}
+
+/** Reloads into the new version if one is waiting. */
 export function applyWaitingUpdate(): boolean {
   if (!waiting || !applyUpdate) return false;
   void applyUpdate(true);
   return true;
+}
+
+/** Asks the server for a new version (an installed game may stay open for days). */
+export async function checkForUpdate(): Promise<void> {
+  try {
+    await registration?.update();
+  } catch {
+    // offline: try again next time
+  }
 }
 
 const BOOT_KEY = 'koto-tales-boot';

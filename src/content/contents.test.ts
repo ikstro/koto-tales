@@ -76,6 +76,24 @@ describe('contents: everything in the game, for the parents', () => {
     expect(row(s, 't-treasure').line).toBe('tale_treasure_open');
   });
 
+  it('both giants are always listed, each with its own wins', () => {
+    const fresh = contentsOf(freshSave(), { ...PLACES, boss: [100, 100] });
+    expect(row(fresh, 'boss-eater').state).toBe('now');
+    expect(row(fresh, 'boss-eater').status).toBe('Де: на південному сході, ~140 блоків від дому');
+    expect(row(fresh, 'boss-nessie').state).toBe('later');
+    expect(row(fresh, 'boss-nessie').status).toBe('Як: може прийти замість Пожирача, коли того переможуть');
+    expect(row(fresh, 'next-boss-eater').jump).toBe('world');
+
+    // the land-eater beaten once, then the lake monster came
+    const save = freshSave();
+    save.boss = { ...save.boss, kind: 'nessie', levels: { eater: 1, nessie: 2 }, defeatedDay: null };
+    const s = contentsOf(save, PLACES);
+    expect(row(s, 'boss-eater').state).toBe('have');
+    expect(row(s, 'boss-eater').status).toBe('Переможено: 1. Як: може прийти замість Шелохмаського чудовиська, коли того переможуть');
+    expect(row(s, 'boss-nessie').state).toBe('now');
+    expect(row(s, 'boss-nessie').line).toBe('guide_nessie');
+  });
+
   it('every building, tale and thing has its parents’ line', () => {
     for (const id of KIT_ORDER) expect(BUILDINGS[id].about.length).toBeGreaterThan(10);
     for (const t of TALES) expect(t.name.length).toBeGreaterThan(3);

@@ -22,6 +22,7 @@ import type { Ctx } from '../core/ctx';
 import type { Game, Intro } from '../core/game';
 import type { HeroHandoff } from '../systems/heroes';
 import { LAMP_NIGHT } from '../systems/house';
+import { leftTitle } from '../pwa';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { goFullscreen } from './fullscreen';
@@ -517,6 +518,7 @@ export function wakeHeroes(ctx: Ctx, game: Game): Promise<HeroId> {
         return;
       }
       void goFullscreen();
+      leftTitle();
       choose(best);
     };
     layer.addEventListener('pointerdown', tryTouch);

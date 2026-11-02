@@ -7,6 +7,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig({
   base: './',
   build: { target: 'es2022', chunkSizeWarningLimit: 1500 },
+  // shown at the end of «Зміст гри», so a parent can tell whether the tablet has updated
+  define: { __BUILD_DATE__: JSON.stringify(new Date().toISOString()) },
   // The content check globs model files (src/content/registry.test.ts): a cached transform would
   // not see a file `npm run new` has just written, so modules are transformed fresh every run.
   test: { fsModuleCache: false },

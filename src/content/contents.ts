@@ -1,4 +1,5 @@
 import type { Biome } from '../contracts';
+import type { BossKind } from '../systems/bossLogic';
 import type { SaveData } from '../systems/save';
 import { RACES, type Race } from '../world/villages';
 import { ARTIFACTS, ARTIFACT_ORDER } from './artifacts';
@@ -349,7 +350,21 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
 
   // ─── lighthouses and the giant that is up ───
   const bossBeaten = taskCount(save, 'boss');
-  const isNessie = save.boss.kind === 'nessie';
+  // Both giants are always listed: the one up now, the other as what may come after a win.
+  const giant = (kind: BossKind, g: { sprite: string; title: string; about: string; line: LineId; other: string; first: string }): Row => {
+    const b = save.boss;
+    // a giant's level goes up each time it comes; the land-eater comes first at 1, the lake monster's starts at 1 unseen
+    const came = kind === 'eater' ? b.levels.eater : b.levels.nessie - 1;
+    const up = b.kind === kind && b.defeatedDay === null && came > 0;
+    const beaten = Math.max(0, came - (up ? 1 : 0));
+    const won = beaten ? `Переможено: ${beaten}. ` : '';
+    const status = up
+      ? `${won}${places.boss ? `Де: ${wayFrom(places.home, places.boss[0], places.boss[1])}` : g.first}`
+      : b.defeatedDay !== null
+        ? `${won}Скоро хтось повернеться`
+        : `${won}Як: може прийти замість ${g.other}, коли того переможуть`;
+    return { key: `boss-${kind}`, pic: { sprite: g.sprite }, title: g.title, about: g.about, state: up ? 'now' : beaten ? 'have' : 'later', status, line: g.line };
+  };
   const world: Row[] = [
     {
       key: 'lighthouse',
@@ -360,25 +375,22 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
       status: save.lit.length ? `Світять: ${save.lit.length}` : 'Як: знайди маяк біля води і постав поруч вітряк (нагорода скриньки)',
       line: 'guide_lighthouse',
     },
-    isNessie
-      ? {
-          key: 'boss',
-          pic: { sprite: 'nessie-face' },
-          title: 'Шелохмаське чудовисько',
-          about: 'Озерний монстр у далекому озері. Поклади на берег три рибки — воно випливе, тоді стріляй у відкриту пащу. Повертається через 3 дні.',
-          state: bossBeaten ? 'have' : places.boss ? 'now' : 'later',
-          status: `${bossBeaten ? `Переможено: ${bossBeaten}. ` : ''}${places.boss && save.boss.defeatedDay === null ? `Де: ${wayFrom(places.home, places.boss[0], places.boss[1])}` : bossBeaten ? 'Скоро хтось повернеться' : 'Чекає у далекому озері'}`,
-          line: 'guide_nessie',
-        }
-      : {
-          key: 'boss',
-          pic: { sprite: 'boss-face' },
-          title: 'Пожирач земель',
-          about: 'Великий кам’яний монстр у своїй пустці. Постав біля нього три ліхтарі — броня трісне, тоді стріляй у відкриту пащу. Через 3 дні повертається сильнішим.',
-          state: bossBeaten ? 'have' : places.boss ? 'now' : 'later',
-          status: `${bossBeaten ? `Переможено: ${bossBeaten}. ` : ''}${places.boss && save.boss.defeatedDay === null ? `Де: ${wayFrom(places.home, places.boss[0], places.boss[1])}` : bossBeaten ? 'Скоро хтось повернеться' : 'З’явиться далеко від дому'}`,
-          line: 'guide_boss',
-        },
+    giant('eater', {
+      sprite: 'boss-face',
+      title: 'Пожирач земель',
+      about: 'Великий кам’яний монстр у своїй пустці. Постав біля нього три ліхтарі — броня трісне, тоді стріляй у відкриту пащу. Через 3 дні повертається сильнішим.',
+      line: 'guide_boss',
+      other: 'Шелохмаського чудовиська',
+      first: 'З’явиться далеко від дому',
+    }),
+    giant('nessie', {
+      sprite: 'nessie-face',
+      title: 'Шелохмаське чудовисько',
+      about: 'Озерний монстр у далекому озері. Поклади на берег три рибки — воно випливе, тоді стріляй у відкриту пащу. Повертається через 3 дні.',
+      line: 'guide_nessie',
+      other: 'Пожирача',
+      first: 'Чекає у далекому озері',
+    }),
   ];
 
   // ─── treasures and friends (only once there are such cards) ───
@@ -406,7 +418,7 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
   pick(villages.find((r) => r.state === 'now') ?? villages.find((r) => r.state === 'later'), 'villages');
   const friendVillage = RACES.find((r) => village(r) && isFriend(village(r)!) && !castle(r)?.freed);
   pick(castles.find((r) => r.state === 'now') ?? (friendVillage ? castles[RACES.indexOf(friendVillage)] : undefined), 'castles');
-  if (!bossBeaten) pick(world[1], 'world');
+  if (!bossBeaten) pick(world.find((r) => r.key === `boss-${save.boss.kind}`), 'world');
 
   const sections: Section[] = [
     { id: 'next', title: 'Що чекає далі', icon: 'play', rows: next },
