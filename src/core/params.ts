@@ -67,14 +67,14 @@ export interface Params {
   map: boolean;
   /** Test only (?seen=<r>): chunks within r of the house, and a trail to the start spot, count as explored. */
   seen: number | null;
-  /** Test only (?boss=near): the party starts in front of the boss («Пожирач земель»). */
-  boss: 'near' | null;
+  /** Test only (?boss=near|nessie): start in front of the boss, or with the lake monster up instead. */
+  boss: 'near' | 'nessie' | null;
   /** Test only (?bossHp=<n>): the boss starts with this much health. */
   bossHp: number | null;
-  /** Test only (?lanterns=<n>): this many lanterns already cracked its armour (3 = broken). */
+  /** Test only (?lanterns=<n>): this many baits already cracked its armour (3 = broken). */
   lanterns: number | null;
   /** Test only (?guide=all|<card>): the picture guide opens after the start. */
-  guide: 'all' | 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'tales' | 'boss' | null;
+  guide: 'all' | 'move' | 'bow' | 'bolt' | 'build' | 'heal' | 'map' | 'tales' | 'boss' | 'nessie' | null;
   /** Test only (?tale=<id>): that tale begins at once. */
   tale: string | null;
   /** Test only (?cam=<n>): another camera framing (core/camera.ts). */
@@ -119,10 +119,10 @@ export function readParams(): Params {
     pause: q.get('pause') === '1',
     map: q.get('map') === '1',
     seen: num('seen'),
-    boss: one('boss', ['near'] as const),
+    boss: one('boss', ['near', 'nessie'] as const),
     bossHp: num('bossHp'),
     lanterns: num('lanterns'),
-    guide: one('guide', ['all', 'move', 'bow', 'bolt', 'build', 'heal', 'map', 'tales', 'boss'] as const),
+    guide: one('guide', ['all', 'move', 'bow', 'bolt', 'build', 'heal', 'map', 'tales', 'boss', 'nessie'] as const),
     tale: q.get('tale'),
     cam: num('cam'),
     spawn: (q.get('spawn') ?? '').split(',').filter(Boolean),

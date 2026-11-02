@@ -11,7 +11,7 @@ import { SPRITES, type SpriteName } from './hudSprites';
  * Captions are short and only for parents — the pictures and the voice do the explaining.
  */
 
-export type GuideCard = 'move' | 'bow' | 'jump' | 'bolt' | 'build' | 'heal' | 'map' | 'tales' | 'portal' | 'sleep' | 'power' | 'lighthouse' | 'disco' | 'defense' | 'village' | 'castle' | 'signal' | 'food' | 'station' | 'boss';
+export type GuideCard = 'move' | 'bow' | 'jump' | 'bolt' | 'build' | 'heal' | 'map' | 'tales' | 'portal' | 'sleep' | 'power' | 'lighthouse' | 'disco' | 'defense' | 'village' | 'castle' | 'signal' | 'food' | 'station' | 'boss' | 'nessie';
 
 interface CardSpec {
   id: GuideCard;
@@ -322,6 +322,20 @@ const CARDS: CardSpec[] = [
       a.put('boss-cracked', -40, 0, 0.82);
       step(a, 74, -14);
       a.put('boss-open', 196, 0, 0.82, 'boss-cracked-sh');
+    },
+  },
+  {
+    id: 'nessie',
+    line: 'guide_nessie',
+    caption: 'Шелохмаське чудовисько',
+    span: 2,
+    art: (a) => {
+      // 1. three fish on the shore → 2. it rises out of the lake, its armour cracked → 3. an arrow into the open mouth
+      for (let i = 0; i < 3; i++) a.put('bait-fish-on', -330 + i * 62, 6 - (i % 2) * 10, 2.1);
+      step(a, -150, -14);
+      a.put('nessie-cracked', -40, 0, 0.82);
+      step(a, 74, -14);
+      a.put('nessie-open', 196, 0, 0.82, 'nessie-cracked-sh');
     },
   },
 ];

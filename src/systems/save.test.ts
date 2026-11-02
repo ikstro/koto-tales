@@ -47,7 +47,7 @@ describe('save', () => {
     const s = migrate(v4);
     expect(s.v).toBe(SAVE_VERSION);
     expect(s.day).toBe(0);
-    expect(s.boss).toEqual({ level: 1, site: null, hp: null, lanterns: [], defeatedDay: null, eatenAt: null, bites: 0 });
+    expect(s.boss).toEqual(freshSave().boss);
     expect(s.coins).toBe(77);
     expect(s.explored).toEqual(['0,0']);
     expect(s.edits['1,2,3']).toBe(24);
@@ -145,8 +145,26 @@ describe('save', () => {
     expect(migrate(none).houseV).toBe(0);
   });
 
-  it('keeps the boss as it was left (health, lanterns, beaten day)', () => {
-    const boss = { level: 2, site: [150, -20] as [number, number], hp: 12, lanterns: ['1,2,3', '4,5,6'], defeatedDay: null, eatenAt: [150, -20] as [number, number], bites: 5 };
+  it('migrates v14 → v15: the Eater stays up, each giant its own level, its lanterns become baits', () => {
+    const boss = { level: 3, site: [150, -20] as [number, number], hp: 12, lanterns: ['1,2,3', '4,5,6'], defeatedDay: 5, eatenAt: [150, -20] as [number, number], bites: 7 };
+    const s = migrate({ ...freshSave(), v: 14, day: 7, boss } as unknown as Record<string, unknown>);
+    expect(s.day).toBe(7);
+    expect(s.boss).toEqual({
+      kind: 'eater',
+      levels: { eater: 3, nessie: 1 },
+      site: [150, -20],
+      hp: 12,
+      baits: ['1,2,3', '4,5,6'],
+      defeatedDay: 5,
+      eatenAt: [150, -20],
+      bites: 7,
+    });
+    expect('level' in s.boss).toBe(false);
+    expect('lanterns' in s.boss).toBe(false);
+  });
+
+  it('keeps the boss as it was left (health, baits, beaten day)', () => {
+    const boss = { kind: 'nessie', levels: { eater: 2, nessie: 3 }, site: [150, -20] as [number, number], hp: 12, baits: ['1,2,3'], defeatedDay: null, eatenAt: null, bites: 0 };
     const s = migrate({ ...freshSave(), day: 7, boss } as unknown as Record<string, unknown>);
     expect(s.day).toBe(7);
     expect(s.boss).toEqual(boss);

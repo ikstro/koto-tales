@@ -1,5 +1,6 @@
 import type { BuildingId } from './buildings';
 import type { LineId } from './lines';
+import type { BossKind } from '../systems/bossLogic';
 import { MAX_LEVEL, UPGRADES, UPGRADE_ORDER } from './upgrades';
 
 /**
@@ -61,7 +62,7 @@ export interface TaskCounters {
   defeated: Partial<Record<string, number>>;
   stats: { coins: number; slept: number; danced: number };
   explored: readonly string[];
-  boss: { level: number; defeatedDay: number | null };
+  boss: { levels: Record<BossKind, number>; defeatedDay: number | null };
   lit: readonly string[];
 }
 
@@ -76,8 +77,8 @@ export function taskCount(s: TaskCounters, kind: TaskKind): number {
     case 'nights':
       return s.stats.slept;
     case 'boss':
-      // the boss comes back a level higher each time it was beaten
-      return s.boss.level - 1 + (s.boss.defeatedDay !== null ? 1 : 0);
+      // every defeat counts, whichever giant it was: each comes back a level higher
+      return s.boss.levels.eater - 1 + s.boss.levels.nessie - 1 + (s.boss.defeatedDay !== null ? 1 : 0);
     case 'lighthouse':
       return s.lit.length;
     case 'dance':

@@ -1,10 +1,13 @@
 /**
- * «Пожирач земель» in the world: its lair (an eaten wasteland far from home),
- * the beast roaming it, the fight's moments (sparks, lanterns, the open mouth,
- * the stomp), its crumbling defeat, the land growing back and its return three
- * days later. The rules themselves live in systems/bossLogic.ts.
+ * The two giants in the world: «Пожирач земель», the stone Land Eater of a dry
+ * wasteland it has eaten bare, and «Шелохмаське чудовисько», the monster of a
+ * far lake. One of them is up at a time — a chance pick after every defeat —
+ * and each keeps its own level. The fight is one shape: baits placed in its
+ * lair crack the armour (lanterns by the Eater, fish lure the lake monster out
+ * of its water), then shots into the open mouth hurt. The rules live in
+ * systems/bossLogic.ts.
  *
- * It is not in `ctx.monsters`: it is one entity, `ctx.boss`, and combat asks it
+ * Neither is in `ctx.monsters`: it is one entity, `ctx.boss`, and combat asks it
  * directly (`hitTest`, `strike`, `mouthPoint`).
  */
 import * as THREE from 'three';
@@ -21,39 +24,129 @@ import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { B } from '../world/blocks';
 import { hash2 } from '../world/rng';
-import { BOSS, BossBrain, biteSpot, bossMaxHp, bossScale, pickSite, shouldReturn, trapped, type GroundAt, type HitResult } from './bossLogic';
+import { BOSS, BOSS_KINDS, BossBrain, biteSpot, bossMaxHp, bossScale, nextBossKind, pickSite, shouldReturn, trapped, type BossKind, type GroundAt, type HitResult } from './bossLogic';
 import { hurtHero } from './combat';
-import { pick, pickedByBoss, playingSpeakers, selectedBuilding } from './kit';
+import { devour, landingSpot, pick, pickedByBoss, playingSpeakers, selectedBuilding, standingWhere } from './kit';
 import { dropCoins } from './pickups';
 import { freshBoss } from './save';
 import { BossHints } from './pacing';
 import { tuneOf } from './tune';
+import type { BuildingId } from '../content/buildings';
 
-// ─── the model's own measures (model units, before the level scale) ────────
+// ─── what each giant says (their own voice, Пупся's hints, the guide card) ──
 
-/** Centre of the cave mouth and the radius that counts as "in the mouth". */
-const MOUTH = new THREE.Vector3(0, 2.2, 4.7);
-const MOUTH_R = 1.85;
-/** Stone body: |x| < BODY_X, BODY_Y0 < y < BODY_Y1, |z| < BODY_Z. */
-const BODY_X = 3.6;
-const BODY_Y0 = 0.2;
-const BODY_Y1 = 6.3;
-const BODY_Z = 5.0;
-/** Heroes are kept out of a capsule along the body: z in ±PUSH_Z, radius PUSH_R. */
-const PUSH_Z = 3.3;
-const PUSH_R = 3.7;
-/** Where it bites: this far in front of its centre. */
-const BITE_AT = 6.3;
-/** The stomp's circle is centred between its front feet. */
-const STOMP_Z = 2.5;
-/** Ground it can eat. */
+interface BossLines {
+  spot: LineId;
+  roar: LineId;
+  return: LineId;
+  weak: LineId;
+  defeated: LineId;
+  far: LineId;
+  /** Why the arrows do nothing yet (the armour hint). */
+  shy: LineId;
+  /** One more bait taken (a lantern lit, a fish gone). */
+  bait: LineId;
+  mouth: LineId;
+  stomp: LineId;
+  dance: LineId;
+  guide: LineId;
+}
+
+const LINES: Record<BossKind, BossLines> = {
+  eater: {
+    spot: 'boss_spot',
+    roar: 'boss_roar',
+    return: 'boss_return',
+    weak: 'boss_weak',
+    defeated: 'boss_defeated',
+    far: 'pupsia_boss_far',
+    shy: 'pupsia_boss_stone',
+    bait: 'pupsia_boss_lantern',
+    mouth: 'pupsia_boss_mouth',
+    stomp: 'pupsia_boss_stomp',
+    dance: 'boss_dance',
+    guide: 'guide_boss',
+  },
+  nessie: {
+    spot: 'nessie_spot',
+    roar: 'nessie_roar',
+    return: 'nessie_return',
+    weak: 'nessie_weak',
+    defeated: 'nessie_defeated',
+    far: 'pupsia_nessie_far',
+    shy: 'pupsia_nessie_shy',
+    bait: 'pupsia_nessie_fish',
+    mouth: 'pupsia_nessie_mouth',
+    stomp: 'pupsia_nessie_slap',
+    dance: 'nessie_dance',
+    guide: 'guide_nessie',
+  },
+};
+
+/** The scene's own colours: the defeat dust and the stomp's rings. */
+const SCENE: Record<BossKind, { dust: number; ringA: number; ringB: number }> = {
+  eater: { dust: 0x50565f, ringA: 0xb08a5a, ringB: 0xffa040 },
+  nessie: { dust: 0x4a9683, ringA: 0x6fc9e0, ringB: 0xbfeef7 },
+};
+
+// ─── each model's own measures (model units, before the level scale) ────────
+
+interface Measures {
+  /** Centre of the mouth and the radius that counts as "in the mouth" (a model
+   *  may instead name a `bossMouth` node at the spot, which follows its neck). */
+  mouth: [number, number, number];
+  mouthR: number;
+  /** Around the mouth node: shots this close hit the head, not the mouth. */
+  headR?: number;
+  /** Stone body boxes: |x| < hx, y0 < y < y1, |z| < hz. */
+  boxes: [number, number, number, number][];
+  /** Heroes are kept out of a capsule along the body: z in ±pushZ, radius pushR. */
+  pushZ: number;
+  pushR: number;
+  /** Where it bites: this far in front of its centre (only the Eater bites). */
+  biteAt: number;
+  /** The stomp's circle is centred between its front feet. */
+  stompZ: number;
+  /** A swimming giant rides this deep while it is shy, rising `sinkStep` per bait. */
+  sink?: number;
+  sinkStep?: number;
+  /** Its neck is pitched down this much per missing bait. */
+  pitchStep?: number;
+}
+
+const MEASURES: Record<BossKind, Measures> = {
+  eater: {
+    mouth: [0, 2.2, 4.7],
+    mouthR: 1.85,
+    boxes: [[3.6, 0.2, 6.3, 5.0]],
+    pushZ: 3.3,
+    pushR: 3.7,
+    biteAt: 6.3,
+    stompZ: 2.5,
+  },
+  nessie: {
+    mouth: [0, 6.4, 7.5],
+    mouthR: 1.4,
+    headR: 2.3,
+    // the hull; the neck and head are asked through the `bossMouth` node
+    boxes: [[2.35, 0.3, 3.2, 4.6]],
+    pushZ: 3.4,
+    pushR: 3.0,
+    biteAt: 0,
+    stompZ: 2.0,
+    sink: 2.1,
+    sinkStep: 0.55,
+    pitchStep: 0.16,
+  },
+};
+
+/** Ground the wasteland's lair leaves alone. */
 const EATABLE = new Set<number>([B.GRASS, B.DIRT, B.SAND, B.SNOW]);
 const BITABLE = new Set<number>([B.GRASS, B.DIRT, B.SAND, B.SNOW, B.STONE, B.COBBLE]);
 /** Blocks the wasteland leaves behind (and that grow back when it is beaten). */
 const EATEN = new Set<number>([B.AIR, B.STONE, B.COBBLE]);
-const STONE_COL = 0x50565f;
 /** Remembered in save.said once the boss card has popped up by itself. */
-const GUIDE_LINE = 'guide_boss';
+const guideLineOf = (kind: BossKind): LineId => LINES[kind].guide;
 
 const tmp = new THREE.Vector3();
 const tmp2 = new THREE.Vector3();
@@ -62,6 +155,7 @@ const tmp2 = new THREE.Vector3();
 
 export class Boss {
   readonly brain: BossBrain;
+  readonly kind: BossKind;
   readonly model: CharacterModel;
   /** Feet centre; the map mark follows this vector live. */
   readonly pos = new THREE.Vector3();
@@ -69,6 +163,9 @@ export class Boss {
   readonly level: number;
   readonly scale: number;
   readonly zoneRadius = BOSS.zoneRadius;
+  readonly measures: Measures;
+  /** A swimming giant rides low in its lake. */
+  readonly water: boolean;
   yaw = 0;
   speed = 0;
   /** Where it strolls to next, and when it picks another spot. */
@@ -85,6 +182,12 @@ export class Boss {
   private jaw: THREE.Object3D | null;
   private eyes: THREE.Object3D | null;
   private ember: THREE.Object3D | null;
+  /** The lake monster's neck (its head pivot), pitched down while it is shy. */
+  private neck: THREE.Object3D | null;
+  private neckK = 0;
+  private sinkK = 0;
+  /** A node at the mouth spot if the model has one (it follows the neck); else the measures' point. */
+  private mouthNode: THREE.Object3D | null;
   private cracks: THREE.Object3D[];
   private shownCracks = -1;
   readonly stompRing: THREE.Group;
@@ -96,15 +199,18 @@ export class Boss {
   /** Centre of the stomp circle (between the front feet), refreshed every frame. */
   readonly stompAt = new THREE.Vector3();
 
-  constructor(ctx: Ctx, level: number, site: [number, number], brain: BossBrain) {
+  constructor(ctx: Ctx, kind: BossKind, level: number, site: [number, number], brain: BossBrain) {
     this.brain = brain;
+    this.kind = kind;
     this.level = level;
     this.scale = bossScale(level);
-    const gy = ctx.world.groundHeight(site[0], site[1]);
+    this.water = BOSS_KINDS[kind].water;
+    this.measures = MEASURES[kind];
+    const gy = this.water ? SEA_LEVEL : ctx.world.groundHeight(site[0], site[1]);
     this.site = new THREE.Vector3(site[0] + 0.5, gy, site[1] + 0.5);
     this.pos.copy(this.site);
     this.target.copy(this.site);
-    this.model = ctx.models.character({ kind: 'parts', id: 'landEater' });
+    this.model = ctx.models.character({ kind: 'parts', id: BOSS_KINDS[kind].model });
     const root = this.model.root;
     root.scale.setScalar(this.scale);
     // one shadow caster: the body (the parts file switched every other mesh off)
@@ -113,11 +219,13 @@ export class Boss {
     this.jaw = root.getObjectByName('jaw') ?? null;
     this.eyes = root.getObjectByName('bossEyes') ?? null;
     this.ember = root.getObjectByName('ember') ?? null;
+    this.neck = root.getObjectByName('head') ?? null;
+    this.mouthNode = root.getObjectByName('bossMouth') ?? null;
     this.cracks = [1, 2, 3].map((i) => root.getObjectByName(`crack${i}`)).filter((o): o is THREE.Object3D => !!o);
     this.model.update(0, 0);
     this.sync(0);
     ctx.scene.add(root);
-    this.stompRing = stompRing(ctx, this.level, BOSS.stompRadius * this.scale);
+    this.stompRing = stompRing(ctx, kind, this.level, BOSS.stompRadius * this.scale);
     ctx.scene.add(this.stompRing);
     this.bricks = crumbleBricks(ctx);
     ctx.scene.add(this.bricks);
@@ -125,6 +233,10 @@ export class Boss {
 
   get alive(): boolean {
     return this.brain.alive;
+  }
+
+  get lines(): BossLines {
+    return LINES[this.kind];
   }
 
   /** World point → model units (unscaled, unrotated) around the feet centre. */
@@ -144,7 +256,9 @@ export class Boss {
   }
 
   mouthPoint(out: THREE.Vector3): THREE.Vector3 {
-    return this.toWorld(MOUTH.x, MOUTH.y, MOUTH.z, out);
+    if (this.mouthNode) return this.mouthNode.getWorldPosition(out);
+    const m = this.measures.mouth;
+    return this.toWorld(m[0], m[1], m[2], out);
   }
 
   /** Horizontal distance from a point to the mouth (how far the auto-aim reaches for it). */
@@ -156,9 +270,19 @@ export class Boss {
   /** What a shot at this point touches: the mouth, the stone, or nothing. */
   hitTest(p: THREE.Vector3): 'mouth' | 'body' | null {
     if (!this.alive) return null;
+    const m = this.measures;
+    if (this.mouthNode) {
+      // a model whose mouth rides a moving neck: ask the node where it is now
+      const l = this.mouthNode.worldToLocal(tmp.copy(p));
+      const d = l.length();
+      if (d < m.mouthR) return 'mouth';
+      if (m.headR && d < m.headR) return 'body';
+    } else {
+      const l = this.toLocal(p, tmp);
+      if (l.distanceTo(tmp2.set(m.mouth[0], m.mouth[1], m.mouth[2])) < m.mouthR) return 'mouth';
+    }
     const l = this.toLocal(p, tmp);
-    if (l.distanceTo(MOUTH) < MOUTH_R) return 'mouth';
-    if (Math.abs(l.x) < BODY_X && l.y > BODY_Y0 && l.y < BODY_Y1 && Math.abs(l.z) < BODY_Z) return 'body';
+    for (const [hx, y0, y1, hz] of m.boxes) if (Math.abs(l.x) < hx && l.y > y0 && l.y < y1 && Math.abs(l.z) < hz) return 'body';
     return null;
   }
 
@@ -196,6 +320,11 @@ export class Boss {
     const r = this.model.root;
     r.position.copy(this.pos);
     r.rotation.y = this.yaw;
+    // the lake monster rides low while it is shy; each fish lures it higher, and proud once the armour breaks
+    const m = this.measures;
+    const sinkWant = this.water && this.brain.armored ? Math.max(0.45, m.sink! - this.brain.baits.length * m.sinkStep!) : 0;
+    this.sinkK += (sinkWant - this.sinkK) * (dt === 0 ? 1 : 1 - Math.exp(-dt * 1.6));
+    r.position.y -= this.sinkK * this.scale;
     if (this.flinch > 0) {
       this.flinch = Math.max(0, this.flinch - dt);
       const k = this.flinch * 0.5 * this.scale;
@@ -211,6 +340,10 @@ export class Boss {
     } else r.rotation.z = 0;
     // a big beast takes long, slow steps
     this.model.update(dt, this.speed * 1.4);
+    // its neck lifts as it stops being shy (after the animator, which sets the head's own sway)
+    const neckWant = this.water && this.brain.armored ? (BOSS.baits - this.brain.baits.length) * m.pitchStep! : 0;
+    this.neckK += (neckWant - this.neckK) * (dt === 0 ? 1 : 1 - Math.exp(-dt * 1.6));
+    if (this.neck && this.neckK > 0.001) this.neck.rotation.x += this.neckK;
     const open = this.brain.mouthOpen ? 1 : this.chomp > 0 ? 0.45 : dancing ? Math.abs(beat) * 0.3 : 0;
     this.jawK += (open - this.jawK) * (1 - Math.exp(-dt * (open > this.jawK ? 12 : 6)));
     if (dt === 0) this.jawK = open;
@@ -218,7 +351,7 @@ export class Boss {
     if (this.ember) this.ember.visible = this.jawK > 0.3;
     this.flare = Math.max(0, this.flare - dt * 1.6);
     if (this.eyes) this.eyes.scale.setScalar(1 + this.flare * 0.55 + (this.brain.mouthOpen ? 0.2 : 0));
-    const n = this.alive ? this.brain.lanterns.length : 3;
+    const n = this.alive ? this.brain.baits.length : 3;
     if (n !== this.shownCracks) {
       this.shownCracks = n;
       this.cracks.forEach((c, i) => (c.visible = i < n));
@@ -233,13 +366,13 @@ export class Boss {
 }
 
 /** The telegraph: a jagged ring of glowing cracks on the ground, plus a few running inwards. */
-function stompRing(ctx: Ctx, level: number, radius: number): THREE.Group {
+function stompRing(ctx: Ctx, kind: BossKind, level: number, radius: number): THREE.Group {
   const g = new THREE.Group();
   g.name = 'bossStompRing';
   g.visible = false;
-  const kit = new Kit(`bossStomp${level}`, ctx.skin);
+  const kit = new Kit(`bossStomp${kind}${level}`, ctx.skin);
   const p = kit.part('ring', g);
-  const glow = { c: '#ff9a2e', glow: true };
+  const glow = { c: kind === 'nessie' ? '#5fd3ff' : '#ff9a2e', glow: true };
   const n = 34;
   let prev: [number, number, number] | null = null;
   let first: [number, number, number] | null = null;
@@ -301,12 +434,12 @@ function hint(line: LineId): void {
   voice.say(line, { priority: 5 });
 }
 
-/** The stone or the mouth hint, whichever fits the armour now, unless it was said a moment ago. */
+/** The armour or the mouth hint, whichever fits now, unless it was said a moment ago. */
 function armourHint(b: Boss): void {
   if (!b.alive) return;
   if (b.brain.armored) {
-    if (session.hints.stone()) hint('pupsia_boss_stone');
-  } else if (session.hints.mouth()) hint('pupsia_boss_mouth');
+    if (session.hints.stone()) hint(b.lines.shy);
+  } else if (session.hints.mouth()) hint(b.lines.mouth);
 }
 
 // ─── the lair ───────────────────────────────────────────────────────────────
@@ -345,6 +478,65 @@ function chooseSite(ctx: Ctx, level: number): [number, number] {
   const spot = world.findSpawn(x, z);
   const d = Math.hypot(spot.x - home.x, spot.z - home.z);
   return d >= BOSS.siteMin && d <= BOSS.siteMax ? [Math.floor(spot.x), Math.floor(spot.z)] : [x, z];
+}
+
+// ─── the lake monster's lake ─────────────────────────────────────────────────
+
+/** How much of a disc is water (0..1). */
+function waterAround(ctx: Ctx, x: number, z: number, r: number): number {
+  let n = 0;
+  let all = 0;
+  for (let dx = -r; dx <= r; dx += 2)
+    for (let dz = -r; dz <= r; dz += 2) {
+      if (dx * dx + dz * dz > r * r) continue;
+      all++;
+      if (ctx.world.isWater(x + dx, ctx.world.groundHeight(x + dx, z + dz), z + dz)) n++;
+    }
+  return all ? n / all : 0;
+}
+
+/** A dry, gentle shore near the water's edge (so the child can walk down to lay the fish). */
+function gentleShore(ctx: Ctx, x: number, z: number): boolean {
+  for (let dx = -18; dx <= 18; dx += 2)
+    for (let dz = -18; dz <= 18; dz += 2) {
+      if (dx * dx + dz * dz > 324) continue;
+      const g = ctx.world.groundHeight(x + dx, z + dz);
+      if (g > SEA_LEVEL && g <= SEA_LEVEL + 4 && !ctx.world.isWater(x + dx, g, z + dz)) return true;
+    }
+  return false;
+}
+
+/**
+ * A lake big enough for the monster, far from home: a candidate ring like the
+ * Eater's, then the centre of its water (so she swims in the middle of it).
+ * A shore the child can walk down to comes first; a steep-banked lake is the
+ * fallback (the fish count from its rim all the same).
+ */
+function chooseLake(ctx: Ctx, level: number): [number, number] {
+  const { world } = ctx;
+  const home = ctx.house ? ctx.house.centre : new THREE.Vector3();
+  const near = (x: number, z: number) => !nearVillage(ctx, [x, z]) && !(world.lighthousesNear?.(x, z, 48) ?? []).some((l) => Math.hypot(l.x + 1.5 - x, l.z + 1.5 - z) < 48);
+  const open = (x: number, z: number) => waterAround(ctx, x, z, 14) >= 0.65;
+  const good = (x: number, z: number) => open(x, z) && gentleShore(ctx, x, z) && near(x, z);
+  const any = (x: number, z: number) => open(x, z) && near(x, z);
+  // pickSite falls back to its first candidate when nothing passes: a lake with
+  // no gentle shore still beats no lake, so ask again, relaxed
+  let [x, z] = pickSite(world.seed ^ 0x1a2e, level, home, good);
+  if (!good(x, z)) [x, z] = pickSite(world.seed ^ 0x1a2e, level, home, any);
+  // the middle of the water it found: the average of the wet cells around it
+  let sx = 0;
+  let sz = 0;
+  let n = 0;
+  for (let dx = -12; dx <= 12; dx += 2)
+    for (let dz = -12; dz <= 12; dz += 2) {
+      if (dx * dx + dz * dz > 144) continue;
+      if (world.isWater(x + dx, world.groundHeight(x + dx, z + dz), z + dz)) {
+        sx += x + dx;
+        sz += z + dz;
+        n++;
+      }
+    }
+  return n ? [Math.round(sx / n), Math.round(sz / n)] : [x, z];
 }
 
 /** Every column of the zone, nearest the centre first (so a lair being eaten spreads outwards). */
@@ -460,9 +652,11 @@ function regrowNow(ctx: Ctx, site: [number, number]): void {
 
 // ─── setup ──────────────────────────────────────────────────────────────────
 
-/** Places the boss from the save (or for the first time), eats its lair and wires lanterns. */
+/** Places the boss from the save (or for the first time), eats its lair and wires the baits. */
 export function initBoss(ctx: Ctx): void {
   const s = (ctx.save.boss ??= freshBoss());
+  // ?boss=nessie (test only): the lake monster is up instead
+  if (ctx.params.boss === 'nessie') s.kind = 'nessie';
   ctx.boss = null;
   events.on('block:placed', ({ x, y, z, id }) => {
     if (id === B.LANTERN) onLantern(ctx, x, y, z);
@@ -477,59 +671,90 @@ export function initBoss(ctx: Ctx): void {
 
 function spawn(ctx: Ctx, atStart: boolean): void {
   const s = ctx.save.boss;
-  // no lair yet, or the world moved under one not eaten yet (a river runs there now)
-  if (!s.site || (!s.eatenAt && (siteWet(ctx, s.site) || nearVillage(ctx, s.site)))) s.site = chooseSite(ctx, s.level);
+  const kind = s.kind;
+  const level = s.levels[kind];
+  const water = BOSS_KINDS[kind].water;
+  // no lair yet, or the world moved under one not eaten yet (a river runs there now / the lake dried)
+  const badLair =
+    !s.site ||
+    (!s.eatenAt && (water ? waterAround(ctx, s.site[0], s.site[1], 8) < 0.25 : siteWet(ctx, s.site) || nearVillage(ctx, s.site)));
+  if (badLair) s.site = water ? chooseLake(ctx, level) : chooseSite(ctx, level);
+  const site = s.site!;
   const tune = tuneOf(ctx);
-  const maxHp = bossMaxHp(s.level, tune.bossHp);
+  const maxHp = bossMaxHp(level, tune.bossHp);
   const p = ctx.params;
-  const lanterns = [...s.lanterns];
-  if (atStart && p.lanterns !== null) for (let i = lanterns.length; i < Math.min(BOSS.lanterns, p.lanterns); i++) lanterns.push(`test:${i}`);
+  const baits = [...s.baits];
+  if (atStart && p.lanterns !== null) for (let i = baits.length; i < Math.min(BOSS.baits, p.lanterns); i++) baits.push(`test:${i}`);
   const hp = atStart && p.bossHp !== null ? Math.min(maxHp, p.bossHp) : s.hp;
-  const brain = new BossBrain({ maxHp, hp, lanterns, tempo: tune.bossTempo });
-  s.lanterns = brain.lanterns;
+  const brain = new BossBrain({ maxHp, hp, baits, tempo: tune.bossTempo });
+  s.baits = brain.baits;
   s.hp = brain.hp;
 
-  const site = s.site;
-  if (s.eatenAt && (s.eatenAt[0] !== site[0] || s.eatenAt[1] !== site[1])) regrowNow(ctx, s.eatenAt);
-  if (!s.eatenAt) {
-    s.bites = 0;
-    if (atStart) eatNow(ctx, site);
-    else eatQueue = { cols: zoneColumns(site), i: 0, site };
-    s.eatenAt = [site[0], site[1]];
-  } else if (atStart) fillTraps(ctx, site);
-  boss = new Boss(ctx, s.level, site, brain);
+  // only the Eater eats its lair bare; the lake monster's lake is the world's own
+  if (!water) {
+    if (s.eatenAt && (s.eatenAt[0] !== site[0] || s.eatenAt[1] !== site[1])) regrowNow(ctx, s.eatenAt);
+    if (!s.eatenAt) {
+      s.bites = 0;
+      if (atStart) eatNow(ctx, site);
+      else eatQueue = { cols: zoneColumns(site), i: 0, site };
+      s.eatenAt = [site[0], site[1]];
+    } else if (atStart) fillTraps(ctx, site);
+  }
+  boss = new Boss(ctx, kind, level, site, brain);
   ctx.boss = boss;
   session.spotSaid = false;
   session.danceSaid = false;
   session.hints.newFight();
-  setMapMarker('boss', { pos: boss.pos, icon: 'boss', pointer: true, zoneRadius: boss.zoneRadius });
+  setMapMarker('boss', { pos: boss.pos, icon: BOSS_KINDS[kind].icon, pointer: true, zoneRadius: boss.zoneRadius });
 }
 
-/** `?boss=near`: where the party starts — in front of the mouth, inside the wasteland. */
+/** `?boss=near`: where the party starts — in front of the mouth (the lake monster: on the shore). */
 export function bossStartSpot(ctx: Ctx): { x: number; z: number } | null {
   if (!boss) return null;
   const p = boss.toWorld(0, 0, 7.6, new THREE.Vector3());
+  if (boss.water) {
+    const dry = landingSpot(ctx.world, p.x, p.z, undefined, 14);
+    if (dry) return { x: dry.x, z: dry.z };
+  }
   return { x: p.x, z: p.z };
 }
 
 function onLantern(ctx: Ctx, x: number, y: number, z: number): void {
   const b = boss;
-  if (!b || !b.alive || !b.inZone(x + 0.5, z + 0.5)) return;
-  const r = b.brain.addLantern(`${x},${y},${z}`);
+  if (!b || b.water || !b.alive || !b.inZone(x + 0.5, z + 0.5)) return;
+  baitTaken(ctx, `${x},${y},${z}`, tmp.set(x + 0.5, y + 0.8, z + 0.5));
+}
+
+/**
+ * A bait the giant noticed: a lantern lit in the wasteland, a fish laid on the
+ * shore (the lake monster takes it at once). The brain cracks the armour.
+ */
+function baitTaken(ctx: Ctx, key: string, at: THREE.Vector3): void {
+  const b = boss;
+  if (!b) return;
+  const r = b.brain.addBait(key);
   if (!r) return;
-  ctx.save.boss.lanterns = b.brain.lanterns;
+  ctx.save.boss.baits = b.brain.baits;
   session.hints.lantern();
   b.flare = 1;
-  const at = tmp.set(x + 0.5, y + 0.8, z + 0.5);
-  ctx.effects.sparkle(at, 0xffe27a);
-  ctx.effects.ring(at, 0xffd54f, 2.4);
-  sfx.play('rumble', { volume: 0.5, pitch: 1.3 });
-  ctx.effects.sparkle(b.toWorld(0, 4.5, 0, tmp2), 0xffa526);
-  if (r === 'crack') voice.say('pupsia_boss_lantern', { priority: 6, interrupt: true });
+  const water = b.water;
+  if (water) {
+    // the lake monster lunges: a splash where the fish lay, ripples across the water
+    ctx.effects.poof(at, 0x8fd4e8, 12);
+    ctx.effects.ring(at, 0x6fd8e8, 2.6);
+    sfx.play('poof', { pitch: 0.7 });
+    sfx.play('rumble', { volume: 0.5, pitch: 1.1 });
+  } else {
+    ctx.effects.sparkle(at, 0xffe27a);
+    ctx.effects.ring(at, 0xffd54f, 2.4);
+    sfx.play('rumble', { volume: 0.5, pitch: 1.3 });
+  }
+  ctx.effects.sparkle(b.toWorld(0, 4.5, 0, tmp2), water ? 0x7ff0d4 : 0xffa526);
+  if (r === 'crack') voice.say(b.lines.bait, { priority: 6, interrupt: true });
   else {
-    voice.say('boss_weak', { priority: 8, interrupt: true });
-    if (session.hints.mouth()) setTimeout(() => voice.say('pupsia_boss_mouth', { priority: 6 }), 3200);
-    ctx.effects.poof(b.toWorld(0, 4, 0, tmp2), STONE_COL, 30);
+    voice.say(b.lines.weak, { priority: 8, interrupt: true });
+    if (session.hints.mouth()) setTimeout(() => voice.say(b.lines.mouth, { priority: 6 }), 3200);
+    ctx.effects.poof(b.toWorld(0, 4, 0, tmp2), SCENE[b.kind].dust, 30);
   }
 }
 
@@ -545,13 +770,15 @@ export function updateBoss(ctx: Ctx, dt: number): void {
     ctx.hud.setBoss(null);
     suggest(ctx, false, false);
     if (!crumble && !regrow && shouldReturn(ctx.save.day, s.defeatedDay)) {
-      s.level += 1;
+      // either giant may come back, by chance; each one level up from its own last time
+      s.kind = nextBossKind();
+      s.levels[s.kind] += 1;
       s.site = null;
       s.hp = null;
-      s.lanterns = [];
+      s.baits = [];
       s.defeatedDay = null;
       spawn(ctx, false);
-      voice.say('boss_return', { priority: 8, interrupt: true });
+      voice.say(BOSS_KINDS[s.kind].water ? 'nessie_return' : 'boss_return', { priority: 8, interrupt: true });
     }
     return;
   }
@@ -566,7 +793,7 @@ export function updateBoss(ctx: Ctx, dt: number): void {
   let near: Hero | null = null;
   let nearD = Infinity;
   let stompD = Infinity;
-  b.toWorld(0, 0, STOMP_Z, b.stompAt);
+  b.toWorld(0, 0, b.measures.stompZ, b.stompAt);
   if (active) {
     for (const h of ctx.heroes.values()) {
       const d = Math.hypot(h.pos.x - b.pos.x, h.pos.z - b.pos.z);
@@ -581,6 +808,16 @@ export function updateBoss(ctx: Ctx, dt: number): void {
   const far = playerD > 110;
   b.model.root.visible = !far;
 
+  // a fish laid on the lake's shore: the monster takes it at once
+  if (active && b.water && brain.armored && BOSS_KINDS[b.kind].bait === 'fish') {
+    for (const f of standingWhere((c) => c.id === 'fish')) {
+      const key = `${f.rec.x},${f.rec.y},${f.rec.z}`;
+      if (brain.baits.includes(key) || !b.inZone(f.centre.x, f.centre.z, 6)) continue;
+      devour(ctx, f);
+      baitTaken(ctx, key, tmp.copy(f.centre).setY(f.centre.y + 0.5));
+    }
+  }
+
   // music whose dance circle reaches its body sets it dancing for a while
   const reach = 3 * b.scale;
   const heard = active && !far && playingSpeakers().some((sp) => Math.hypot(sp.centre.x - b.pos.x, sp.centre.z - b.pos.z) < sp.dance + reach);
@@ -590,8 +827,8 @@ export function updateBoss(ctx: Ctx, dt: number): void {
     if (e === 'mouth-open') {
       b.flare = 1;
       if (Math.random() < 0.35 && playerD < 40) {
-        voice.say('boss_roar', { priority: 2 });
-        sfx.play('rumble', { volume: 0.6 });
+        voice.say(b.lines.roar, { priority: 2 });
+        sfx.play('rumble', { volume: 0.6, pitch: b.water ? 0.8 : 1 });
       }
       ctx.effects.sparkle(b.mouthPoint(tmp), 0xffb12e);
     } else if (e === 'stomp-warn') {
@@ -599,20 +836,20 @@ export function updateBoss(ctx: Ctx, dt: number): void {
       b.stompRing.visible = true;
       b.ringT = 0;
       b.ringY = ringHeight(ctx, b);
-      sfx.play('rumble', { volume: 0.35, pitch: 1.4 });
-      if (session.hints.stomp()) voice.say('pupsia_boss_stomp', { priority: 7, interrupt: true });
+      sfx.play('rumble', { volume: 0.35, pitch: b.water ? 1.1 : 1.4 });
+      if (session.hints.stomp()) voice.say(b.lines.stomp, { priority: 7, interrupt: true });
     } else if (e === 'stomp') stomp(ctx, b);
     else if (e === 'dance') {
       if (!session.danceSaid && playerD < 40) {
         session.danceSaid = true;
-        voice.say('boss_dance', { priority: 7, interrupt: true });
+        voice.say(b.lines.dance, { priority: 7, interrupt: true });
       }
     } else if (e === 'dance-end') {
       // it shakes the music off with a roar and gets back to work
       b.flare = 1;
       if (playerD < 40) {
-        voice.say('boss_roar', { priority: 2 });
-        sfx.play('rumble', { volume: 0.6 });
+        voice.say(b.lines.roar, { priority: 2 });
+        sfx.play('rumble', { volume: 0.6, pitch: b.water ? 0.8 : 1 });
       }
     }
   }
@@ -630,9 +867,15 @@ export function updateBoss(ctx: Ctx, dt: number): void {
     const tz = b.target.z - b.pos.z;
     if (b.wanderT <= 0 || Math.hypot(tx, tz) < 1.5) {
       b.wanderT = 6 + Math.random() * 6;
-      const a = Math.random() * Math.PI * 2;
-      const r = Math.random() * Math.max(2, b.zoneRadius - 7 * b.scale);
-      b.target.set(b.site.x + Math.sin(a) * r, 0, b.site.z + Math.cos(a) * r);
+      // the lake monster strolls from water to water; the Eater takes any spot
+      for (let t = 0; t < 8; t++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.random() * Math.max(2, b.zoneRadius - 7 * b.scale);
+        const wx = Math.floor(b.site.x + Math.sin(a) * r);
+        const wz = Math.floor(b.site.z + Math.cos(a) * r);
+        b.target.set(wx + 0.5, 0, wz + 0.5);
+        if (!b.water || ctx.world.isWater(wx, ctx.world.groundHeight(wx, wz), wz)) break;
+      }
     }
     const goal = yawOf(tx, tz);
     b.yaw = turnTowards(b.yaw, goal, dt * 0.7);
@@ -653,12 +896,12 @@ export function updateBoss(ctx: Ctx, dt: number): void {
   }
   b.pos.y += (groundUnder(ctx, b) - b.pos.y) * (1 - Math.exp(-dt * 4));
 
-  // a bite of the ground every couple of seconds while it strolls
+  // a bite of the ground every couple of seconds while it strolls (only the Eater)
   b.chomp = Math.max(0, b.chomp - dt);
   b.biteT -= dt;
   if (b.biteT <= 0) {
     b.biteT = (BOSS.biteEvery / brain.tempo) * (0.8 + Math.random() * 0.4);
-    if (!busy && !(near && nearD < BOSS.sight * b.scale) && playerD < 60) bite(ctx, b);
+    if (!busy && !(near && nearD < BOSS.sight * b.scale) && playerD < 60 && BOSS_KINDS[b.kind].bitesGround) bite(ctx, b);
   }
 
   // the stomp telegraph pulses
@@ -667,7 +910,7 @@ export function updateBoss(ctx: Ctx, dt: number): void {
     b.stompRing.position.set(b.stompAt.x, b.ringY, b.stompAt.z);
     const k = 1 + 0.04 * Math.sin(b.ringT * 30);
     b.stompRing.scale.set(k, 1, k);
-    if (Math.floor(b.ringT / 0.25) !== Math.floor((b.ringT - dt) / 0.25)) ctx.effects.ring(tmp.copy(b.stompAt).setY(b.ringY + 0.1), 0xffa040, BOSS.stompRadius * b.scale);
+    if (Math.floor(b.ringT / 0.25) !== Math.floor((b.ringT - dt) / 0.25)) ctx.effects.ring(tmp.copy(b.stompAt).setY(b.ringY + 0.1), SCENE[b.kind].ringB, BOSS.stompRadius * b.scale);
   }
 
   if (!far) b.sync(dt);
@@ -678,33 +921,39 @@ export function updateBoss(ctx: Ctx, dt: number): void {
   const inZone = b.inZone(player.pos.x, player.pos.z);
   if (inZone && !session.inZone && active && !session.spotSaid) {
     session.spotSaid = true;
-    voice.say('boss_spot', { priority: 8, interrupt: true });
+    voice.say(b.lines.spot, { priority: 8, interrupt: true });
     b.flare = 1;
-    sfx.play('rumble', { volume: 0.7 });
+    if (b.water) {
+      // the lake monster announces itself with a splash
+      ctx.effects.poof(b.pos.clone().setY(SEA_LEVEL + 0.6), 0x8fd4e8, 20);
+      ctx.effects.ring(b.pos.clone().setY(SEA_LEVEL + 0.1), 0x6fd8e8, 6);
+    }
+    sfx.play('rumble', { volume: 0.7, pitch: b.water ? 0.8 : 1 });
     // the first visit of a save: once its roar is over, the game pauses on the boss card (ui/guide.ts)
-    if (!ctx.save.said.includes(GUIDE_LINE)) session.guideAt = ctx.clock.elapsed + 4.8;
+    if (!ctx.save.said.includes(guideLineOf(b.kind))) session.guideAt = ctx.clock.elapsed + 4.8;
     else setTimeout(() => armourHint(b), 4200);
   }
   session.inZone = inZone;
   if (session.guideAt !== null && ctx.clock.elapsed >= session.guideAt && active && inZone && !ctx.hud.isPaused && !ctx.map.isOpen && !ctx.album.isOpen) {
     session.guideAt = null;
-    if (!ctx.save.said.includes(GUIDE_LINE)) {
-      ctx.save.said.push(GUIDE_LINE);
+    if (!ctx.save.said.includes(guideLineOf(b.kind))) {
+      ctx.save.said.push(guideLineOf(b.kind));
       session.hints.told(brain.armored);
-      ctx.hud.openGuide('boss');
+      ctx.hud.openGuide(b.kind === 'nessie' ? 'nessie' : 'boss');
     }
   }
-  if (active && session.hints.tick(dt, inZone, brain.armored)) hint('pupsia_boss_stone');
+  if (active && session.hints.tick(dt, inZone, brain.armored)) hint(b.lines.shy);
   if (active && !session.farSaid && ctx.clock.elapsed > 60 && !inZone && Math.hypot(player.pos.x - b.site.x, player.pos.z - b.site.z) > b.zoneRadius + 25) {
     session.farSaid = true;
-    voice.say('pupsia_boss_far', { priority: 3 });
+    voice.say(b.lines.far, { priority: 3 });
   }
-  ctx.hud.setBoss(active && playerD < BOSS.barRange + 4 * b.scale ? { hp: brain.hp / brain.maxHp, armored: brain.armored, lanterns: brain.lanterns.length } : null);
-  suggest(ctx, active && inZone && brain.armored, inZone);
+  ctx.hud.setBoss(active && playerD < BOSS.barRange + 4 * b.scale ? { hp: brain.hp / brain.maxHp, armored: brain.armored, baits: brain.baits.length, kind: b.kind } : null);
+  suggest(ctx, active && inZone && brain.armored, inZone, BOSS_KINDS[b.kind].bait);
 }
 
-/** Highest ground along the stomp circle (the ring is drawn just above it). */
+/** Highest ground along the stomp circle (the ring is drawn just above it; a swimming giant: the water's skin). */
 function ringHeight(ctx: Ctx, b: Boss): number {
+  if (b.water) return SEA_LEVEL + 0.06;
   const R = BOSS.stompRadius * b.scale;
   let top = b.pos.y;
   for (let i = 0; i < 16; i++) {
@@ -714,8 +963,9 @@ function ringHeight(ctx: Ctx, b: Boss): number {
   return Math.min(top, b.pos.y + 1.2) + 0.02;
 }
 
-/** Ground under the beast: the average of its centre and its four feet. */
+/** Ground under the beast: the average of its centre and its four feet (a swimming giant: the lake's surface). */
 function groundUnder(ctx: Ctx, b: Boss): number {
+  if (b.water) return SEA_LEVEL - 0.55;
   let sum = 0;
   for (const [x, z] of [[0, 0], [4, 3], [-4, 3], [4, -3], [-4, -3]] as const) {
     b.toWorld(x, 0, z, tmp);
@@ -727,7 +977,7 @@ function groundUnder(ctx: Ctx, b: Boss): number {
 function bite(ctx: Ctx, b: Boss): void {
   const s = ctx.save.boss;
   if ((s.bites ?? 0) >= BOSS.bitesPerLevel * b.level) return;
-  const p = b.toWorld(0, 0, BITE_AT, tmp);
+  const p = b.toWorld(0, 0, b.measures.biteAt, tmp);
   const ground = groundCache(ctx);
   // never a shaft: if the spot is already low, it bites a higher neighbour (the crater grows wider)
   const spot = biteSpot(ground, Math.floor(p.x), Math.floor(p.z), waterAt(ctx, ground));
@@ -751,14 +1001,14 @@ function stomp(ctx: Ctx, b: Boss): void {
   const R = BOSS.stompRadius * b.scale;
   const at = b.stompAt;
   const c = tmp.copy(at).setY(b.ringY + 0.15);
-  ctx.effects.ring(c, 0xb08a5a, R * 1.15);
-  ctx.effects.ring(c, 0xffa040, R * 0.7);
+  ctx.effects.ring(c, SCENE[b.kind].ringA, R * 1.15);
+  ctx.effects.ring(c, SCENE[b.kind].ringB, R * 0.7);
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * Math.PI * 2;
-    ctx.effects.poof(tmp2.set(at.x + Math.sin(a) * R * 0.8, b.ringY + 0.3, at.z + Math.cos(a) * R * 0.8), 0x9b8a6e, 6);
+    ctx.effects.poof(tmp2.set(at.x + Math.sin(a) * R * 0.8, b.ringY + 0.3, at.z + Math.cos(a) * R * 0.8), b.water ? 0x8fd4e8 : 0x9b8a6e, 6);
   }
   const d = Math.hypot(ctx.player.pos.x - at.x, ctx.player.pos.z - at.z);
-  sfx.play('rumble', { volume: Math.max(0.2, 1 - d / 40) });
+  sfx.play('rumble', { volume: Math.max(0.2, 1 - d / 40), pitch: b.water ? 1.15 : 1 });
   ctx.hud.flash(0.25);
   for (const h of ctx.heroes.values()) {
     const hd = Math.hypot(h.pos.x - at.x, h.pos.z - at.z);
@@ -773,16 +1023,18 @@ function stomp(ctx: Ctx, b: Boss): void {
   }
 }
 
-/** Nobody walks into the stone: heroes are kept out of the body's capsule. */
+/** Nobody walks into the beast: heroes are kept out of the body's capsule. */
 function pushHeroes(ctx: Ctx, b: Boss): void {
+  const m = b.measures;
+  const top = m.boxes.reduce((hi, [, y0, y1]) => Math.max(hi, y1), 0);
   for (const h of ctx.heroes.values()) {
     const l = b.toLocal(h.pos, tmp);
-    if (l.y > BODY_Y1 || l.y < -2) continue;
-    const cz = Math.max(-PUSH_Z, Math.min(PUSH_Z, l.z));
+    if (l.y > top || l.y < -2) continue;
+    const cz = Math.max(-m.pushZ, Math.min(m.pushZ, l.z));
     const dx = l.x;
     const dz = l.z - cz;
     const d = Math.hypot(dx, dz);
-    const r = PUSH_R + h.body.radius / b.scale;
+    const r = m.pushR + h.body.radius / b.scale;
     if (d >= r) continue;
     const nx = d > 1e-3 ? dx / d : 1;
     const nz = d > 1e-3 ? dz / d : 0;
@@ -794,20 +1046,20 @@ function pushHeroes(ctx: Ctx, b: Boss): void {
 
 // ─── the kit suggests the lantern inside the wasteland ──────────────────────
 
-function suggest(ctx: Ctx, want: boolean, inZone: boolean): void {
+function suggest(ctx: Ctx, want: boolean, inZone: boolean, bait: BuildingId = 'lantern'): void {
   if (!inZone) session.dismissed = false;
-  if (session.suggesting && (selectedBuilding() !== 'lantern' || !pickedByBoss())) {
-    // the child put the lantern away or picked another building: respect it until the next visit
+  if (session.suggesting && (selectedBuilding() !== bait || !pickedByBoss())) {
+    // the child put the bait away or picked another building: respect it until the next visit
     session.suggesting = false;
     session.dismissed = true;
     ctx.hud.suggestKit(false);
   }
   if (want && !session.suggesting && !session.dismissed && !selectedBuilding()) {
     session.suggesting = true;
-    pick(ctx, 'lantern', true);
+    pick(ctx, bait, true);
   } else if (!want && session.suggesting) {
     session.suggesting = false;
-    if (selectedBuilding() === 'lantern' && pickedByBoss()) pick(ctx, null);
+    if (selectedBuilding() === bait && pickedByBoss()) pick(ctx, null);
   }
 }
 
@@ -843,7 +1095,7 @@ function defeat(ctx: Ctx, b: Boss): void {
   const s = ctx.save.boss;
   s.defeatedDay = ctx.save.day;
   s.hp = null;
-  s.lanterns = [];
+  s.baits = [];
   s.bites = 0;
   boss = null;
   ctx.boss = null;
@@ -851,8 +1103,8 @@ function defeat(ctx: Ctx, b: Boss): void {
   ctx.hud.setBoss(null);
   suggest(ctx, false, false);
   b.stompRing.visible = false;
-  voice.say('boss_defeated', { priority: 9, interrupt: true });
-  sfx.play('rumble', { volume: 1 });
+  voice.say(b.lines.defeated, { priority: 9, interrupt: true });
+  sfx.play('rumble', { volume: 1, pitch: b.water ? 0.8 : 1 });
   sfx.play('poof');
   ctx.hud.flash(0.4);
 
@@ -860,7 +1112,7 @@ function defeat(ctx: Ctx, b: Boss): void {
   const mesh = b.bricks;
   mesh.count = PIECES;
   const col = new THREE.Color();
-  const shades = ['#5d646e', '#717a84', '#565c66', '#9aa1aa', '#6e9a3c'];
+  const shades = BOSS_KINDS[b.kind].crumble;
   const pieces: Crumble['pieces'] = [];
   for (let i = 0; i < PIECES; i++) {
     const p = b.toWorld((Math.random() - 0.5) * 6, 0.6 + Math.random() * 3.5, (Math.random() - 0.5) * 8, new THREE.Vector3());
@@ -876,7 +1128,7 @@ function defeat(ctx: Ctx, b: Boss): void {
     });
     mesh.setColorAt(i, col.set(shades[i % shades.length]));
   }
-  for (const pc of pieces) pc.floor = ctx.world.groundHeight(Math.floor(pc.p.x), Math.floor(pc.p.z));
+  for (const pc of pieces) pc.floor = b.water ? SEA_LEVEL : ctx.world.groundHeight(Math.floor(pc.p.x), Math.floor(pc.p.z));
   crumble = { t: 0, model: b, mesh, pieces, coins: false, heart: false, centre: b.mouthPoint(new THREE.Vector3()) };
 }
 
@@ -895,12 +1147,12 @@ function updateCrumble(ctx: Ctx, dt: number): void {
   b.model.root.scale.set(b.scale * (1 + 0.15 * k), b.scale * (1 - 0.9 * k), b.scale * (1 + 0.15 * k));
   b.model.root.position.y = b.pos.y - k * 0.5;
   if (c.t >= 0.9 && b.model.root.parent) b.dispose(ctx);
-  // bursts of stone dust
+  // bursts of stone dust (a splash of drops for the lake monster)
   for (const at of [0, 0.15, 0.3, 0.5, 0.7]) {
     if (t0 <= at && c.t > at) {
       const p = b.toWorld((Math.random() - 0.5) * 5, 1 + Math.random() * 4, (Math.random() - 0.5) * 7, tmp);
-      ctx.effects.poof(p, STONE_COL, 26);
-      ctx.effects.sparkle(p, 0xffa526);
+      ctx.effects.poof(p, SCENE[b.kind].dust, 26);
+      ctx.effects.sparkle(p, b.water ? 0x7ff0d4 : 0xffa526);
     }
   }
   if (!c.coins && c.t > 0.5) {
@@ -1006,13 +1258,15 @@ function exposeForChecks(ctx: Ctx): void {
       const b = boss;
       return {
         alive: !!b,
-        level: s.level,
+        kind: s.kind,
+        level: s.levels[s.kind],
+        levels: { ...s.levels },
         site: s.site,
         pos: b ? b.pos.toArray().map((v) => +v.toFixed(1)) : null,
         hp: b?.brain.hp ?? null,
         maxHp: b?.brain.maxHp ?? null,
         armored: b?.brain.armored ?? null,
-        lanterns: b?.brain.lanterns.length ?? 0,
+        baits: b?.brain.baits.length ?? 0,
         mouthOpen: b?.brain.mouthOpen ?? false,
         stompWarn: b?.brain.stompWarn ?? 0,
         dance: b ? +b.brain.dance.toFixed(1) : 0,
@@ -1046,6 +1300,19 @@ function exposeForChecks(ctx: Ctx): void {
       if (!b) return null;
       if (!b.brain.mouthOpen && !b.brain.armored) b.brain.mouthOpen = true;
       return b.strike(ctx, 'mouth', n, b.mouthPoint(new THREE.Vector3()));
+    },
+    /** One bait beside the player, as the child would place it: a lantern block, or a fish from the kit. */
+    bait: () => {
+      if (!boss || boss.water) {
+        (window as unknown as { __kotoKit?: { give: (id: string, place?: boolean) => void } }).__kotoKit?.give('fish', true);
+        return 'fish';
+      }
+      const x = Math.floor(ctx.player.pos.x + 1);
+      const z = Math.floor(ctx.player.pos.z);
+      const y = ctx.world.groundHeight(x, z);
+      ctx.world.setBlock(x, y, z, B.LANTERN);
+      events.emit('block:placed', { x, y, z, id: B.LANTERN });
+      return [x, y, z];
     },
     /** Places a lantern block on the ground next to the player, as the build button would. */
     lantern: (dx = 1, dz = 0) => {
@@ -1081,6 +1348,30 @@ function exposeForChecks(ctx: Ctx): void {
       const a = Math.atan2(b.site.x - b.pos.x, b.site.z - b.pos.z) || 0;
       [...ctx.heroes.values()].forEach((h, i) => {
         placeOnGround(ctx.world, h.body, b.pos.x + Math.sin(a) * d + i * 0.9, b.pos.z + Math.cos(a) * d);
+        h.syncModel(0);
+      });
+      events.emit('hero:teleport', {});
+      return ctx.player.pos.toArray().map((v) => +v.toFixed(1));
+    },
+    /** The party to the nearest low, dry cell by the lair's centre (the lake monster: its waterline), facing it. */
+    shore: () => {
+      const b = boss;
+      if (!b) return null;
+      let best: { x: number; z: number; d: number } | null = null;
+      for (let dx = -24; dx <= 24; dx++)
+        for (let dz = -24; dz <= 24; dz++) {
+          const x = Math.floor(b.site.x) + dx;
+          const z = Math.floor(b.site.z) + dz;
+          const g = ctx.world.groundHeight(x, z);
+          if (g <= SEA_LEVEL || g > SEA_LEVEL + 3) continue;
+          if (ctx.world.isWater(x, g, z)) continue;
+          const d = dx * dx + dz * dz;
+          if (!best || d < best.d) best = { x, z, d };
+        }
+      if (!best) return null;
+      [...ctx.heroes.values()].forEach((h, i) => {
+        placeOnGround(ctx.world, h.body, best!.x + 0.5 + i * 0.7, best!.z + 0.5);
+        h.yaw = yawOf(b.pos.x - h.pos.x, b.pos.z - h.pos.z);
         h.syncModel(0);
       });
       events.emit('hero:teleport', {});

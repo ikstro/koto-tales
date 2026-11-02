@@ -219,6 +219,18 @@ export const SPRITES = {
   'contents': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
   'b-doghouse': {w: 200,h: 200,oy: 1,x: 36,y: 56,cw: 128,ch: 131},
   'b-doghouse-sh': {w: 200,h: 200,oy: 1,x: 44,y: 92,cw: 156,ch: 108},
+  'nessie': {w: 96,h: 96,oy: 0,x: 16,y: 14,cw: 64,ch: 60},
+  'nessie-sh': {w: 96,h: 96,oy: 0,x: 18,y: 20,cw: 78,ch: 66},
+  'nessie-face': {w: 110,h: 110,oy: 0,x: 14,y: 14,cw: 82,ch: 74},
+  'bait-fish-on': {w: 60,h: 100,oy: 0.6,x: 22,y: 56,cw: 16,ch: 26},
+  'bait-fish-on-sh': {w: 60,h: 100,oy: 0.6,x: 22,y: 62,cw: 26,ch: 26},
+  'bait-fish-off': {w: 60,h: 100,oy: 0.6,x: 22,y: 56,cw: 16,ch: 26},
+  'bait-fish-off-sh': {w: 60,h: 100,oy: 0.6,x: 22,y: 62,cw: 26,ch: 26},
+  'nessie-cracked': {w: 220,h: 210,oy: 0.75,x: 0,y: 14,cw: 220,ch: 196},
+  'nessie-cracked-sh': {w: 220,h: 210,oy: 0.75,x: 0,y: 28,cw: 220,ch: 182},
+  'nessie-open': {w: 220,h: 210,oy: 0.75,x: 0,y: 14,cw: 220,ch: 196},
+  'b-fish': {w: 200,h: 200,oy: 1,x: 40,y: 62,cw: 113,ch: 131},
+  'b-fish-sh': {w: 200,h: 200,oy: 1,x: 40,y: 102,cw: 154,ch: 98},
 } satisfies Record<string, SpriteMeta>;
 
 export type SpriteName = keyof typeof SPRITES;

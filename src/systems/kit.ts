@@ -503,7 +503,7 @@ function fold(ctx: Ctx): void {
 }
 
 /** Packs a standing building back into the box (the fold piece; a saucer with nowhere to land). */
-export function packAway(ctx: Ctx, s: Standing): void {
+export function packAway(ctx: Ctx, s: Standing, refund = true): void {
   if (s.folding) return;
   s.folding = true;
   s.age = 0;
@@ -517,7 +517,8 @@ export function packAway(ctx: Ctx, s: Standing): void {
     events.emit('block:broken', { x, y, z, id: s.card.block });
   } else {
     for (const [x, y, z] of barrierCells(s)) ctx.world.setBarrier?.(x, y, z, false);
-    ctx.save.kit[s.card.id] = (ctx.save.kit[s.card.id] ?? 0) + 1;
+    // eaten bait (the lake monster's fish) never comes back to the box
+    if (refund) ctx.save.kit[s.card.id] = (ctx.save.kit[s.card.id] ?? 0) + 1;
     if (s.site) removeSite(s.site.key);
   }
   ctx.effects.poof(at, 0xffe3a3, 14);
@@ -525,6 +526,11 @@ export function packAway(ctx: Ctx, s: Standing): void {
   ctx.hud.kitBump();
   pushHud(ctx);
   events.emit('building:folded', { id: s.card.id });
+}
+
+/** A building the world took (the lake monster's fish, snapped up off the shore): it folds away with nothing back. */
+export function devour(ctx: Ctx, s: Standing): void {
+  packAway(ctx, s, false);
 }
 
 /** The nearest free spot for a building around (x, z) with the floor near `y`, by the kit's rules (around the point along `yaw`). */

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { BOSS, BossBrain, biteSpot, bossMaxHp, bossScale, pickSite, shouldReturn, trapped, type BossEvent, type GroundAt } from './bossLogic';
+﻿import { describe, expect, it } from 'vitest';
+import { BOSS, BOSS_KINDS, BossBrain, biteSpot, bossMaxHp, bossScale, nextBossKind, pickSite, shouldReturn, trapped, type BossEvent, type GroundAt } from './bossLogic';
 
 /** Equal within one simulation step. */
 const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(0.051);
@@ -32,21 +32,21 @@ describe('boss fight', () => {
     expect(b.hp).toBe(30);
   });
 
-  it('lanterns: each one cracks the armour, the third breaks it, the same spot counts once', () => {
+  it('baits: each one cracks the armour, the third breaks it, the same spot counts once', () => {
     const b = new BossBrain({ maxHp: 30, tempo: 1 });
-    expect(b.addLantern('1,2,3')).toBe('crack');
-    expect(b.addLantern('1,2,3')).toBe(null);
-    expect(b.addLantern('4,2,3')).toBe('crack');
+    expect(b.addBait('1,2,3')).toBe('crack');
+    expect(b.addBait('1,2,3')).toBe(null);
+    expect(b.addBait('4,2,3')).toBe('crack');
     expect(b.armored).toBe(true);
-    expect(b.addLantern('7,2,3')).toBe('broken');
+    expect(b.addBait('7,2,3')).toBe('broken');
     expect(b.armored).toBe(false);
-    expect(b.addLantern('9,2,3')).toBe(null);
-    expect(b.lanterns).toHaveLength(BOSS.lanterns);
+    expect(b.addBait('9,2,3')).toBe(null);
+    expect(b.baits).toHaveLength(BOSS.baits);
   });
 
   it('mouth: after the armour breaks it opens every ~5 s for ~1.6 s; only shots into the open mouth hurt', () => {
-    const b = new BossBrain({ maxHp: 30, tempo: 1, lanterns: ['a', 'b'] });
-    b.addLantern('c');
+    const b = new BossBrain({ maxHp: 30, tempo: 1, baits: ['a', 'b'] });
+    b.addBait('c');
     const ev = run(b, 14, 100).filter((x) => x.e.startsWith('mouth'));
     // opens soon after breaking, then every 5 s closed + 1.6 s open
     expect(ev[0].e).toBe('mouth-open');
@@ -56,7 +56,7 @@ describe('boss fight', () => {
     expect(ev[2].e).toBe('mouth-open');
     near(ev[2].t - ev[1].t, BOSS.mouthEvery);
 
-    const c = new BossBrain({ maxHp: 30, tempo: 1, lanterns: ['a', 'b', 'c'] });
+    const c = new BossBrain({ maxHp: 30, tempo: 1, baits: ['a', 'b', 'c'] });
     expect(c.hit('mouth', 1)).toBe('bounce'); // shut
     c.forceMouth();
     c.step(0.01, 100);
@@ -70,12 +70,12 @@ describe('boss fight', () => {
   });
 
   it('an easier tempo opens the mouth for longer', () => {
-    const easy = new BossBrain({ maxHp: 30, tempo: 0.8, lanterns: ['a', 'b', 'c'] });
+    const easy = new BossBrain({ maxHp: 30, tempo: 0.8, baits: ['a', 'b', 'c'] });
     expect(easy.mouthOpenTime).toBeCloseTo(2);
     expect(easy.mouthEvery).toBeCloseTo(6.25);
   });
 
-  it('stomp: only with a hero close by, every 7–9 s, warned 1 s ahead', () => {
+  it('stomp: only with a hero close by, every 7вЂ“9 s, warned 1 s ahead', () => {
     const far = new BossBrain({ maxHp: 30, tempo: 1, rand: () => 0 });
     expect(run(far, 30, BOSS.stompRange + 1)).toEqual([]);
 
@@ -100,7 +100,29 @@ describe('boss fight', () => {
     expect(shouldReturn(9, 2)).toBe(true);
   });
 
-  it('the lair is the same for the same world and level, 140–180 blocks from home, a new place each level', () => {
+  it('two giants: whole profiles, and either one may come back after a defeat', () => {
+    expect(Object.keys(BOSS_KINDS).sort()).toEqual(['eater', 'nessie']);
+    for (const [kind, p] of Object.entries(BOSS_KINDS)) {
+      expect(p.model, kind).toBeTruthy();
+      expect([p.model], kind).toEqual(['landEater', 'nessie'].includes(p.model) ? [p.model] : []);
+      expect([p.bait], kind).toContain(p.bait);
+      expect(p.crumble.length, kind).toBeGreaterThanOrEqual(3);
+      expect(!!p.water, kind).toBe(kind === 'nessie');
+      expect(!!p.bitesGround, kind).toBe(kind === 'eater');
+      expect(p.icon, kind).toBeTruthy();
+      expect(p.face, kind).toBeTruthy();
+    }
+    // a long enough coin run brings both giants up
+    const seen = new Set<string>();
+    let r = 123456789;
+    for (let i = 0; i < 60; i++) {
+      r = (r * 1664525 + 1013904223) % 4294967296;
+      seen.add(nextBossKind(() => r / 4294967296));
+    }
+    expect(seen).toEqual(new Set(['eater', 'nessie']));
+  });
+
+  it('the lair is the same for the same world and level, 140вЂ“180 blocks from home, a new place each level', () => {
     const home = { x: 12, z: -8 };
     const a = pickSite(20261128, 1, home, () => true);
     expect(pickSite(20261128, 1, home, () => true)).toEqual(a);
@@ -135,7 +157,7 @@ describe('music and the boss', () => {
   });
 
   it('waits for its open mouth to shut before it dances', () => {
-    const b = new BossBrain({ maxHp: 30, tempo: 1, lanterns: ['a', 'b', 'c'] });
+    const b = new BossBrain({ maxHp: 30, tempo: 1, baits: ['a', 'b', 'c'] });
     b.forceMouth();
     b.step(0.05, 20);
     expect(b.mouthOpen).toBe(true);

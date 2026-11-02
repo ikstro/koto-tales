@@ -131,8 +131,8 @@ async function boot(): Promise<void> {
   initBoss(ctx);
   initLanterns(ctx);
   initHeroMark(ctx);
-  // ?boss=near: the party starts in front of the boss's mouth
-  const near = params.boss === 'near' ? bossStartSpot(ctx) : null;
+  // ?boss=near|nessie: the party starts by the boss (in front of its mouth, or on the lake's shore)
+  const near = params.boss ? bossStartSpot(ctx) : null;
   if (near) [params.x, params.z] = [near.x, near.z];
 
   const game = new Game(ctx, quality);

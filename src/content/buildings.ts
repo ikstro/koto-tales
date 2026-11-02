@@ -142,6 +142,15 @@ const CARDS = {
     sprite: 'brick-24',
     block: B.LANTERN,
   },
+  fish: {
+    id: 'fish',
+    name: 'Рибка',
+    about: 'Ніколи не закінчується. Поклади рибку на берег озера — Шелохмаське чудовисько випливе за нею.',
+    size: [1, 1],
+    solid: [],
+    count: null,
+    sprite: 'b-fish',
+  },
   windmill: {
     id: 'windmill',
     name: 'Вітряк',

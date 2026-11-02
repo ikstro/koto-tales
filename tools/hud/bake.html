@@ -401,6 +401,47 @@ function bossPose(open) {
   return g;
 }
 function numTile() { const g = new THREE.Group(); const t = new THREE.Mesh(new RoundedBoxGeometry(2, 0.4, 2, 4, 0.1), M(C.num)); t.position.y = 0.2; g.add(t); return g; }
+/** The arrow flying into an open boss mouth (shared by both guide poses). */
+function flyingArrow(at) {
+  const arrow = new THREE.Group();
+  const wood = M('#8a5a2b'), tip = M('#4a5562'), feather = M('#ffe3a3');
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.3, 10), wood); shaft.rotation.x = Math.PI / 2; arrow.add(shaft);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.32, 12), tip); head.rotation.x = Math.PI / 2; head.position.z = 0.8; arrow.add(head);
+  for (const a of [0, Math.PI / 2]) { const f = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.26, 0.34), feather); f.position.z = -0.55; f.rotation.z = a; arrow.add(f); }
+  arrow.scale.setScalar(1.4); arrow.position.copy(at).add(new THREE.Vector3(1.2, 0.7, 1.3));
+  arrow.lookAt(at);
+  return arrow;
+}
+/** «Шелохмаське чудовисько» as the game shows it, small: risen out of flat water plates with
+ *  its armour cracked (`open` false) or the mouth open with an arrow flying in. */
+function nessiePose(open) {
+  const m = models.character({ kind: 'parts', id: 'nessie' }); m.update(0, 0);
+  const root = m.root;
+  for (const i of [1, 2, 3]) { const c = root.getObjectByName('crack' + i); if (c) c.visible = true; }
+  if (open) {
+    const jaw = root.getObjectByName('jaw'); if (jaw) jaw.rotation.x = 1.2;
+    const ember = root.getObjectByName('ember'); if (ember) ember.visible = true;
+    const eyes = root.getObjectByName('bossEyes'); if (eyes) eyes.scale.setScalar(1.25);
+  }
+  const g = new THREE.Group();
+  root.scale.setScalar(0.3); root.rotation.y = 0.6; g.add(root);
+  // flat plates for the lake's surface, so she reads as swimming
+  const water = (dx, dz, w, d, col) => { const p = new THREE.Mesh(new RoundedBoxGeometry(w, 0.14, d, 3, 0.06), M(col, { transparent: true })); p.position.set(dx, 0.48, dz); g.add(p); };
+  water(0.3, 0.6, 7.6, 4.4, '#4aa6c9'); water(-1.2, -1.6, 6.4, 3.4, '#3d7fd9'); water(2.0, -0.4, 4.0, 2.6, '#6fc9e0');
+  if (open) {
+    g.updateMatrixWorld(true);
+    const node = root.getObjectByName('bossMouth');
+    const at = node ? node.getWorldPosition(new THREE.Vector3()) : root.localToWorld(new THREE.Vector3(0, 6.4, 7.5));
+    g.add(flyingArrow(at));
+  }
+  return g;
+}
+/** A bait fish for the boss bar's slots: the kit's own fish, small; `on` false: greyed like an empty slot. */
+function fishPiece(on) {
+  const b = createBuilding(skin, 'fish');
+  if (!on) b.root.traverse((o) => { if (o.isMesh) o.material = M('#6f7f7d'); });
+  const g = new THREE.Group(); b.root.scale.setScalar(0.42); g.add(b.root); return g;
+}
 function squareTile(color, size = 2.6) { const g = new THREE.Group(); const t = new THREE.Mesh(new RoundedBoxGeometry(size, 0.4, size, 4, 0.14), M(color)); t.position.y = 0.2; g.add(t); return g; }
 function album() {
   const g = new THREE.Group();
@@ -674,9 +715,8 @@ function housePiece() {
 }
 /** A helper hero: a small tile in the hero's colour with one stud. */
 function dotTile(color) { const g = roundTile(0.42, color, null, 0.3); g.add(stud(M(color), 0, 0.29, 0)); return g; }
-/**
- * «Пожирач земель»'s face, printed on a slate tile: the stone dome with its spiky ridge,
- * the black arched cave mouth with pale fangs, two amber eyes glowing inside.
+/** «Пожирач земель»'s face, printed on a slate tile: the stone dome with its spiky ridge,
+ *  the black arched cave mouth with pale fangs, two amber eyes glowing inside.
  */
 const SLATE = '#4b515b';
 const printBoss = (x, s) => {
@@ -707,6 +747,39 @@ const printBoss = (x, s) => {
     x.fillStyle = '#ffe27a'; x.beginPath(); x.ellipse(-d * 8, -5, 11, 7, 0, 0, Math.PI * 2); x.fill();
     x.fillStyle = '#14100d'; x.fillRect(-4, -16, 8, 32);
     x.restore();
+  }
+  x.restore();
+};
+/**
+ * «Шелохмаське чудовисько»'s face, printed on a deep-teal tile: the long neck rising
+ * out of rippled water, the broad head with amber eyes and a pale-fanged smile.
+ */
+const LAKE = '#1d564a';
+const printNessie = (x, s) => {
+  const k = s / 512; x.save(); x.scale(k, k); x.lineJoin = 'round';
+  // ripples behind the neck
+  x.strokeStyle = 'rgba(127,224,197,0.8)'; x.lineWidth = 16; x.lineCap = 'round';
+  for (const [cx, cy, r] of [[256, 430, 150], [256, 430, 205], [130, 415, 60], [382, 415, 60]]) { x.beginPath(); x.arc(cx, cy, r, Math.PI * 1.15, Math.PI * 1.85); x.stroke(); }
+  // the neck, curving up and forward, three teal segments with a pale throat
+  const neck = (col) => { x.fillStyle = col; x.beginPath(); x.moveTo(150, 440); x.bezierCurveTo(150, 260, 190, 170, 256, 130); x.lineTo(356, 130); x.bezierCurveTo(300, 210, 280, 300, 296, 440); x.closePath(); x.fill(); };
+  x.strokeStyle = LAKE; x.lineWidth = 12; neck('#2c3036');
+  neck('#3a9484');
+  x.fillStyle = '#cfe6d4'; x.beginPath(); x.moveTo(288, 440); x.bezierCurveTo(278, 310, 300, 210, 350, 145); x.lineTo(356, 152); x.bezierCurveTo(310, 220, 296, 310, 306, 440); x.closePath(); x.fill();
+  // the broad head with a blunt snout
+  x.fillStyle = '#3a9484'; x.strokeStyle = '#2c3036'; x.lineWidth = 12;
+  x.beginPath(); x.roundRect(160, 60, 230, 110, [46, 60, 40, 40]); x.fill(); x.stroke();
+  x.fillStyle = '#28705f'; x.beginPath(); x.roundRect(180, 44, 150, 34, [22, 22, 0, 0]); x.fill();
+  // nostrils on the snout
+  x.fillStyle = '#0e2e2a'; for (const cx of [204, 238]) { x.beginPath(); x.ellipse(cx, 108, 12, 9, 0, 0, Math.PI * 2); x.fill(); }
+  // the smiling mouth with pale fangs
+  x.fillStyle = '#0e2e2a'; x.beginPath(); x.roundRect(176, 130, 210, 26, 13); x.fill();
+  x.fillStyle = CREAM;
+  for (let i = 0; i < 5; i++) { const cx = 200 + i * 44; x.beginPath(); x.moveTo(cx - 13, 156); x.lineTo(cx, 130); x.lineTo(cx + 13, 156); x.closePath(); x.fill(); }
+  // amber eyes with dark slits, one on each side of the head
+  for (const [cx, d] of [[212, -1], [344, 1]]) {
+    x.fillStyle = '#ffb12e'; x.beginPath(); x.ellipse(cx, 84, 27, 19, 0, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#ffe27a'; x.beginPath(); x.ellipse(cx - d * 7, 78, 10, 6, 0, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#0e2e2a'; x.fillRect(cx - 4, 66, 8, 32);
   }
   x.restore();
 };
@@ -804,12 +877,17 @@ const printDance = (x, s) => {
 shoot('note', roundTile(1, C.mustard, printNote(INK), 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('task-dance', roundTile(1, C.navy, printDance, 0.6), 130, 130, { shadow: 'tile6-sh' });
 shoot('boss', roundTile(0.8, SLATE, printBoss, 0.4), 96, 96, { dpr: LO });
-// --- the boss bar (ui/hud.ts setBoss): a plate with the face, 10 health stones, 3 lantern slots
+// --- the boss bar (ui/hud.ts setBoss): a plate with the face, 10 health stones, 3 bait slots
 shoot('plate-boss', rectPlate(12, 2, C.plate), 540, 150, { dpr: LO });
 shoot('boss-face', roundTile(1, SLATE, printBoss), 110, 110, { shadow: 'tile-sh', dpr: LO });
 shoot('boss-stone', bossStone(), 60, 70, { oy: 0.3, dpr: LO });
 shoot('lamp-on', lampPiece(true), 60, 100, { oy: 0.6, shadow: 'lamp-sh', dpr: LO });
 shoot('lamp-off', lampPiece(false), 60, 100, { oy: 0.6, shadow: 'lamp-sh', dpr: LO });
+// the lake monster's own map mark, face and bait slots
+shoot('nessie', roundTile(0.8, LAKE, printNessie, 0.4), 96, 96, { dpr: LO });
+shoot('nessie-face', roundTile(1, LAKE, printNessie), 110, 110, { shadow: 'tile-sh', dpr: LO });
+shoot('bait-fish-on', fishPiece(true), 60, 100, { oy: 0.6, dpr: LO });
+shoot('bait-fish-off', fishPiece(false), 60, 100, { oy: 0.6, dpr: LO });
 shoot('map-arrow', arrowPiece(), 48, 48, { shadow: null, top: true, dpr: LO });
 shoot('cloud', cloudPiece(), 120, 100, { oy: 0.3, dpr: LO });
 
@@ -819,6 +897,8 @@ shoot('contents', roundTile(1, C.sky, printContents(INK), 0.6), 130, 130, { shad
 shoot('apple', itemPiece('apple', 1.5), 100, 110, { oy: 0.4, dpr: LO });
 shoot('boss-cracked', bossPose(false), 220, 210, { oy: 0.75, dpr: LO });
 shoot('boss-open', bossPose(true), 220, 210, { oy: 0.75, shadow: 'boss-cracked-sh', dpr: LO });
+shoot('nessie-cracked', nessiePose(false), 220, 210, { oy: 0.75, dpr: LO });
+shoot('nessie-open', nessiePose(true), 220, 210, { oy: 0.75, shadow: 'nessie-cracked-sh', dpr: LO });
 {
   const w = 180, h = 170;
   const sp = shoot('card9', cardTile(), w, h, { shadow: null, dpr: LO });

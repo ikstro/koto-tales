@@ -7,6 +7,7 @@ import type { CastleSave } from '../content/castles';
 import { freshTales, PROLOGUE, type TalesSave } from '../content/tales';
 import type { VillageSave } from '../content/villages';
 import type { Race } from '../world/villages';
+import type { BossKind } from './bossLogic';
 import { homeChunks } from './explore';
 
 /**
@@ -46,7 +47,7 @@ export interface SaveData {
   explored: string[];
   /** In-game days lived (+1 every morning while playing). */
   day: number;
-  /** «Пожирач земель»: where it lives, how hurt it is, when it was beaten. */
+  /** The giant that is up (systems/bossLogic.ts): where it lives, how hurt it is, when it was beaten. */
   boss: BossSave;
   /** Buildings left in the kit box (the lantern never runs out and is not counted). */
   kit: Partial<Record<BuildingId, number>>;
@@ -98,14 +99,16 @@ export interface ProgressSave {
 }
 
 export interface BossSave {
-  /** 1 at first; +1 each time it comes back (bigger and tougher). */
-  level: number;
+  /** Which giant is up now; after every defeat either one comes back by chance. */
+  kind: BossKind;
+  /** Each giant's own count: 1 at first, +1 each time that one comes back (bigger and tougher). */
+  levels: Record<BossKind, number>;
   /** Centre of its lair; null until it is first placed. */
   site: [number, number] | null;
   /** Health left; null = full. */
   hp: number | null;
-  /** Lantern blocks ("x,y,z") that cracked its armour. */
-  lanterns: string[];
+  /** Bait spots ("x,y,z") that cracked its armour: lanterns by the Eater, fish by the lake monster. */
+  baits: string[];
   /** `day` it was beaten; null while it lives. It comes back 3 days later. */
   defeatedDay: number | null;
   /** The lair whose ground is eaten (stone and pits), until it grows back. */
@@ -114,12 +117,12 @@ export interface BossSave {
   bites?: number;
 }
 
-export const freshBoss = (): BossSave => ({ level: 1, site: null, hp: null, lanterns: [], defeatedDay: null, eatenAt: null, bites: 0 });
+export const freshBoss = (): BossSave => ({ kind: 'eater', levels: { eater: 1, nessie: 1 }, site: null, hp: null, baits: [], defeatedDay: null, eatenAt: null, bites: 0 });
 
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -214,6 +217,16 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
   // v14: the big house with the kitchen. The house standing in the save is the first (9×7) one:
   // systems/house.ts pulls it down and puts the new one up around the same centre.
   13: (d) => ({ ...d, v: 14, houseV: d.house ? 1 : 0 }),
+  // v15: the second boss («Шелохмаське чудовисько»). The one that was up stays up (the Eater);
+  // each giant keeps its own level from now on, and its baits are its own lanterns/fish.
+  14: (d) => {
+    const b = (d.boss as Raw) ?? {};
+    const level = typeof b.level === 'number' ? b.level : 1;
+    const boss: Raw = { ...b, kind: 'eater', levels: { eater: level, nessie: 1 }, baits: (b.lanterns as string[]) ?? [] };
+    delete boss.level;
+    delete boss.lanterns;
+    return { ...d, v: 15, boss };
+  },
 };
 
 export function migrate(raw: Raw): SaveData {

@@ -3,14 +3,62 @@
  * the mouth opens, when it stomps, when it comes back, where it lives. The
  * scene side (systems/boss.ts) moves the model and asks this brain what to do.
  *
+ * Two giants share these rules and take turns (a chance pick after every
+ * defeat): «Пожирач земель», the stone Land Eater of a dry wasteland, and
+ * «Шелохмаське чудовисько», the lake monster. Only the bait differs — lanterns
+ * crack the Eater's stone, fish lure the lake monster out of its water.
+ *
  * The fight, as a child plays it:
- *   1. armour  — it is stone: arrows and bolts bounce off («дзинь»), no damage;
- *   2. light   — each lantern placed in its wasteland cracks the armour; 3 break it;
+ *   1. armour  — arrows and bolts bounce off («дзинь»), no damage;
+ *   2. bait    — each bait placed in its lair cracks the armour; 3 break it;
  *   3. mouth   — then it opens its cave mouth now and then; shots into the open mouth hurt;
  *   4. stomp   — a hero close by sees a ring of cracks, then the ground jumps (1 heart).
  * It never wins: out of hearts the hero naps at home, the boss keeps its wounds.
  */
 import { hash2, mulberry32 } from '../world/rng';
+
+/** The two bosses: who they are is a profile; how they fight is one brain. */
+export type BossKind = 'eater' | 'nessie';
+
+export interface BossProfile {
+  /** The model file (assets/parts/<model>.ts). */
+  model: string;
+  /** The building whose placing in the lair cracks the armour (content/buildings.ts). */
+  bait: 'lantern' | 'fish';
+  /** Its lair: dry land it eats into a wasteland, or a lake it floats in. */
+  water: boolean;
+  /** It takes bites out of the lair's ground (only the Eater does). */
+  bitesGround: boolean;
+  /** The bricks it crumbles into when defeated. */
+  crumble: string[];
+  /** The map mark icon and the boss-bar face sprite (ui/hudSprites.ts). */
+  icon: string;
+  face: string;
+}
+
+export const BOSS_KINDS: Record<BossKind, BossProfile> = {
+  eater: {
+    model: 'landEater',
+    bait: 'lantern',
+    water: false,
+    bitesGround: true,
+    crumble: ['#5d646e', '#717a84', '#565c66', '#9aa1aa', '#6e9a3c'],
+    icon: 'boss',
+    face: 'boss-face',
+  },
+  nessie: {
+    model: 'nessie',
+    bait: 'fish',
+    water: true,
+    bitesGround: false,
+    crumble: ['#4a9683', '#5fb39c', '#37705f', '#9fd8c6', '#2f918b'],
+    icon: 'nessie',
+    face: 'nessie-face',
+  },
+};
+
+/** Which giant comes back after a defeat: either one, by chance. */
+export const nextBossKind = (rand: () => number = Math.random): BossKind => (rand() < 0.5 ? 'eater' : 'nessie');
 
 export const BOSS = {
   /** The wasteland around the lair, in blocks. */
@@ -22,7 +70,8 @@ export const BOSS = {
   /** Each return: +30% health, +10% size. */
   hpPerLevel: 0.3,
   sizePerLevel: 0.1,
-  lanterns: 3,
+  /** Baits (lanterns by the Eater, fish by the lake) that break the armour. */
+  baits: 3,
   /** Seconds between mouth openings / how long it stays open (divided by the difficulty's tempo). */
   mouthEvery: 5,
   mouthOpen: 1.6,
@@ -75,7 +124,7 @@ export type HitResult = 'bounce' | 'hurt' | 'defeated';
 export interface BrainInit {
   maxHp: number;
   hp?: number | null;
-  lanterns?: string[];
+  baits?: string[];
   /** Difficulty tempo (1 = normal). */
   tempo: number;
   rand?: () => number;
@@ -84,7 +133,8 @@ export interface BrainInit {
 export class BossBrain {
   readonly maxHp: number;
   hp: number;
-  lanterns: string[];
+  /** Bait spots ("x,y,z") that have cracked the armour so far. */
+  baits: string[];
   tempo: number;
   mouthOpen = false;
   /** Seconds left of the stomp warning (0 = no stomp coming). */
@@ -99,7 +149,7 @@ export class BossBrain {
   constructor(o: BrainInit) {
     this.maxHp = o.maxHp;
     this.hp = Math.min(o.maxHp, Math.max(0, o.hp ?? o.maxHp));
-    this.lanterns = [...(o.lanterns ?? [])].slice(0, BOSS.lanterns);
+    this.baits = [...(o.baits ?? [])].slice(0, BOSS.baits);
     this.tempo = o.tempo;
     this.rand = o.rand ?? Math.random;
     this.mouthT = this.mouthEvery * 0.6;
@@ -107,7 +157,7 @@ export class BossBrain {
   }
 
   get armored(): boolean {
-    return this.lanterns.length < BOSS.lanterns;
+    return this.baits.length < BOSS.baits;
   }
 
   get alive(): boolean {
@@ -127,10 +177,10 @@ export class BossBrain {
     return (lo + this.rand() * (hi - lo)) / this.tempo;
   }
 
-  /** A lantern placed in the zone (keyed by its block, so one spot counts once). */
-  addLantern(key: string): 'crack' | 'broken' | null {
-    if (!this.armored || !this.alive || this.lanterns.includes(key)) return null;
-    this.lanterns.push(key);
+  /** A bait placed in the zone (keyed by its spot, so one place counts once). */
+  addBait(key: string): 'crack' | 'broken' | null {
+    if (!this.armored || !this.alive || this.baits.includes(key)) return null;
+    this.baits.push(key);
     if (this.armored) return 'crack';
     // the armour just broke: the first opening comes soon
     this.mouthT = Math.min(this.mouthT, 1.2);

@@ -44,8 +44,8 @@ export const ITEMS = {
   key_gold: { id: 'key_gold', name: 'Золотий ключ', about: 'Дуже рідкісний золотий ключ.', line: 'item_key_gold', biomes: 'any', weight: 0.25, color: 0xffca28, use: 'auto' },
   flower_yellow: { id: 'flower_yellow', name: 'Жовта квітка', about: 'Квітка для колекції.', line: 'item_flower_yellow', biomes: ['meadow'], weight: 4, color: 0xffeb3b },
   flower_blue: { id: 'flower_blue', name: 'Синя квітка', about: 'Квітка для колекції.', line: 'item_flower_blue', biomes: ['meadow', 'snow'], weight: 3, color: 0x64b5f6 },
-  // The Land Eater's trophy: only dropped by the boss (weight 0 — never lies around).
-  eater_heart: { id: 'eater_heart', name: 'Серце Пожирача', about: 'Трофей: випадає, коли переможеш Пожирача.', line: 'item_eater_heart', biomes: 'any', weight: 0, color: 0xffa526 },
+  // The giants' shared trophy: only dropped by a boss (weight 0 — never lies around).
+  eater_heart: { id: 'eater_heart', name: 'Серце велетня', about: 'Трофей: випадає, коли переможеш великого боса.', line: 'item_eater_heart', biomes: 'any', weight: 0, color: 0xffa526 },
   /** Dropped by monsters (never lies around by itself); picking it up gives a heart back. Not an album sticker. */
   heart: { id: 'heart', name: 'Сердечко', about: 'Випадає з монстрів і повертає одне сердечко.', line: 'item_heart', biomes: 'any', weight: 0, color: 0xff4d6d, album: false },
 } satisfies Record<string, ItemCard>;

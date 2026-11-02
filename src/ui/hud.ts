@@ -306,11 +306,12 @@ const LEVELS: Difficulty[] = ['easy', 'normal', 'hard'];
 /** Stone studs on the boss bar = its health in tenths. */
 const BOSS_STONES = 10;
 
-/** What the boss bar shows: health 0..1, whether the stone armour holds, lanterns lit (0–3). */
+/** What the boss bar shows: health 0..1, whether the armour holds, baits taken (0–3), and which giant it is. */
 export interface BossBar {
   hp: number;
   armored: boolean;
-  lanterns: number;
+  baits: number;
+  kind: 'eater' | 'nessie';
 }
 
 /** A building in the kit plate: its piece and how many are left (null: never runs out). */
@@ -375,6 +376,7 @@ export class Hud {
   private bossLit = -1;
   private bossLampsLit = -1;
   private bossArmored: boolean | null = null;
+  private bossKind: BossBar['kind'] | null = null;
   private suggestAnim: Animation | null = null;
   private gTale: Group;
   private taleRing: Piece;
@@ -1553,7 +1555,7 @@ export class Hud {
     this.faderEl.classList.toggle('stars', on);
   }
 
-  /** The boss bar near «Пожирач земель»; null hides it. Stones chip off as its health drops. */
+  /** The boss bar near the giant that is up; null hides it. Stones chip off as its health drops. */
   setBoss(b: BossBar | null): void {
     const on = !!b;
     if (on !== this.bossShown) {
@@ -1563,11 +1565,23 @@ export class Hud {
         this.bossLit = -1;
         this.bossLampsLit = -1;
         this.bossArmored = null;
+        this.bossKind = null;
         this.gBoss.pieces.forEach((p, i) => p.drop(i * 30, 40));
       }
       this.syncTale();
     }
     if (!b) return;
+    // whichever giant it is: its own face, and fish slots instead of lanterns
+    if (b.kind !== this.bossKind) {
+      this.bossKind = b.kind;
+      setSprite(this.bossFace.img, b.kind === 'nessie' ? 'nessie-face' : 'boss-face');
+      const bait = b.kind === 'nessie' ? 'bait-fish-on' : 'lamp-on';
+      const baitOff = b.kind === 'nessie' ? 'bait-fish-off' : 'lamp-off';
+      this.bossLamps.forEach((l) => {
+        setSprite(l.on.img, bait);
+        setSprite(l.off.img, baitOff);
+      });
+    }
     const lit = b.hp <= 0 ? 0 : Math.max(1, Math.ceil(b.hp * BOSS_STONES - 1e-6));
     if (lit !== this.bossLit) {
       const first = this.bossLit < 0;
@@ -1591,20 +1605,20 @@ export class Hud {
       if (!first && lit < this.bossLit) this.bossFace.bump('translateY(-10px) scale(1.08) rotate(-8deg)');
       this.bossLit = lit;
     }
-    if (b.armored !== this.bossArmored || b.lanterns !== this.bossLampsLit) {
+    if (b.armored !== this.bossArmored || b.baits !== this.bossLampsLit) {
       const prev = this.bossArmored === b.armored ? this.bossLampsLit : -1;
       this.bossLamps.forEach((l, i) => {
         l.off.el.style.display = b.armored ? '' : 'none';
-        const lamp = b.armored && i < b.lanterns;
-        l.on.el.style.display = lamp ? '' : 'none';
-        if (lamp && prev >= 0 && i >= prev) {
+        const litBait = b.armored && i < b.baits;
+        l.on.el.style.display = litBait ? '' : 'none';
+        if (litBait && prev >= 0 && i >= prev) {
           l.on.drop(0, 50);
           l.on.bump('translateY(-12px) scale(1.2)');
         }
       });
       if (this.bossArmored === true && !b.armored) this.bossFace.bump('translateY(-14px) scale(1.15) rotate(10deg)');
       this.bossArmored = b.armored;
-      this.bossLampsLit = b.lanterns;
+      this.bossLampsLit = b.baits;
     }
   }
 

@@ -347,8 +347,9 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
     };
   });
 
-  // ─── lighthouses and the boss ───
+  // ─── lighthouses and the giant that is up ───
   const bossBeaten = taskCount(save, 'boss');
+  const isNessie = save.boss.kind === 'nessie';
   const world: Row[] = [
     {
       key: 'lighthouse',
@@ -359,15 +360,25 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
       status: save.lit.length ? `Світять: ${save.lit.length}` : 'Як: знайди маяк біля води і постав поруч вітряк (нагорода скриньки)',
       line: 'guide_lighthouse',
     },
-    {
-      key: 'boss',
-      pic: { sprite: 'boss-face' },
-      title: 'Пожирач земель',
-      about: 'Великий кам’яний монстр у своїй пустці. Постав біля нього три ліхтарі — броня трісне, тоді стріляй у відкриту пащу. Через 3 дні повертається сильнішим.',
-      state: bossBeaten ? 'have' : places.boss ? 'now' : 'later',
-      status: `${bossBeaten ? `Переможено: ${bossBeaten}. ` : ''}${places.boss && save.boss.defeatedDay === null ? `Де: ${wayFrom(places.home, places.boss[0], places.boss[1])}` : bossBeaten ? 'Скоро повернеться' : 'З’явиться далеко від дому'}`,
-      line: 'guide_boss',
-    },
+    isNessie
+      ? {
+          key: 'boss',
+          pic: { sprite: 'nessie-face' },
+          title: 'Шелохмаське чудовисько',
+          about: 'Озерний монстр у далекому озері. Поклади на берег три рибки — воно випливе, тоді стріляй у відкриту пащу. Повертається через 3 дні.',
+          state: bossBeaten ? 'have' : places.boss ? 'now' : 'later',
+          status: `${bossBeaten ? `Переможено: ${bossBeaten}. ` : ''}${places.boss && save.boss.defeatedDay === null ? `Де: ${wayFrom(places.home, places.boss[0], places.boss[1])}` : bossBeaten ? 'Скоро хтось повернеться' : 'Чекає у далекому озері'}`,
+          line: 'guide_nessie',
+        }
+      : {
+          key: 'boss',
+          pic: { sprite: 'boss-face' },
+          title: 'Пожирач земель',
+          about: 'Великий кам’яний монстр у своїй пустці. Постав біля нього три ліхтарі — броня трісне, тоді стріляй у відкриту пащу. Через 3 дні повертається сильнішим.',
+          state: bossBeaten ? 'have' : places.boss ? 'now' : 'later',
+          status: `${bossBeaten ? `Переможено: ${bossBeaten}. ` : ''}${places.boss && save.boss.defeatedDay === null ? `Де: ${wayFrom(places.home, places.boss[0], places.boss[1])}` : bossBeaten ? 'Скоро хтось повернеться' : 'З’явиться далеко від дому'}`,
+          line: 'guide_boss',
+        },
   ];
 
   // ─── treasures and friends (only once there are such cards) ───
@@ -406,7 +417,7 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
     { id: 'tales', title: 'Казки', icon: 'album', rows: tales },
     { id: 'items', title: 'Речі', icon: 'apple', rows: items },
     { id: 'monsters', title: 'Монстри', icon: 'zombie', rows: monsters },
-    { id: 'world', title: 'Маяки і Пожирач', icon: 'task-lighthouse', rows: world },
+    { id: 'world', title: 'Маяки і велетні', icon: 'task-lighthouse', rows: world },
     { id: 'treasures', title: 'Скарби', icon: 'chest', rows: treasures },
     { id: 'friends', title: 'Друзі', icon: 'heart', rows: friends },
   ];
