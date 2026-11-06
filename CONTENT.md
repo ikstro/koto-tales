@@ -111,7 +111,7 @@ lines `companion_<id>_hi` (joins) and `companion_<id>_yay` (does its trick). Giv
 
 ## Tale — `src/content/tales.ts`
 Card `TaleCard` (`lyosha: true` puts it first); lines `tale_<id>_open`, `tale_<id>_1..n`, `tale_<id>_thanks`,
-`tale_<id>_retell`. Steps (`StepKind`): `gather` N things (`item`, `goal`, `spread` around `at`), `thief`,
+`tale_<id>_retell`. A tale with `follows` waits until that tale is done. Steps (`StepKind`): `gather` N things (`item`, `goal`, `spread` around `at`), `thief`,
 `place` a building (`needs`), `visit` (home / a village), `music` N s, `defend` a wave, `sleep`, `light` a
 lighthouse. Asker (`from`): Пупся (a dream), a race (a paper plane) or `babusia` (a stork); never the children. `host: 'olia'` or `'yulia'` on a `babusia` tale: it comes only while that hostess is at home, its lines spoken by her; `arrives: true`: it comes first of all once she is there. A step's
 `at` may be `babusia`: wherever she stands that day, and she stays put while a tale leads to her. At the end:
@@ -120,6 +120,13 @@ into the box); `weather` (the weather she makes) and `after` (a word from someon
 its hand (`IN_HAND`, `src/systems/tales.ts`).
 Бабуся's tales: no family details, no surnames, nothing bad happens to either hostess (DESIGN.md «Бабуся», «Оля»). Both say
 «котики». Food is what grandmothers cook, never cakes.
+
+## Recipe — `src/content/recipes.ts`
+Card `RecipeCard`: `host` (whose book it is in), `needs` (two products; the same one twice when it takes two), `dish` (an item), `snack`
+(what the children hold at the table), `line`, `about`. A dish is an item in `ITEM_ORDER`, weight 0, with a `use` (three portions go into
+the box); its model is in `DISH_BUILDERS` (`src/assets/dishes.ts`). A product is an item with a `weight` and `biomes`, listed in `PRODUCTS`,
+with a line `babusia_cook_need_<id>` and `olia_cook_need_<id>` (what is short and where it lies). Lines: `item_<dish>`, `recipe_<id>` (spoken by its hostess).
+Food is what grandmothers cook, never cakes. A step of a tale may be `cook`: done when a dish is on the table.
 
 ## Hero (playable)
 Four, in `src/content/heroes.ts` (`HERO_ORDER`: Льоша, Соломія, Пупся, Давид — Давид added on the owner's

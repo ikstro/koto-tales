@@ -327,6 +327,8 @@ export const SPRITES = {
   'map-olia': {w: 76,h: 76,oy: 0,x: 12,y: 12,cw: 52,ch: 46},
   'ask-weather': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
   'item-ladybird': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
+  'ask-pot': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
+  'cook-spoon': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
 } satisfies Record<string, SpriteMeta>;
 
 export type SpriteName = keyof typeof SPRITES;

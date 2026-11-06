@@ -60,6 +60,8 @@ export const BABUSIA_HOUSE = { sizeX: SX, sizeZ: SZ, wallTop: WALL_TOP, interior
 /** Where things stand, relative to the house corner (x/z of the floor centre). */
 export const BABUSIA_SPOTS = {
   kitchen: { dx: 10, dz: 1.35 },
+  /** Where she stands to cook. */
+  stove: { dx: 10.5, dz: 2.4 },
   table: { dx: 9.5, dz: 4.7 },
   tv: { dx: 7, dz: 1.15 },
   /** Where she stands to watch it. */
@@ -181,7 +183,7 @@ export const FRONT_WINDOWS: { dx: number; dz: number }[] = [
 
 // ─── her day ─────────────────────────────────────────────────────────────────
 
-export type Act = 'walk' | 'swim' | 'tv' | 'garden' | 'coffee' | 'feed' | 'bugs' | 'notes';
+export type Act = 'walk' | 'swim' | 'tv' | 'garden' | 'coffee' | 'feed' | 'bugs' | 'notes' | 'cook';
 
 /**
  * What she does at this time of day (`t`, 0 = sunrise). Юля: a walk in the morning in any weather,
@@ -275,6 +277,9 @@ export const SHARED_LINES = [
   'babusia_morning',
   'babusia_cocoa',
   'babusia_chair',
+  'babusia_pantry',
+  ...['start', 'stir', 'wait', 'done', 'cancel'].map((s) => `babusia_cook_${s}`),
+  ...['cherry', 'potato', 'carrot', 'mushroom_brown', 'apple', 'honey', 'egg'].map((s) => `babusia_cook_need_${s}`),
 ];
 
 /** The same moment in the voice of whoever is at home. */
@@ -315,9 +320,11 @@ export interface BabusiaSave {
   noted: boolean;
   /** The one at home has said where the other went. */
   told: boolean;
+  /** The day of the last morning product for the kitchen. */
+  pantryDay: number;
 }
 
-export const freshBabusia = (): BabusiaSave => ({ at: null, movedDay: 0, glades: [], giftDay: -1, met: false, moving: null, flowers: 0, presents: 0, brought: false, strollDay: -1, host: 'yulia', noted: true, told: true });
+export const freshBabusia = (): BabusiaSave => ({ at: null, movedDay: 0, glades: [], giftDay: -1, met: false, moving: null, flowers: 0, presents: 0, brought: false, strollDay: -1, host: 'yulia', noted: true, told: true, pantryDay: -1 });
 
 /**
  * What she brings from her trips, in order (DESIGN.md «Her gifts»): one after each move, at the next

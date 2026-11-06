@@ -100,3 +100,19 @@ describe('contents: everything in the game, for the parents', () => {
     for (const sec of contentsOf(freshSave(), PLACES)) for (const r of sec.rows) expect(r.about, r.key).not.toMatch(/undefined|TODO/);
   });
 });
+
+describe('contents: the book of recipes', () => {
+  it('lists every dish once, and never among the things', () => {
+    const list = contentsOf(freshSave(), PLACES);
+    const recipes = list.find((s) => s.id === 'recipes')!;
+    expect(recipes.rows.length).toBe(12);
+    expect(recipes.rows.every((r) => r.state === 'later' && r.line)).toBe(true);
+    expect(list.find((s) => s.id === 'items')!.rows.some((r) => r.key === 'i-borscht')).toBe(false);
+  });
+  it('a dish cooked is had, with what is left in the box', () => {
+    const save = { ...freshSave(), recipes: ['borscht'], inv: { borscht: 3 } };
+    const dish = row(contentsOf(save, PLACES), 'r-borscht');
+    expect(dish.state).toBe('have');
+    expect(dish.status).toContain('3');
+  });
+});

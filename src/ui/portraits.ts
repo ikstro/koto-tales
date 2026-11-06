@@ -3,7 +3,11 @@ import type { HeroId, IModels, ItemId, MonsterKind } from '../contracts';
 import { HEROES, HERO_ORDER } from '../content/heroes';
 import { ARTIFACT_ORDER } from '../content/artifacts';
 import { ITEM_ORDER } from '../content/items';
+import { DISHES } from '../content/recipes';
 import { MONSTERS, MONSTER_ORDER } from '../content/monsters';
+
+/** A dish lies flat on its plate: seen from above, as at the table. */
+const DISH_TILT = 0.8;
 
 /** Still pictures of every hero, monster and item, for menus and the album. */
 export interface Portraits {
@@ -38,7 +42,8 @@ export function makePortraits(renderer: THREE.WebGLRenderer, models: IModels, si
   const prevAlpha = renderer.getClearAlpha();
   renderer.setClearColor(0x000000, 0);
 
-  const shoot = (obj: THREE.Object3D, yaw: number): string => {
+  /** `tilt`: a look from above (radians), for what lies flat on a plate. */
+  const shoot = (obj: THREE.Object3D, yaw: number, tilt?: number): string => {
     obj.rotation.y = yaw;
     scene.add(obj);
     obj.updateMatrixWorld(true);
@@ -47,7 +52,8 @@ export function makePortraits(renderer: THREE.WebGLRenderer, models: IModels, si
     const dims = box.getSize(new THREE.Vector3());
     const radius = Math.max(dims.x, dims.y, dims.z) * 0.62;
     const dist = radius / Math.tan(THREE.MathUtils.degToRad(15));
-    camera.position.set(centre.x, centre.y + radius * 0.35, centre.z + dist);
+    if (tilt) camera.position.set(centre.x, centre.y + dist * Math.sin(tilt), centre.z + dist * Math.cos(tilt));
+    else camera.position.set(centre.x, centre.y + radius * 0.35, centre.z + dist);
     camera.lookAt(centre);
     renderer.setRenderTarget(target);
     renderer.clear();
@@ -75,7 +81,7 @@ export function makePortraits(renderer: THREE.WebGLRenderer, models: IModels, si
     m.dispose();
   }
   const items = {} as Record<ItemId, string>;
-  for (const id of ITEM_ORDER) items[id] = shoot(models.item(id), 0.5);
+  for (const id of ITEM_ORDER) items[id] = shoot(models.item(id), 0.5, DISHES.has(id) ? DISH_TILT : undefined);
   const artifacts: Record<string, string> = {};
   for (const id of ARTIFACT_ORDER()) artifacts[id] = shoot(models.artifact(id), 0.5);
 

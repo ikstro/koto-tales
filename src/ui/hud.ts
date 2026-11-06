@@ -420,6 +420,9 @@ export class Hud {
   private flyShown = false;
   private remotePiece: Piece;
   private askPiece: Piece;
+  private potPiece: Piece;
+  private potShown = false;
+  private potOn = false;
   private remoteOn = false;
   private remoteShown = false;
   private askShown = false;
@@ -609,6 +612,8 @@ export class Hud {
     this.remotePiece.el.classList.add('prompt', 'hidden');
     this.askPiece = this.gAct.add('ask-weather', SIDE_X + 6, KIT_Y + 6, 'tile6-sh');
     this.askPiece.el.classList.add('prompt', 'hidden');
+    this.potPiece = this.gAct.add('ask-pot', SIDE_X + 6, KIT_Y + 6, 'tile6-sh');
+    this.potPiece.el.classList.add('prompt', 'hidden');
     // food: an apple by the picnic, a cone by the ice-cream kiosk (after the note, before the fly piece)
     this.foodPiece = this.gAct.add('food' as SpriteName, SIDE_X + 6, KIT_Y + 6, 'tile6-sh');
     this.foodPiece.el.classList.add('prompt', 'hidden');
@@ -634,6 +639,7 @@ export class Hud {
     this.press(this.flyPiece, this.flyPiece.target(110), () => this.flyShown && input.press('prompt:fly'), { ui: true });
     this.press(this.remotePiece, this.remotePiece.target(110), () => this.remoteShown && input.press('prompt:remote'), { ui: true });
     this.press(this.askPiece, this.askPiece.target(110), () => this.askShown && input.press('prompt:weather'), { ui: true });
+    this.press(this.potPiece, this.potPiece.target(110), () => this.potShown && input.press('prompt:pot'), { ui: true });
     this.press(this.foodPiece, this.foodPiece.target(110), () => this.foodShown && input.press('prompt:food'), { ui: true });
 
     // Taps outside an open fan / kit plate close it.
@@ -1558,6 +1564,13 @@ export class Hud {
     this.syncFly();
   }
 
+  /** The pot piece breathing at the stove in the grandmothers' kitchen (a tap: the book of recipes). */
+  setPot(on: boolean): void {
+    if (on === this.potOn) return;
+    this.potOn = on;
+    this.syncFly();
+  }
+
   /** The food piece next to a picnic (an apple) or a working ice-cream kiosk (a cone): a tap, and the party eats. */
   setFood(kind: 'food' | 'icecream' | null): void {
     if (kind === this.foodOn) return;
@@ -1598,7 +1611,13 @@ export class Hud {
       this.remotePiece.el.classList.toggle('hidden', !remote);
       if (remote) this.remotePiece.drop(0, 50);
     }
-    const ask = this.askOn && !this.noteOn && !this.flyOn && !this.remoteOn && !food && free;
+    const pot = this.potOn && !this.noteOn && !this.flyOn && !this.remoteOn && !food && free;
+    if (pot !== this.potShown) {
+      this.potShown = pot;
+      this.potPiece.el.classList.toggle('hidden', !pot);
+      if (pot) this.potPiece.drop(0, 50);
+    }
+    const ask = this.askOn && !pot && !this.noteOn && !this.flyOn && !this.remoteOn && !food && free;
     if (ask !== this.askShown) {
       this.askShown = ask;
       this.askPiece.el.classList.toggle('hidden', !ask);

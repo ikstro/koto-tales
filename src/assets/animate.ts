@@ -12,10 +12,10 @@
 import * as THREE from 'three';
 import type { CharacterModel, ModelAction, Rig } from '../contracts';
 
-type OneShot = 'attack' | 'cast' | 'hurt' | 'happy' | 'wake' | 'cheer';
+type OneShot = 'attack' | 'cast' | 'hurt' | 'happy' | 'wake' | 'cheer' | 'stir';
 /** Held until another action replaces them. */
 const HELD = new Set<ModelAction>(['sleep', 'dance', 'sit', 'eat']);
-export const ACTION_TIME: Record<OneShot, number> = { attack: 0.55, cast: 0.9, hurt: 0.45, happy: 0.95, wake: 1.45, cheer: 1.0 };
+export const ACTION_TIME: Record<OneShot, number> = { attack: 0.55, cast: 0.9, hurt: 0.45, happy: 0.95, wake: 1.45, cheer: 1.0, stir: 0.7 };
 /** Seconds into 'wake' while the character yawns (eyes shut); a caller may open a mouth in this window. */
 export const WAKE_YAWN: readonly [number, number] = [0.64, 1.3];
 /** Seconds into 'wake' of the stretch: rising, held, released. */
@@ -247,6 +247,14 @@ function biped(s: State, c: Ctx): void {
       mixOff(j.head, 1, 0, e);
       mixOff(j.head, 0, -0.18 * e - 0.32 * yawn, 1);
       add(c.root, 4, 0.05 * e);
+      break;
+    }
+    case 'stir': {
+      // the arm out over the pot, going round
+      const env = ramp(0, 0.1, a) * (1 - ramp(0.55, 0.7, a));
+      mixRot(j.armR, 0, -1.25 + Math.sin(a * 18) * 0.18, env);
+      mixRot(j.armR, 2, Math.cos(a * 18) * 0.25, env);
+      mixRot(j.head, 0, 0.25, env);
       break;
     }
     case 'cheer': {

@@ -17,6 +17,7 @@ export interface GameEvents {
   'monster:spot': { kind: MonsterKind; first: boolean };
   'monster:defeated': { kind: MonsterKind; first: boolean; by: HeroId };
   'item:picked': { item: ItemId; first: boolean; total: number };
+  'cook:done': { recipe: string; first: boolean };
   'coins:changed': { coins: number };
   'block:placed': { x: number; y: number; z: number; id: number };
   'block:broken': { x: number; y: number; z: number; id: number };

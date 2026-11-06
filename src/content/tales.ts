@@ -35,7 +35,7 @@ export const TALE_ITEMS: Record<TaleItem, { icon: string; /** After a number: on
 /** Where a step happens: home, around the hero when it begins, the nearest dark lighthouse, Бабуся's house, a village. */
 export type TalePlace = 'home' | 'here' | 'lighthouse' | 'babusia' | Race;
 
-export type StepKind = 'gather' | 'thief' | 'place' | 'visit' | 'music' | 'defend' | 'sleep' | 'light';
+export type StepKind = 'gather' | 'thief' | 'place' | 'visit' | 'music' | 'defend' | 'sleep' | 'light' | 'cook';
 
 export interface TaleStep {
   kind: StepKind;
@@ -75,6 +75,8 @@ export interface TaleCard {
   arrives?: boolean;
   /** Offered only once the child has one of these buildings (until then the others go first). */
   needs?: BuildingId[];
+  /** Offered only after this tale is done. */
+  follows?: string;
   /** The request (the letter, the dream); the first step's ask follows it. */
   open: LineId;
   steps: TaleStep[];
@@ -244,6 +246,22 @@ export const TALES: TaleCard[] = [
     thanks: 'tale_gnomes_thanks',
     retell: 'tale_gnomes_retell',
     sticker: 'kid-gnomes',
+    coins: 15,
+  },
+  {
+    id: 'first_dinner',
+    name: 'Перший обід',
+    from: 'pupsia',
+    lyosha: true,
+    follows: 'babusia_hi',
+    open: 'tale_first_dinner_open',
+    steps: [
+      { kind: 'visit', at: 'babusia', ask: 'tale_first_dinner_1', picture: 'ask-pot' },
+      { kind: 'cook', at: 'babusia', ask: 'tale_first_dinner_2', picture: 'ask-pot' },
+    ],
+    thanks: 'tale_first_dinner_thanks',
+    retell: 'tale_first_dinner_retell',
+    sticker: 'ask-pot',
     coins: 15,
   },
   {
@@ -644,7 +662,7 @@ export const freshTales = (): TalesSave => ({ cur: null, step: 0, got: 0, done: 
  * waiting for a building the child hasn't got is left out until then.
  */
 export function talesLeft(done: readonly string[], has: (b: BuildingId) => boolean, home?: Host): TaleCard[] {
-  const open = TALES.filter((t) => !done.includes(t.id) && (!t.needs || t.needs.some(has)) && (!home || t.from !== 'babusia' || (t.host ?? 'yulia') === home));
+  const open = TALES.filter((t) => !done.includes(t.id) && (!t.follows || done.includes(t.follows)) && (!t.needs || t.needs.some(has)) && (!home || t.from !== 'babusia' || (t.host ?? 'yulia') === home));
   const rest = open.filter((t) => !t.arrives);
   return [...(home ? open.filter((t) => t.arrives) : []), ...rest.filter((t) => t.lyosha), ...rest.filter((t) => !t.lyosha), ...(home ? [] : open.filter((t) => t.arrives))];
 }

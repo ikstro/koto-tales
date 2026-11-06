@@ -4,6 +4,7 @@
  */
 import * as THREE from 'three';
 import type { ItemId, Skin } from '../contracts';
+import { DISH_BUILDERS } from './dishes';
 import { Kit, type PartBuilder, type Paint, type V3 } from './parts/kit';
 
 type Builder = (p: PartBuilder) => void;
@@ -155,6 +156,7 @@ function record(label: string): Builder {
 }
 
 const ITEM_BUILDERS: Record<ItemId, Builder> = {
+  ...DISH_BUILDERS,
   coin: (p) =>
     p
       .box([0.42, 0.24, 0.07], [0, 0.22, 0], GOLD)

@@ -230,7 +230,7 @@ export type ModelRef =
  * 'sit' sits down with the hips at the model's origin (a seat, a blanket); 'eat' sits and takes bites,
  * hands (paws, a head bob) to the mouth. Both are held until another action.
  */
-export type ModelAction = 'idle' | 'attack' | 'cast' | 'hurt' | 'happy' | 'sleep' | 'wake' | 'cheer' | 'dance' | 'sit' | 'eat';
+export type ModelAction = 'idle' | 'attack' | 'cast' | 'hurt' | 'happy' | 'sleep' | 'wake' | 'cheer' | 'dance' | 'sit' | 'eat' | 'stir';
 
 /** A rig with the shared procedural animator attached. */
 export interface CharacterModel {

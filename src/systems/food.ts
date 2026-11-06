@@ -207,7 +207,7 @@ export function updateFood(ctx: Ctx, dt: number): void {
     if (meal.t >= end || meal.s.gone()) finish(ctx);
     return;
   }
-  const busy = ctx.sleeping || ctx.map.isOpen || !!selectedBuilding();
+  const busy = ctx.sleeping || ctx.napping || ctx.map.isOpen || !!selectedBuilding();
   const s = busy ? null : foodNear(ctx);
   ctx.hud.setFood(s ? s.piece : null);
   if (ctx.input.take('prompt:food') && s) sitDown(ctx, s);

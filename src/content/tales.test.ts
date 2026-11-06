@@ -54,7 +54,7 @@ describe('which tale comes', () => {
   });
 
   it('a dream waits for a night’s sleep', () => {
-    const s = save({ done: ['fish', 'babusia_hi'], after: 1 });
+    const s = save({ done: ['fish', 'babusia_hi', 'first_dinner'], after: 1 });
     expect(nextTale(s, all, 1, false)).toBeNull();
     expect(nextTale(s, all, 1, true)?.id).toBe('dog');
   });
@@ -64,7 +64,7 @@ describe('which tale comes', () => {
     const t = nextTale(s, all, 2, false);
     expect(t?.id).toBe('babusia_walk');
     expect(entryOf(t!)).toBe('letter');
-    expect(nextTale(save({ done: ['fish', 'babusia_hi', 'babusia_walk'], after: 3 }), all, 3, true)?.id).toBe('dog');
+    expect(nextTale(save({ done: ['fish', 'babusia_hi', 'first_dinner', 'babusia_walk'], after: 3 }), all, 3, true)?.id).toBe('dog');
   });
 
   it('a tale waiting for a building is left out until the child has one', () => {
@@ -110,5 +110,19 @@ describe('whose tale it is', () => {
     const hers = TALES.filter((t) => t.host === 'olia');
     expect(hers.length).toBe(9);
     for (const t of hers) for (const s of t.steps) expect(s.picture).not.toBe('map-babusia');
+  });
+});
+
+describe('the first dinner', () => {
+  const all = () => true;
+  it('comes once Бабуся has come, before the other tales of the day', () => {
+    expect(talesLeft(['fish'], all).some((t) => t.id === 'first_dinner')).toBe(false);
+    expect(talesLeft(['fish', 'babusia_hi'], all)[0].id).toBe('first_dinner');
+  });
+  it('whoever is at home, Пупся asks: it needs no hostess of its own', () => {
+    const t = TALES.find((x) => x.id === 'first_dinner')!;
+    expect(t.from).toBe('pupsia');
+    expect(t.lyosha).toBe(true);
+    expect(t.steps.at(-1)!.kind).toBe('cook');
   });
 });

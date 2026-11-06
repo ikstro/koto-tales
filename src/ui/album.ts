@@ -1,6 +1,7 @@
 import { ARTIFACTS, ARTIFACT_ORDER } from '../content/artifacts';
 import { ITEMS, ITEM_ORDER, type ItemCard } from '../content/items';
 import { MONSTERS, MONSTER_ORDER } from '../content/monsters';
+import { DISHES, RECIPES, RECIPE_ORDER, type RecipeCard } from '../content/recipes';
 import { CASTLE_CARDS } from '../content/castles';
 import { TALES } from '../content/tales';
 import { RACE_CARDS } from '../content/villages';
@@ -50,6 +51,7 @@ export class Album {
     const found = new Set(save.found);
     const entries: { img: string; got: boolean; line: string; count: number; gold?: boolean }[] = [];
     for (const id of ITEM_ORDER) {
+      if (DISHES.has(id)) continue;
       const count = id === 'coin' ? save.coins : (save.inv[id] ?? 0);
       entries.push({ img: this.portraits.items[id], got: found.has(id), line: ITEMS[id].line, count, gold: (ITEMS[id] as ItemCard).lyosha });
     }
@@ -76,14 +78,21 @@ export class Album {
       entries.push({ img: `${import.meta.env.BASE_URL}hud/${t.sticker}.png`, got: found.has(`t:${t.id}`), line: t.retell, count: 0, gold: t.lyosha });
     }
 
+    // the book of recipes: a page per dish, once it has been cooked; a tap tells the recipe
+    const recipes = entries.length;
+    for (const id of RECIPE_ORDER) {
+      const r: RecipeCard = RECIPES[id];
+      entries.push({ img: this.portraits.items[r.dish as keyof typeof ITEMS], got: found.has(`r:${id}`), line: r.line, count: 0 });
+    }
+
     // the treasures: the artifacts, from a row of their own, always with the gold rim
     const treasures = entries.length;
     for (const id of ARTIFACT_ORDER()) {
       entries.push({ img: this.portraits.artifacts[id], got: found.has(`a:${id}`), line: ARTIFACTS[id].line, count: 0, gold: true });
     }
 
-    // each part starts a row of its own: finds, the book of tales, the treasures
-    const parts = [0, book, treasures, entries.length].filter((v, i, a) => i === 0 || v > a[i - 1] || i === a.length - 1);
+    // each part starts a row of its own: finds, the book of tales, the recipes, the treasures
+    const parts = [0, book, recipes, treasures, entries.length].filter((v, i, a) => i === 0 || v > a[i - 1] || i === a.length - 1);
     const rowsOf = (cols: number) => parts.slice(1).reduce((n, end, i) => n + Math.ceil((end - parts[i]) / cols), 0);
     // as many columns as keep the stickers biggest on this screen
     const size = (cols: number) => {

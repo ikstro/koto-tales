@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { CharacterModel, HeroId } from '../contracts';
 import { createBabusiaRoof, createBench, createCoffeeTable, createFlowerBox, createFlowerField, createStork, createTv, createWickerChair } from '../assets/babusia';
 import { createKitchen, createTable, TABLE_H, type Kitchen } from '../assets/home';
+import { pantryGift } from './cooking';
 import type { BuildingModel } from '../assets/buildings';
 import { createJukebox } from '../assets/jukebox';
 import { createBed, createCampfire, createCushion, createDoor, type Bed } from '../assets/props';
@@ -251,9 +252,19 @@ const puff = (ctx: Ctx) => HOSTS[ctx.save.babusia.host].puff;
 /** The same moment in the voice of whoever is at home. */
 const line = (ctx: Ctx, id: LineId): LineId => hostLine(id, ctx.save.babusia.host);
 
-const dayOf = (ctx: Ctx): Act => routineAt(ctx.clock.t, ctx.save.babusia.host);
+/** The party is cooking: she leaves what she was doing and comes to the stove. */
+let atStove = false;
 
-function insideHouse(ctx: Ctx, p: THREE.Vector3): boolean {
+const dayOf = (ctx: Ctx): Act => (atStove ? 'cook' : routineAt(ctx.clock.t, ctx.save.babusia.host));
+
+export function setHerCooking(on: boolean): void {
+  atStove = on;
+}
+
+/** Her table, as a place to eat. */
+export const herTable = (): FoodPlace => home!.table;
+
+export function insideHouse(ctx: Ctx, p: THREE.Vector3): boolean {
   const at = ctx.save.babusia.at;
   if (!at) return false;
   const i = BABUSIA_HOUSE.interior;
@@ -909,7 +920,7 @@ function beginAct(ctx: Ctx, act: Act, snap: boolean): void {
   setPose(h, 'idle');
   const path: XZ[] = [];
   const inside = insideHouse(ctx, h.pos);
-  const wantsIn = doing === 'tv';
+  const wantsIn = doing === 'tv' || doing === 'cook';
   if (h.outSwimming) {
     // the house may have just landed where there is no water: then she is simply back at the door
     if (swim) path.push(...[...swim.way].reverse(), world(at, S.doorOut.dx, S.doorOut.dz));
@@ -921,6 +932,7 @@ function beginAct(ctx: Ctx, act: Act, snap: boolean): void {
   if (doing === 'garden' || doing === 'bugs') path.push(world(at, ...GARDEN[0]));
   if (doing === 'feed') path.push(world(at, ...FEED[0]));
   if (doing === 'tv') path.push(world(at, S.watch.dx, S.watch.dz));
+  if (doing === 'cook') path.push(world(at, S.stove.dx - 2.5, S.stove.dz + 0.6), world(at, S.stove.dx, S.stove.dz));
   if (chairAct(doing)) path.push(world(at, S.chair.dx + 0.6, S.chair.dz + 0.8));
   if (swimming) {
     path.push(world(at, S.doorOut.dx, S.doorOut.dz), ...swim!.way);
@@ -964,6 +976,9 @@ function arrived(ctx: Ctx, h: Her, dt: number): void {
     case 'swim':
       h.next = 1 - h.next;
       h.path = [h.next ? swim!.b : swim!.a];
+      break;
+    case 'cook':
+      faceTo(h, at[0] + BABUSIA_SPOTS.table.dx, at[2] + BABUSIA_SPOTS.table.dz, dt);
       break;
     case 'tv':
       home?.tv.setOn(true);
@@ -1024,7 +1039,7 @@ function tell(ctx: Ctx, list: LineId[], kind: keyof typeof lastTold): void {
 }
 
 /** Her own funny word: Юля's joke; Оля's joke, or more often something true about insects. */
-function joke(ctx: Ctx): void {
+export function joke(ctx: Ctx): void {
   if (ctx.save.babusia.host === 'yulia') tell(ctx, JOKES, 'joke');
   else if (Math.random() < FACT_CHANCE) tell(ctx, FACTS, 'fact');
   else tell(ctx, OLIA_JOKES, 'joke');
@@ -1121,6 +1136,7 @@ function talk(ctx: Ctx, h: Her, dt: number): void {
   b.met = true;
   if (h.pose === 'idle') h.model.play('happy');
   greet(ctx);
+  pantryGift(ctx);
   if (b.giftDay !== ctx.save.day && !held(ctx)) giftT = 4.5;
 }
 

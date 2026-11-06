@@ -22,6 +22,7 @@ import { djNear, initDisco, updateDisco } from '../systems/disco';
 import { exposeDefense, updateDefense } from '../systems/defense';
 import { updatePower } from '../systems/power';
 import { updatePrizes } from '../systems/prizes';
+import { updateCooking } from '../systems/cooking';
 import { eating, updateFood } from '../systems/food';
 import { initGadgets, updateGadgets } from '../systems/gadgets';
 import { updateSignal } from '../systems/signal';
@@ -362,11 +363,12 @@ export class Game {
       updateEffects(ctx, dt);
       updateSignal(ctx, dt);
       updateFood(ctx, dt);
+      updateCooking(ctx, dt);
       updateGadgets(ctx, dt);
       updateProgress(ctx);
       updateSleep(ctx);
-      ctx.hud.setPrompt(ctx.sleeping || eating() ? null : chestNear(ctx) ? 'chest' : sleepPlace(ctx) ? 'moon' : canFold(ctx) ? 'fold' : null);
-      ctx.hud.setNote(!ctx.sleeping && djNear(ctx));
+      ctx.hud.setPrompt(ctx.sleeping || ctx.napping || eating() ? null : chestNear(ctx) ? 'chest' : sleepPlace(ctx) ? 'moon' : canFold(ctx) ? 'fold' : null);
+      ctx.hud.setNote(!ctx.sleeping && !ctx.napping && djNear(ctx));
       ctx.hud.setAsk(weatherAsk(ctx));
       updateNarration(ctx, dt);
     }

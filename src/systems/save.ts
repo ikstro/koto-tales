@@ -20,6 +20,8 @@ import { homeChunks } from './explore';
  */
 export interface SaveData {
   v: number;
+  /** The dishes cooked at least once: their pages in the book of recipes. */
+  recipes: string[];
   /** Бабуся: where her house stands, the meadows she left, the day of her last gift (content/babusia.ts). */
   babusia: BabusiaSave;
   /** Terrain generator version the edits were made against. */
@@ -131,7 +133,7 @@ export const freshBoss = (): BossSave => ({ kind: 'eater', levels: { eater: 1, n
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 17;
+export const SAVE_VERSION = 18;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -152,6 +154,7 @@ export function freshSave(): SaveData {
     coins: 0,
     inv: {},
     found: [],
+    recipes: [],
     picked: [],
     edits: {},
     time: 0.03,
@@ -248,6 +251,8 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
     const host = TALES.find((t) => t.id === cur)?.host ?? 'yulia';
     return { ...d, v: 17, babusia: { ...(d.babusia as object), host, noted: true, told: true } };
   },
+  // v18: the kitchen at the grandmothers'.
+  17: (d) => ({ ...d, v: 18, recipes: [], babusia: { ...(d.babusia as object), pantryDay: -1 } }),
 };
 
 export function migrate(raw: Raw): SaveData {

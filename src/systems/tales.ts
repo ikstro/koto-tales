@@ -4,6 +4,7 @@ import { createStork } from '../assets/babusia';
 import { holdSnack, type SnackKind } from '../assets/food';
 import { createPlane, createTaleThing, type PlaneModel, type TaleThing } from '../assets/tales';
 import type { LineId } from '../content/lines';
+import { starterProducts } from './cooking';
 import { SPAWN } from '../content/monsters';
 import { entryOf, nextTale, PROLOGUE, stepGoal, taleById, TALE_ITEMS, TALES, type TaleCard, type TaleItem, type TalePlace, type TaleStep } from '../content/tales';
 import { RACE_CARDS } from '../content/villages';
@@ -205,6 +206,9 @@ function makeRun(ctx: Ctx, step: TaleStep, key: string): Run {
   const s = ctx.save.tales;
   const r: Run = { key, things: [], thief: null, thiefSpot: null, target: placeOf(ctx, step.at), wave: { wave: new Set(), waveT: 0 }, d0: 1, checkT: 0 };
   switch (step.kind) {
+    case 'cook':
+      starterProducts(ctx);
+      break;
     case 'gather': {
       const [r0, r1] = step.spread ?? [8, 20];
       for (let i = s.got; i < stepGoal(step); i++) addThing(ctx, r, step.item!, freeSpot(ctx, r.target, r0, r1));
@@ -414,6 +418,9 @@ function updateStep(ctx: Ctx, r: Run, step: TaleStep, dt: number): number {
     case 'sleep':
       // done when the party wakes (sleep:done)
       return 0;
+    case 'cook':
+      // done when the dish is on the table (cook:done)
+      return 0;
   }
 }
 
@@ -499,6 +506,9 @@ export function initTales(ctx: Ctx): void {
   const s = ctx.save.tales;
   const forced = ctx.params.tale && taleById(ctx.params.tale);
   ctx.hud.onTaleTap = () => sayAsk(ctx);
+  events.on('cook:done', () => {
+    if (stepOf(ctx)?.kind === 'cook') stepDone(ctx);
+  });
   events.on('sleep:done', () => {
     if (stepOf(ctx)?.kind === 'sleep') stepDone(ctx);
     // Пупся's dream comes as the party wakes

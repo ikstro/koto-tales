@@ -1023,6 +1023,28 @@ const printWeather = (x, s) => {
   x.restore();
 };
 shoot('ask-weather', roundTile(1, C.blue, printWeather, 0.6), 130, 130, { shadow: 'tile6-sh' });
+/** The kitchen: a coral pot with a cream rim and three curls of steam. */
+const printPot = (x, s) => {
+  const k = s / 512; x.save(); x.scale(k, k);
+  x.fillStyle = '#fff4d8';
+  for (const dx of [176, 256, 336]) { x.beginPath(); x.ellipse(dx, 118, 22, 52, 0.2, 0, Math.PI * 2); x.fill(); }
+  x.fillStyle = C.coral; x.beginPath(); x.roundRect(118, 214, 276, 194, 44); x.fill();
+  x.fillStyle = '#fff4d8'; x.beginPath(); x.roundRect(96, 190, 320, 50, 22); x.fill();
+  x.fillStyle = '#4a2c14'; x.beginPath(); x.roundRect(54, 256, 76, 38, 16); x.fill();
+  x.beginPath(); x.roundRect(382, 256, 76, 38, 16); x.fill();
+  x.restore();
+};
+shoot('ask-pot', roundTile(1, C.mustard, printPot, 0.6), 130, 130, { shadow: 'tile6-sh' });
+/** The spoon: a wooden one, leaning. */
+const printSpoon = (x, s) => {
+  const k = s / 512; x.save(); x.scale(k, k);
+  x.translate(256, 256); x.rotate(0.6);
+  x.fillStyle = '#c98f4c'; x.beginPath(); x.roundRect(-26, -210, 52, 300, 24); x.fill();
+  x.beginPath(); x.ellipse(0, 130, 84, 112, 0, 0, Math.PI * 2); x.fill();
+  x.fillStyle = '#a06a30'; x.beginPath(); x.ellipse(0, 130, 54, 78, 0, 0, Math.PI * 2); x.fill();
+  x.restore();
+};
+shoot('cook-spoon', roundTile(1, C.teal, printSpoon, 0.6), 130, 130, { shadow: 'tile6-sh' });
 /** The transmitter pad from above: its swirl in the middle and a ring of cream studs; `off` greys it all. */
 const printPad = (off) => (x, s) => {
   if (off) x.filter = 'grayscale(1) brightness(0.85)';

@@ -7,10 +7,11 @@ import { centreOf, PRESENTS } from './babusia';
 import { BUILDINGS, KIT_ORDER, type BuildingId } from './buildings';
 import { CASTLE_CARDS, CASTLE_GOALS, castleOpen, castleTask, type CastleCard } from './castles';
 import { COMPANIONS } from './companions';
-import { ITEMS, ITEM_ORDER, type ItemCard } from './items';
+import { ITEMS, ITEM_ORDER, type ItemCard, type ItemId } from './items';
 import { LINES, type LineId } from './lines';
 import { MONSTERS, MONSTER_ORDER, type MonsterCard } from './monsters';
 import { REWARDS, TASKS, nextReward, taskCount, taskFor, type TaskKind } from './progress';
+import { DISHES, RECIPES, RECIPE_ORDER, type RecipeCard } from './recipes';
 import { TALES, TALE_ITEMS, entryOf, stepGoal, talesLeft, type TaleCard, type TaleStep } from './tales';
 import { RACE_CARDS, TASK_NEEDS, VILLAGE_GOALS, isFriend, villageTask, type RaceCard, type VillageTask } from './villages';
 
@@ -20,7 +21,7 @@ import { RACE_CARDS, TASK_NEEDS, VILLAGE_GOALS, isFriend, villageTask, type Race
  * a new card shows up here by itself. Ukrainian text (its `about` lines live on the cards).
  */
 
-export type SectionId = 'next' | 'babusia' | 'kit' | 'buildings' | 'villages' | 'castles' | 'tales' | 'items' | 'monsters' | 'world' | 'treasures' | 'friends';
+export type SectionId = 'next' | 'babusia' | 'kit' | 'buildings' | 'villages' | 'castles' | 'tales' | 'recipes' | 'items' | 'monsters' | 'world' | 'treasures' | 'friends';
 
 /** A HUD sprite, or a picture rendered at runtime (ui/portraits.ts). */
 export type Pic = { sprite: string } | { portrait: 'item' | 'monster' | 'artifact'; id: string };
@@ -132,6 +133,8 @@ function taleStep(s: TaleStep): string {
       return n === 1 ? `знайди ${TALE_ITEMS[s.item!].words[0]}` : `збери ${count(n, TALE_ITEMS[s.item!].words)}`;
     case 'thief':
       return 'спіймай злодія';
+    case 'cook':
+      return 'приготуй страву в бабусі';
     case 'place':
       return `постав «${BUILDINGS[s.building!].name}»${s.at === 'home' ? ' біля дому' : ''}`;
     case 'visit':
@@ -328,7 +331,22 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
     const list = c.biomes === 'any' ? 'будь-де' : c.biomes.map((b) => BIOME[b]).join(', ');
     return `${list}${c.weight < 1 ? ' (рідко)' : ''}`;
   };
-  const items: Row[] = ITEM_ORDER.map((id) => {
+  const recipes: Row[] = RECIPE_ORDER.map((id) => {
+    const r: RecipeCard = RECIPES[id];
+    const got = save.recipes.includes(id);
+    const n = save.inv[r.dish as ItemId] ?? 0;
+    const needs = [...new Set(r.needs)].map((p) => (ITEMS[p] as ItemCard).name).join(' і ');
+    return {
+      key: `r-${id}`,
+      pic: { portrait: 'item', id: r.dish },
+      title: r.name,
+      about: r.about,
+      state: got ? 'have' : 'later',
+      status: got ? (n ? `Уже готували, у скриньці ${n}` : 'Уже готували') : `Ще попереду: потрібно ${needs}`,
+      line: r.line,
+    };
+  });
+  const items: Row[] = ITEM_ORDER.filter((id) => !DISHES.has(id)).map((id) => {
     const c: ItemCard = ITEMS[id];
     const n = id === 'coin' ? save.coins : (save.inv[id] ?? 0);
     const got = found.has(id);
@@ -455,6 +473,7 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
     { id: 'villages', title: 'Села', icon: 'folk-elves', rows: villages },
     { id: 'castles', title: 'Замки', icon: 'castle-elves', rows: castles },
     { id: 'tales', title: 'Казки', icon: 'album', rows: tales },
+    { id: 'recipes', title: 'Рецепти', icon: 'ask-pot', rows: recipes },
     { id: 'items', title: 'Речі', icon: 'apple', rows: items },
     { id: 'monsters', title: 'Монстри', icon: 'zombie', rows: monsters },
     { id: 'world', title: 'Маяки і велетні', icon: 'task-lighthouse', rows: world },
