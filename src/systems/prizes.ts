@@ -147,10 +147,11 @@ function trampolines(ctx: Ctx, dt: number): void {
     let b = bounceT.get(s) ?? 0;
     b = Math.max(0, b - dt * 2.5);
     const [w, d] = s.rec.rot % 2 ? [s.card.size[1], s.card.size[0]] : s.card.size;
+    const on = working(s); // the bouncy castle needs its power, the trampoline none
     for (const h of ctx.heroes.values()) {
       const p = h.body.pos;
       if (p.x < s.rec.x || p.x >= s.rec.x + w || p.z < s.rec.z || p.z >= s.rec.z + d) continue;
-      if (Math.abs(p.y - s.centre.y) > 0.6 || h.body.vel.y > 0.5) continue;
+      if (!on || Math.abs(p.y - s.centre.y) > 0.6 || h.body.vel.y > 0.5) continue;
       h.body.vel.y = Math.sqrt(2 * GRAVITY * s.card.bounce!.height);
       b = 1;
       if (h === ctx.player) sfx.play('switch', { pitch: 1.7 });
