@@ -23,6 +23,8 @@ export interface GameEvents {
   /** Natural ground changed by itself (the boss's wasteland, its bites, the land growing back); one per chunk. */
   'ground:changed': { x: number; z: number };
   'time:phase': { phase: 'morning' | 'evening' | 'night' };
+  /** The weather changed, by itself in the morning or at the kit's weather pad (content/weather.ts). */
+  'weather:change': { weather: number };
   'album:open': Record<string, never>;
   /** A building from the kit went up / was packed back into the box. */
   'building:placed': { id: string };
@@ -33,8 +35,9 @@ export interface GameEvents {
   'music:song': { song: number };
   /** The party was carried somewhere at once (a portal): the camera jumps after them. */
   'hero:teleport': Record<string, never>;
+  'hero:jump': Record<string, never>;
   /** The party slept the night through, at home or in a tent. */
-  'sleep:done': { where: 'home' | 'tent' | 'guest' };
+  'sleep:done': { where: 'home' | 'tent' | 'guest' | 'babusia' };
   'village:task': { race: string; kind: string; friends: boolean };
   'castle:freed': { race: string };
   /** A tale began / was done (content/tales.ts). */

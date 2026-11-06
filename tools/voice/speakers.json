@@ -15,5 +15,6 @@
   "gnome_king": { "voice": "uk-UA-OstapNeural", "rate": 0.9, "pitch": "-24%" },
   "robot_chief": { "voice": "uk-UA-OstapNeural", "rate": 0.86, "pitch": "-6%" },
   "alien_captain": { "voice": "uk-UA-OstapNeural", "rate": 1.0, "pitch": "+20%" },
-  "sirko": { "voice": "uk-UA-OstapNeural", "rate": 1.02, "pitch": "+8%" }
+  "sirko": { "voice": "uk-UA-OstapNeural", "rate": 1.02, "pitch": "+8%" },
+  "babusia": { "voice": "uk-UA-PolinaNeural", "rate": 0.96, "pitch": "-5%" }
 }

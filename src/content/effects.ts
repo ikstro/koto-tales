@@ -7,7 +7,7 @@
  * A new kind = one entry in EFFECTS + one branch in systems/effects.ts (engine work).
  */
 
-export type EffectKind = 'heal' | 'fast' | 'peace' | 'freeze' | 'light' | 'home';
+export type EffectKind = 'heal' | 'fast' | 'peace' | 'freeze' | 'light' | 'home' | 'babusia' | 'bloom';
 
 export interface Effect {
   kind: EffectKind;
@@ -41,6 +41,10 @@ export const EFFECTS: Record<EffectKind, EffectKindCard> = {
   light: { for: 60, reach: 8, always: true, color: 0xffe3a3 },
   // the party is carried home (the portal's way)
   home: { for: 0, reach: 0, always: false, color: 0x2f918b },
+  // the party is carried to Бабуся, wherever her house stands (her bell)
+  babusia: { for: 0, reach: 0, always: false, color: 0xee6a82 },
+  // daisies and poppies come up round the party and every heart fills (the magic can)
+  bloom: { for: 0, reach: 0, always: false, color: 0x7fd67f },
 };
 
 /** An effect with its defaults filled in. */

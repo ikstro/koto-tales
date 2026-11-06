@@ -270,6 +270,11 @@ const recipes: Record<SfxName, (k: K) => void> = {
     tone(k, 62 + Math.random() * 6, 0, 0.12, 0.3, 'triangle', 44, 0.004);
     hiss(k, 0, 0.07, 0.06, 'lowpass', 500);
   },
+  whoosh(k) {
+    // a gust that swells and passes: air rising, then falling away
+    hiss(k, 0, 0.75, 0.2, 'bandpass', 320, 1500, 0.9, 0.28);
+    hiss(k, 0.3, 0.7, 0.1, 'bandpass', 1300, 380, 0.9, 0.2);
+  },
   // ─── monster cries (MonsterCard.cry): a toy's voice, never scary-loud ───
   cry_siren(k) {
     // Сиреноголовий: his two horns wail together, a little apart, like a toy air-raid siren —
@@ -401,6 +406,67 @@ function startAmbient(kind: 'day' | 'night'): void {
       ambTimer = setTimeout(loop, 500 + Math.random() * 1400);
     };
     ambTimer = setTimeout(loop, 400);
+  }
+}
+
+// ─── rain ───────────────────────────────────────────────────────────────────
+
+const RAIN_VOLUME = 0.3;
+
+let rainGain: GainNode | null = null;
+let rainNodes: AudioScheduledSourceNode[] = [];
+let rainStop: ReturnType<typeof setTimeout> | null = null;
+
+/** A far hush under a light patter: looped noise through two filters, the patter breathing slowly. */
+function startRain(): GainNode {
+  const c = getCtx();
+  const g = c.createGain();
+  g.gain.value = 0;
+  g.connect(bus());
+  const layer = (type: BiquadFilterType, freq: number, q: number, vol: number): GainNode => {
+    const s = c.createBufferSource();
+    s.buffer = noise();
+    s.loop = true;
+    const f = c.createBiquadFilter();
+    f.type = type;
+    f.frequency.value = freq;
+    f.Q.value = q;
+    const v = c.createGain();
+    v.gain.value = vol;
+    s.connect(f).connect(v).connect(g);
+    s.start(0, Math.random() * 1.5);
+    rainNodes.push(s);
+    return v;
+  };
+  layer('lowpass', 700, 0.5, 0.5);
+  const patter = layer('bandpass', 3000, 0.6, 0.3);
+  const lfo = c.createOscillator();
+  const lg = c.createGain();
+  lfo.frequency.value = 0.17;
+  lg.gain.value = 0.08;
+  lfo.connect(lg).connect(patter.gain);
+  lfo.start();
+  rainNodes.push(lfo);
+  return g;
+}
+
+/** The rain's soft loop at this level (0..1), eased; at 0 it fades out and stops. */
+export function rainSound(level: number): void {
+  try {
+    if (rainStop) clearTimeout(rainStop);
+    rainStop = null;
+    if (level <= 0 && !rainGain) return;
+    rainGain ??= startRain();
+    rainGain.gain.setTargetAtTime(level * RAIN_VOLUME, getCtx().currentTime, level > 0 ? 0.4 : 0.12);
+    if (level > 0) return;
+    rainStop = setTimeout(() => {
+      for (const n of rainNodes) n.stop();
+      rainNodes = [];
+      rainGain?.disconnect();
+      rainGain = null;
+    }, 700);
+  } catch {
+    /* audio unavailable: stay silent */
   }
 }
 

@@ -313,6 +313,8 @@ export type SfxName =
   | 'rumble'
   /** One putt of a toy engine (the generator, a few times a second). */
   | 'chug'
+  /** A soft gust: the weather turning at the kit's weather pad. */
+  | 'whoosh'
   /** Monsters' own voices (MonsterCard.cry), made in code. */
   | 'cry_siren'
   | 'cry_growl'

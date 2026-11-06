@@ -10,7 +10,7 @@ import type { LineId } from './lines';
  */
 export type Trick =
   /** Shoots the nearest monster this close (the robot helper's way). */
-  | { kind: 'shoot'; reach: number }
+  | { kind: 'shoot'; reach: number; /** What it throws: an arrow unless said. */ shot?: 'cone' | 'sting' }
   /** Every `every` seconds a hurt hero close by gets a heart back. */
   | { kind: 'heal'; every: number }
   /** At night no monster appears this close to it. */
@@ -45,6 +45,42 @@ export const COMPANIONS: Record<string, CompanionCard> = {
     trick: { kind: 'shoot', reach: 9 },
     guards: 'doghouse',
     lines: { hi: 'companion_sirko_hi', yay: 'companion_sirko_yay' },
+  },
+  hedgehog: {
+    id: 'hedgehog',
+    name: 'Їжачок',
+    about: 'Тупотить разом із героями й часом повертає сердечко.',
+    model: { kind: 'parts', id: 'hedgehog' },
+    speaker: 'narrator',
+    trick: { kind: 'heal', every: 25 },
+    lines: { hi: 'companion_hedgehog_hi', yay: 'companion_hedgehog_yay' },
+  },
+  owl: {
+    id: 'owl',
+    name: 'Сова',
+    about: 'Летить за героями; уночі поруч із нею монстри не з’являються.',
+    model: { kind: 'parts', id: 'owl' },
+    speaker: 'narrator',
+    trick: { kind: 'light', reach: 10 },
+    lines: { hi: 'companion_owl_hi', yay: 'companion_owl_yay' },
+  },
+  bee: {
+    id: 'bee',
+    name: 'Бджілка',
+    about: 'Дзижчить біля героїв і жалить монстрів.',
+    model: { kind: 'parts', id: 'bee' },
+    speaker: 'narrator',
+    trick: { kind: 'shoot', reach: 8, shot: 'sting' },
+    lines: { hi: 'companion_bee_hi', yay: 'companion_bee_yay' },
+  },
+  foxcub: {
+    id: 'foxcub',
+    name: 'Лисеня',
+    about: 'Біжить із героями й кидає шишки в монстрів.',
+    model: { kind: 'parts', id: 'foxcub' },
+    speaker: 'narrator',
+    trick: { kind: 'shoot', reach: 10, shot: 'cone' },
+    lines: { hi: 'companion_foxcub_hi', yay: 'companion_foxcub_yay' },
   },
 };
 

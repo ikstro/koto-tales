@@ -11,6 +11,7 @@ import { isInside } from './house';
 import { TREEHOUSE_FLOOR } from '../assets/castlePrizes';
 import { tentNear } from './kit';
 import { guestNear } from './villages';
+import { babusiaBeds } from './babusia';
 
 /**
  * Sleep (DESIGN.md «Sleep»): from evening till dawn, inside the house or next to one of
@@ -47,12 +48,14 @@ let hintedDay = -1;
 type Place =
   | { where: 'home' }
   | { where: 'tent'; centre: THREE.Vector3; tree: boolean }
-  | { where: 'guest'; centre: THREE.Vector3; spots: Record<string, { pos: THREE.Vector3; yaw: number }>; wake: THREE.Vector3 };
+  | { where: 'guest' | 'babusia'; centre: THREE.Vector3; spots: Record<string, { pos: THREE.Vector3; yaw: number }>; wake: THREE.Vector3 };
 
 /** Where the party could sleep right now, if anywhere: home, a tent, a village's guest house. */
 export function sleepPlace(ctx: Ctx): Place | null {
   if (!ctx.playing || ctx.sleeping || !isNightTime(ctx.clock.t)) return null;
   if (ctx.house && isInside(ctx.house, ctx.player.pos)) return { where: 'home' };
+  const beds = babusiaBeds(ctx);
+  if (beds) return { where: 'babusia', ...beds };
   const guest = guestNear(ctx);
   if (guest) return { where: 'guest', ...guest };
   const tent = tentNear(ctx);
@@ -89,7 +92,7 @@ async function sleep(ctx: Ctx, place: NonNullable<ReturnType<typeof sleepPlace>>
       const s = (place.tree ? TREE_SPOTS : TENT_SPOTS)[id];
       r.position.set(place.centre.x + s.dx, place.centre.y + s.dy, place.centre.z + s.dz);
       r.rotation.y = s.yaw;
-    } else if (place.where === 'guest') {
+    } else if (place.where === 'guest' || place.where === 'babusia') {
       const s = place.spots[id];
       r.position.copy(s.pos);
       r.rotation.y = s.yaw;
@@ -134,7 +137,7 @@ async function sleep(ctx: Ctx, place: NonNullable<ReturnType<typeof sleepPlace>>
     ? house.wake
     : place.where === 'tent'
       ? place.centre.clone().add(new THREE.Vector3(0, 0, 2.4))
-      : place.where === 'guest'
+      : place.where === 'guest' || place.where === 'babusia'
         ? place.wake
         : ctx.player.pos;
   // the player in front, the helpers in a little row behind

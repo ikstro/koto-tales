@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { SEA_LEVEL } from '../contracts';
 import { type Hero, Monster, turnTowards, yawOf } from '../actors/entities';
 import { placeOnGround, stepBody } from '../actors/physics';
+import { centreOf, inSafeRing } from '../content/babusia';
 import { MONSTERS, MONSTER_ORDER, SPAWN, type MonsterCard, type MonsterKind } from '../content/monsters';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
@@ -11,6 +12,7 @@ import { playingSpeakers } from './kit';
 import { inLight, lightZones } from './power';
 import { companionLight } from './companions';
 import { lightAt, peaceAt } from './effects';
+import { drumBeatAt, inFog } from './gadgets';
 import { sfx } from '../voice/sfx';
 import { sheltered } from './prizes';
 import { inShow } from './signal';
@@ -64,6 +66,8 @@ function trySpawn(ctx: Ctx): void {
     if (homeDistance(ctx, new THREE.Vector3(x, y, z)) < SPAWN.houseSafeRadius + 4) continue;
     // villages are safe like home (their own defence waves come from systems/villages.ts)
     if (inVillage(ctx, x, z)) continue;
+    // nor round Бабуся's house
+    if (inSafeRing(ctx.save.babusia, x, z, 4)) continue;
     // the boss's wasteland is its own: no regular monsters spawn there
     if (ctx.boss?.inZone(x, z, 2)) continue;
     // nor where powered lamps and lighthouses shine at night, nor round a tree house
@@ -146,14 +150,14 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
     const home = ctx.house ? homeDistance(ctx, m.pos) : Infinity;
     // music close by, a night show over it, or a peace effect around the party: it dances
     const speaker = speakers.find((sp) => Math.hypot(sp.centre.x - m.pos.x, sp.centre.z - m.pos.z) < sp.dance);
-    const heard = !!speaker || inShow(m.pos.x, m.pos.z) || peaceAt(ctx, m.pos.x, m.pos.z);
+    const heard = !!speaker || inShow(m.pos.x, m.pos.z) || peaceAt(ctx, m.pos.x, m.pos.z) || drumBeatAt(m.pos.x, m.pos.z);
     // a monster that fears music (or light, at night) runs from it instead (MonsterCard.flee)
     const fear = m.card.flee === 'music' ? (heard ? (speaker?.centre ?? ctx.player.pos) : null) : m.card.flee === 'light' && night ? lightFrom(ctx, m) : null;
     const music = heard && !fear;
     // a red traffic light close by: it stops and waits (no chasing, no biting)
     if (m.frozen > 0) m.frozen -= dt;
     const red = !music && (redLight(m.pos.x, m.pos.z) || m.frozen > 0);
-    const seen = ctx.playing && !ctx.sleeping && !music && !red ? nearestHero(ctx, m) : null;
+    const seen = ctx.playing && !ctx.sleeping && !music && !red && !inFog(m.pos.x, m.pos.z) ? nearestHero(ctx, m) : null;
     let tx = 0;
     let tz = 0;
     let speed = 0;
@@ -176,6 +180,19 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
       m.state = 'flee';
       tx = m.pos.x - ctx.house!.centre.x;
       tz = m.pos.z - ctx.house!.centre.z;
+      speed = m.card.chaseSpeed;
+    } else if (inSafeRing(ctx.save.babusia, m.pos.x, m.pos.z)) {
+      // nor does any monster come near Бабуся
+      const [cx, cz] = centreOf(ctx.save.babusia.at!);
+      m.state = 'flee';
+      tx = m.pos.x - cx;
+      tz = m.pos.z - cz;
+      speed = m.card.chaseSpeed;
+    } else if (seen && m.card.shy) {
+      // a gift on little legs: it runs from the heroes
+      m.state = 'flee';
+      tx = m.pos.x - seen.hero.pos.x;
+      tz = m.pos.z - seen.hero.pos.z;
       speed = m.card.chaseSpeed;
     } else if (seen) {
       m.state = 'chase';

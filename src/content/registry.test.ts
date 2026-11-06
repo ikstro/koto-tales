@@ -16,6 +16,7 @@ import { HEROES } from './heroes';
 import { ITEMS, ITEM_ORDER } from './items';
 import { LINES } from './lines';
 import { MONSTERS } from './monsters';
+import { PRESENTS } from './babusia';
 import { ENDLESS, REWARDS } from './progress';
 import { TALES } from './tales';
 import { RACE_CARDS } from './villages';
@@ -154,6 +155,8 @@ const given = new Set<string>([
   ...ENDLESS.map((e) => e.building),
   ...Object.values(RACE_CARDS).map((r) => r.prize),
   ...Object.values(CASTLE_CARDS).map((c) => c.prize),
+  ...TALES.flatMap((t) => (t.gifts ?? []).flatMap((g) => ('building' in g ? [g.building] : []))),
+  ...PRESENTS.flatMap((g) => ('building' in g ? [g.building] : [])),
 ]);
 for (const [key, b] of Object.entries(BUILDINGS)) {
   card(`building ${key}`)
@@ -161,7 +164,7 @@ for (const [key, b] of Object.entries(BUILDINGS)) {
     .done(b, key)
     .need('model in BUILDING_MODELS (src/assets/buildings.ts)', typeof (BUILDING_MODELS as Record<string, unknown>)[key] === 'function')
     .sprite(b.sprite)
-    .need('a way to get it (REWARDS, ENDLESS, a prize, or count > 0 at the start)', b.count !== 0 || given.has(key))
+    .need('a way to get it (REWARDS, ENDLESS, a prize, a tale gift, or count > 0 at the start)', b.count !== 0 || given.has(key))
     .line(b.firstLine)
     .line(b.rewardLine);
 }

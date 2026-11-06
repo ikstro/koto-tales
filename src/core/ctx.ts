@@ -66,4 +66,6 @@ export interface Ctx {
   napping: boolean;
   /** Seconds of the ice cream's fast running left (systems/food.ts). */
   fast: number;
+  /** The hero's speed on what they ride (the scooter); 1 on foot. */
+  mountSpeed: number;
 }

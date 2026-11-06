@@ -1,3 +1,4 @@
+import { inSafeRing } from '../content/babusia';
 import * as THREE from 'three';
 import type { CharacterModel, HeroId } from '../contracts';
 import { Hero, turnTowards, yawOf } from '../actors/entities';
@@ -123,7 +124,7 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
 
   // ── the player ──
   if (!ctx.sleeping) {
-    const speed = player.card.speed * (player.body.inWater ? 0.6 : 1) * (ctx.fast > 0 ? FAST : 1);
+    const speed = player.card.speed * (player.body.inWater ? 0.6 : 1) * (ctx.fast > 0 ? FAST : 1) * ctx.mountSpeed;
     const k = 1 - Math.exp(-dt * 14);
     player.body.vel.x += (input.moveX * speed - player.body.vel.x) * k;
     player.body.vel.z += (input.moveY * speed - player.body.vel.z) * k;
@@ -137,6 +138,7 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
 
   // The jump piece: the player jumps (two blocks), the helpers one after another a moment later.
   if (input.take('jump') && ctx.playing && !ctx.sleeping && !ctx.napping && jump(player.body)) {
+    events.emit('hero:jump', {});
     sfx.play('jump', { pitch: 0.95 + Math.random() * 0.1 });
     bots.forEach((bot, i) => botJumps.set(bot, BOT_JUMP_LAG * (i + 1)));
   }
@@ -167,7 +169,7 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
   // Hearts come back on their own, quickly at home.
   if (player.hearts < HERO_STATS.maxHearts && player.sinceHit > HERO_STATS.regenDelay) {
     player.regenTimer += dt;
-    const every = (ctx.house && isInside(ctx.house, player.pos)) || inVillage(ctx, player.pos.x, player.pos.z) || riding(player) || healing(player.pos) || healsFast(ctx) ? HERO_STATS.regenEveryAtHome : tuneOf(ctx).regenEvery;
+    const every = (ctx.house && isInside(ctx.house, player.pos)) || inVillage(ctx, player.pos.x, player.pos.z) || inSafeRing(ctx.save.babusia, player.pos.x, player.pos.z) || riding(player) || healing(player.pos) || healsFast(ctx) ? HERO_STATS.regenEveryAtHome : tuneOf(ctx).regenEvery;
     if (player.regenTimer >= every) {
       player.regenTimer = 0;
       player.hearts += 1;

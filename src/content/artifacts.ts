@@ -22,7 +22,13 @@ export interface ArtifactCard {
 }
 
 /** The cards, in the album's order. */
-export const ARTIFACTS: Record<string, ArtifactCard> = {};
+export const ARTIFACTS: Record<string, ArtifactCard> = {
+  queen_wreath: { id: 'queen_wreath', name: 'Вінок королеви', about: 'Поки він у героїв, сердечка всюди повертаються швидко.', line: 'artifact_queen_wreath', always: { kind: 'heal' } },
+  nordic_poles: { id: 'nordic_poles', name: 'Скандинавські палиці', about: 'Поки вони в героїв, усі бігають швидше.', line: 'artifact_nordic_poles', always: { kind: 'fast' } },
+  golden_record: { id: 'golden_record', name: 'Золота платівка', about: 'Поки вона в героїв, монстри поруч танцюють.', line: 'artifact_golden_record', always: { kind: 'peace', reach: 5 } },
+  eternal_torch: { id: 'eternal_torch', name: 'Вічний ліхтарик', about: 'Поки він у героїв, уночі поруч не з’являються монстри.', line: 'artifact_eternal_torch', always: { kind: 'light', reach: 9 } },
+  babusia_watch: { id: 'babusia_watch', name: 'Бабусин годинник', about: 'Поки він у героїв, монстри зовсім близько стоять і чекають.', line: 'artifact_babusia_watch', always: { kind: 'freeze', reach: 4 } },
+};
 
 export type ArtifactId = string;
 export const ARTIFACT_ORDER = (): string[] => Object.keys(ARTIFACTS);

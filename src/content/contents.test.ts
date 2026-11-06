@@ -46,8 +46,8 @@ describe('contents: everything in the game, for the parents', () => {
     expect(elves.about).toMatch(/Дарують: «Гірлянда»/);
     expect(row(s, 'c-elves').status).toMatch(/ще далі за селом ельфів/);
     expect(row(s, 'm-zombie').state).toBe('later');
-    // no treasures or friends yet: those parts stay hidden
-    expect(s.find((x) => x.id === 'treasures')).toBeUndefined();
+    // what she brings from a trip says so
+    expect(row(s, 'b-bikegen').status).toBe('Як отримати: бабуся привезе з подорожі');
     // what is waiting: the box's next reward first, each row jumping to its own part
     expect(s[0].rows[0].jump).toBe('kit');
     expect(s[0].rows.map((r) => r.jump)).toContain('villages');

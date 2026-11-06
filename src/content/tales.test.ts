@@ -47,18 +47,24 @@ describe('which tale comes', () => {
     expect(nextTale(save({ done: ['fish'], after: 2 }), all, 1, true)).toBeNull();
   });
 
+  it('Бабуся comes right after the prologue, in an old save too', () => {
+    expect(nextTale(save({ done: ['fish'], after: 1 }), none, 1, false)?.id).toBe('babusia_hi');
+    expect(nextTale(save({ done: ['fish', 'dog', 'treasure', 'guard', 'gnomes'], after: 9 }), none, 9, false)?.id).toBe('babusia_hi');
+    expect(entryOf(TALES.find((t) => t.id === 'babusia_hi')!)).toBe('letter');
+  });
+
   it('a dream waits for a night’s sleep', () => {
-    const s = save({ done: ['fish'], after: 1 });
+    const s = save({ done: ['fish', 'babusia_hi'], after: 1 });
     expect(nextTale(s, all, 1, false)).toBeNull();
     expect(nextTale(s, all, 1, true)?.id).toBe('dog');
   });
 
   it('a whole day without sleep: the next letter comes first, the dream keeps its place', () => {
-    const s = save({ done: ['fish'], after: 1 });
+    const s = save({ done: ['fish', 'babusia_hi'], after: 1 });
     const t = nextTale(s, all, 2, false);
-    expect(t?.id).toBe('party');
+    expect(t?.id).toBe('babusia_walk');
     expect(entryOf(t!)).toBe('letter');
-    expect(nextTale(save({ done: ['fish', 'party'], after: 3 }), all, 3, true)?.id).toBe('dog');
+    expect(nextTale(save({ done: ['fish', 'babusia_hi', 'babusia_walk'], after: 3 }), all, 3, true)?.id).toBe('dog');
   });
 
   it('a tale waiting for a building is left out until the child has one', () => {

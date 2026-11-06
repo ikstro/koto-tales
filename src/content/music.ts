@@ -6,8 +6,60 @@
  */
 
 /** The songs, in the order voice/music.ts makes them. */
-export const SONG_IDS = ['disco', 'rock', 'happy', 'lullaby'] as const;
+export const SONG_IDS = ['disco', 'rock', 'happy', 'lullaby', 'polka', 'waltz', 'twist', 'hopak', 'reggae', 'march', 'space', 'funk', 'blues', 'purr', 'carol', 'granny', 'birds'] as const;
 export type SongId = (typeof SONG_IDS)[number];
+
+/** The four songs every console knows; the others come on discs (item cards). */
+const BUILT_IN = 4;
+/** Which disc brings which song. */
+export const DISC_SONGS: Record<string, SongId> = {
+  disc_polka: 'polka',
+  disc_waltz: 'waltz',
+  disc_twist: 'twist',
+  disc_hopak: 'hopak',
+  disc_reggae: 'reggae',
+  disc_march: 'march',
+  disc_space: 'space',
+  disc_funk: 'funk',
+  disc_blues: 'blues',
+  disc_purr: 'purr',
+  disc_carol: 'carol',
+  disc_granny: 'granny',
+};
+
+/** Every song's colour: a console's screen, a record's label. */
+export const SONG_COLOURS: Record<SongId, string> = {
+  disco: '#e8463a',
+  rock: '#8a5cd6',
+  happy: '#ffd23a',
+  lullaby: '#6fb7ff',
+  polka: '#e0583f',
+  waltz: '#6fb7ff',
+  twist: '#eab02b',
+  hopak: '#e8463a',
+  reggae: '#3fa142',
+  march: '#2f7fd6',
+  space: '#8a5cd6',
+  funk: '#7ff3ff',
+  blues: '#2f918b',
+  purr: '#ee6a82',
+  carol: '#ffe3a3',
+  granny: '#ffd23a',
+  birds: '#7fd67f',
+};
+
+/** The songs the party can play (indexes into SONG_IDS): the built-in ones and every disc in the album. */
+export function ownedSongs(found: readonly string[]): number[] {
+  const out = SONG_IDS.slice(0, BUILT_IN).map((_, i) => i);
+  for (const [disc, song] of Object.entries(DISC_SONGS)) if (found.includes(disc)) out.push(SONG_IDS.indexOf(song));
+  return out.sort((a, b) => a - b);
+}
+
+/** The note's next song: only songs the party has. */
+export function nextSong(current: number, found: readonly string[]): number {
+  const songs = ownedSongs(found);
+  return songs.find((s) => s > current) ?? songs[0];
+}
 
 /** A speaker card's song: one of the songs, or `dj` — the one the DJ console's note picked (`save.song`). */
 export type SpeakerSong = SongId | 'dj';

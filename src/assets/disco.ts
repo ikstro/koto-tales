@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Skin } from '../contracts';
+import { SONG_COLOURS, SONG_IDS } from '../content/music';
 import type { BuildingModel } from './buildings';
 import { Kit } from './parts/kit';
 import {
@@ -407,7 +408,7 @@ export function createDiscoBall(skin: Skin): BuildingModel {
 
 // ─── the DJ console ─────────────────────────────────────────────────────────
 
-const SONG = ['#e8463a', '#8a5cd6', '#ffd23a', '#6fb7ff'].map((c) => new THREE.Color(c));
+const SONG = SONG_IDS.map((id) => new THREE.Color(SONG_COLOURS[id]));
 
 /** A desk with two spinning records, a mixer whose sliders wiggle on the beat, a screen showing the song's colour and headphones. */
 export function createDjConsole(skin: Skin): BuildingModel {
@@ -506,7 +507,7 @@ export function createDjConsole(skin: Skin): BuildingModel {
       records[0].rotation.y -= dt * spin;
       records[1].rotation.y += dt * spin * 0.9;
       place(k.playing ? k.beat : t * 2, on ? 1 : 0);
-      const song = Math.max(0, Math.min(3, k.song ?? 0));
+      const song = Math.max(0, Math.min(SONG.length - 1, k.song ?? 0));
       const key = on ? 'on' + song : 'off';
       if (key === last) return;
       last = key;

@@ -3,6 +3,7 @@ import type { BossKind } from '../systems/bossLogic';
 import type { SaveData } from '../systems/save';
 import { RACES, type Race } from '../world/villages';
 import { ARTIFACTS, ARTIFACT_ORDER } from './artifacts';
+import { centreOf, PRESENTS } from './babusia';
 import { BUILDINGS, KIT_ORDER, type BuildingId } from './buildings';
 import { CASTLE_CARDS, CASTLE_GOALS, castleOpen, castleTask, type CastleCard } from './castles';
 import { COMPANIONS } from './companions';
@@ -19,7 +20,7 @@ import { RACE_CARDS, TASK_NEEDS, VILLAGE_GOALS, isFriend, villageTask, type Race
  * a new card shows up here by itself. Ukrainian text (its `about` lines live on the cards).
  */
 
-export type SectionId = 'next' | 'kit' | 'buildings' | 'villages' | 'castles' | 'tales' | 'items' | 'monsters' | 'world' | 'treasures' | 'friends';
+export type SectionId = 'next' | 'babusia' | 'kit' | 'buildings' | 'villages' | 'castles' | 'tales' | 'items' | 'monsters' | 'world' | 'treasures' | 'friends';
 
 /** A HUD sprite, or a picture rendered at runtime (ui/portraits.ts). */
 export type Pic = { sprite: string } | { portrait: 'item' | 'monster' | 'artifact'; id: string };
@@ -134,7 +135,7 @@ function taleStep(s: TaleStep): string {
     case 'place':
       return `постав «${BUILDINGS[s.building!].name}»${s.at === 'home' ? ' біля дому' : ''}`;
     case 'visit':
-      return s.at === 'home' ? 'повернись додому' : `дійди до села ${RACE_OF[s.at as Race]}`;
+      return s.at === 'home' ? 'повернись додому' : s.at === 'babusia' ? 'прийди до бабусі' : `дійди до села ${RACE_OF[s.at as Race]}`;
     case 'music':
       return `увімкни музику на ${count(n, SECONDS_W)}`;
     case 'defend':
@@ -218,8 +219,11 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
     if (ri >= 0) return ri === nextIdx ? { state: 'now', status: `Наступна нагорода скриньки: ${taskNow}` } : { state: 'later', status: `Як отримати: нагорода скриньки №${ri + 1}` };
     const race = RACES.find((r) => RACE_CARDS[r].prize === id);
     if (race) return { state: 'later', status: `Як отримати: приз ${RACE_OF[race]} за 3 завдання в їхньому селі (${village(race)?.done.length ?? 0} з 3)` };
+    const gift = TALES.find((t) => t.gifts?.some((g) => 'building' in g && g.building === id));
+    if (gift) return { state: 'later', status: `Як отримати: подарунок бабусі за казку «${gift.name}»` };
     const cr = RACES.find((r) => CASTLE_CARDS[r].prize === id);
     if (cr) return { state: 'later', status: `Як отримати: у скрині на вершині замку «${CASTLE_CARDS[cr].name}»` };
+    if (PRESENTS.some((g) => 'building' in g && g.building === id)) return { state: 'later', status: 'Як отримати: бабуся привезе з подорожі' };
     return { state: 'later', status: 'Як отримати: нагорода скриньки згодом' };
   };
   const buildings: Row[] = KIT_ORDER.map((id) => {
@@ -284,7 +288,7 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
 
   // ─── tales ───
   const left = talesLeft(save.tales.done, has);
-  const from = (t: TaleCard) => (t.from === 'pupsia' ? 'Пупся' : RACE_CARDS[t.from].name);
+  const from = (t: TaleCard) => (t.from === 'pupsia' ? 'Пупся' : t.from === 'babusia' ? 'Бабуся' : RACE_CARDS[t.from].name);
   const tales: Row[] = TALES.map((t) => {
     const isDone = save.tales.done.includes(t.id);
     const isCur = save.tales.cur === t.id;
@@ -303,7 +307,7 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
     } else {
       const entry = entryOf(t);
       const nth = left.indexOf(t);
-      status = `Ще попереду${nth === 0 ? ' (наступна)' : ''}: ${entry === 'wake' ? 'на початку гри' : entry === 'dream' ? 'Пупсі насниться після ночі сну' : `прилетить літачок-лист від ${RACE_OF[t.from as Race]}`}`;
+      status = `Ще попереду${nth === 0 ? ' (наступна)' : ''}: ${entry === 'wake' ? 'на початку гри' : entry === 'dream' ? 'Пупсі насниться після ночі сну' : t.from === 'babusia' ? 'прилетить лелека з листом від бабусі' : `прилетить літачок-лист від ${RACE_OF[t.from as Race]}`}`;
     }
     return {
       key: `t-${t.id}`,
@@ -410,6 +414,20 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
     return { key: `f-${c.id}`, pic: { sprite: 'heart' }, title: c.name, about: c.about, state: got ? 'have' : 'later', status: got ? 'Ходить з героями' : `Як отримати: ${how}`, line: c.lines.hi };
   });
 
+  // ─── Бабуся ───
+  const babusiaAt = save.babusia.at;
+  const babusia: Row[] = [
+    {
+      key: 'babusia',
+      pic: { sprite: 'map-babusia' },
+      title: 'Бабуся',
+      about: 'Королева квітів і погоди. Біля її дому немає монстрів, там завжди є що поїсти й можна заночувати. Вона мандрує: дім часом переїжджає, а на старому місці лишається галявина. Стрілка на карті завжди веде до неї, а натискання на її значок переносить до неї.',
+      state: babusiaAt ? 'have' : 'later',
+      status: babusiaAt ? `Де вона зараз: ${wayFrom(places.home, ...centreOf(babusiaAt))}` : 'Приїде після першої казки: прилетить лелека з листом',
+      line: 'babusia_hello_2',
+    },
+  ];
+
   // ─── what is waiting next: a few rows from the sections below ───
   const next: Row[] = [];
   const pick = (row: Row | undefined, jump: SectionId) => row && next.push({ ...row, key: `next-${row.key}`, jump });
@@ -422,6 +440,7 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
 
   const sections: Section[] = [
     { id: 'next', title: 'Що чекає далі', icon: 'play', rows: next },
+    { id: 'babusia', title: 'Бабуся', icon: 'map-babusia', rows: babusia },
     { id: 'kit', title: 'Скринька', icon: 'kit', rows: kit },
     { id: 'buildings', title: 'Будівлі', icon: 'b-windmill', rows: buildings },
     { id: 'villages', title: 'Села', icon: 'folk-elves', rows: villages },

@@ -1,9 +1,11 @@
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
-import { SONG_IDS, songOf } from '../content/music';
+import type { LineId } from '../content/lines';
+import { nextSong, SONG_IDS, songOf } from '../content/music';
 import { music } from '../voice/music';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
+import { nearHerJukebox } from './babusia';
 import { nearestStanding, selectedBuilding, standingWhere, working } from './kit';
 
 /**
@@ -12,7 +14,8 @@ import { nearestStanding, selectedBuilding, standingWhere, working } from './kit
  * console a note piece breathes — a tap plays the console's next song (the speakers keep theirs).
  */
 
-const SONG_LINES = ['song_disco', 'song_rock', 'song_happy', 'song_lullaby'] as const;
+/** The note names the song it picked (the birds are never picked: they are the feeder's own). */
+const songLine = (song: number) => `song_${SONG_IDS[song]}` as LineId;
 
 /** Whether (x, z, feet y) stands on a working dance floor. */
 export function onDanceFloor(x: number, y: number, z: number): boolean {
@@ -27,6 +30,7 @@ export function onDanceFloor(x: number, y: number, z: number): boolean {
 /** A working DJ console right next to the hero (the note piece shows), unless a building is being placed. */
 export function djNear(ctx: Ctx): boolean {
   if (selectedBuilding()) return false;
+  if (nearHerJukebox(ctx)) return true;
   const s = nearestStanding(ctx, (c) => !!c.dj);
   return !!s && working(s);
 }
@@ -44,11 +48,11 @@ export function initDisco(ctx: Ctx): void {
 export function updateDisco(ctx: Ctx, dt: number): void {
   if (ctx.player.dancing) ctx.save.stats.danced += dt;
   if (ctx.input.take('prompt:note') && djNear(ctx)) {
-    const next = (songOf('dj', ctx.save.song) + 1) % SONG_IDS.length;
+    const next = nextSong(songOf('dj', ctx.save.song), ctx.save.found);
     ctx.save.song = next;
     sfx.play('sticker', { pitch: 1.2 });
     ctx.player.model.play('cheer');
-    voice.say(SONG_LINES[next], { priority: 6, interrupt: true });
+    voice.say(songLine(next), { priority: 6, interrupt: true });
     events.emit('music:song', { song: next });
   }
 }

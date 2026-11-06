@@ -1,3 +1,4 @@
+import { freshBabusia, type BabusiaSave } from '../content/babusia';
 import { TERRAIN_VERSION, type HeroId, type ItemId, type MonsterKind } from '../contracts';
 import { BUILDINGS, KIT_ORDER, type BuildingId } from '../content/buildings';
 import type { Difficulty } from '../content/difficulty';
@@ -19,6 +20,8 @@ import { homeChunks } from './explore';
  */
 export interface SaveData {
   v: number;
+  /** Бабуся: where her house stands, the meadows she left, the day of her last gift (content/babusia.ts). */
+  babusia: BabusiaSave;
   /** Terrain generator version the edits were made against. */
   terrainV: number;
   seed: number;
@@ -75,6 +78,12 @@ export interface SaveData {
   artifacts: string[];
   /** Companions walking with the party (content/companions.ts ids). */
   companions: string[];
+  /** The weather now: 0 sun, 1 rain, 2 snow, 3 rainbow (content/weather.ts). */
+  weather: number;
+  /** Flowers the magic can planted, as [x, z]; the oldest wilt when there are too many. */
+  planted: [number, number][];
+  /** The last morning a pie oven baked. */
+  ovenDay: number;
 }
 
 /** A building put up from the kit: footprint min corner, the height its floor stands on, quarter turns. */
@@ -122,7 +131,7 @@ export const freshBoss = (): BossSave => ({ kind: 'eater', levels: { eater: 1, n
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -133,6 +142,10 @@ const BEFORE_RESTART = 'koto-tales-save-before-restart';
 export function freshSave(): SaveData {
   return {
     v: SAVE_VERSION,
+    babusia: freshBabusia(),
+    weather: 0,
+    planted: [],
+    ovenDay: -1,
     terrainV: TERRAIN_VERSION,
     seed: WORLD_SEED,
     hero: 'lyosha',
@@ -227,6 +240,8 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
     delete boss.lanterns;
     return { ...d, v: 15, boss };
   },
+  // v16: Бабуся. She comes with the next letter, once the prologue is done.
+  15: (d) => ({ ...d, v: 16, babusia: freshBabusia(), weather: 0, planted: [], ovenDay: -1 }),
 };
 
 export function migrate(raw: Raw): SaveData {

@@ -153,6 +153,9 @@ body {
 .kc,
 .kl,
 .kt,
+.kbody,
+.ktabs,
+.ktp,
 .fan {
   position: absolute;
   left: 0;
@@ -188,6 +191,21 @@ body {
 
 .kt > .pc {
   animation: breathe 1.4s ease-in-out infinite;
+}
+
+/* a kit tab: the round tile's top printed plain (its baked colour), a building fitted on it */
+.ktile {
+  position: absolute;
+  left: -35px;
+  top: -42px;
+  width: 70px;
+  height: 54px;
+  border-radius: 50%;
+  background: #4474b4;
+}
+
+.ktp {
+  transform-origin: 0 0;
 }
 
 /* none left in the box */

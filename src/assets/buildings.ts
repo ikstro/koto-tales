@@ -19,6 +19,49 @@ import { createGolem, createRobohelper, createSaucer, createTreehouse } from './
 import { createRadar, createTransmitter, createWifi } from './signal';
 import { createIcecream, createPicnic, createSwings } from './food';
 import { createStation } from './station';
+import { createPieoven } from './pieoven';
+import { createCandyfloss } from './candyfloss';
+import { createPopcorn } from './popcorn';
+import { createTelescope } from './telescope';
+import { createRocketswing } from './rocketswing';
+import { createSurprisebox } from './surprisebox';
+import { createScooter } from './scooter';
+import { createFireworks } from './fireworks';
+import { createCinema } from './cinema';
+import { createWaterslide } from './waterslide';
+import { createBouncycastle } from './bouncycastle';
+import { createToytrain } from './toytrain';
+import { createFerriswheel } from './ferriswheel';
+import { createWickerchair } from './wickerchair';
+import { createBirdfeeder } from './birdfeeder';
+import { createBeehive } from './beehive';
+import { createFlowerbed } from './flowerbed';
+import { createRainbowbridge } from './rainbowbridge';
+import { createWeatherpad } from './weatherpad';
+import { createMonsterwash } from './monsterwash';
+import { createBubbler } from './bubbler';
+import { createBigfan } from './bigfan';
+import { createToastcannon } from './toastcannon';
+import { createEfence } from './efence';
+import { createMegagarland } from './megagarland';
+import { createNeonsign } from './neonsign';
+import { createMinisun } from './minisun';
+import { createLightningrod } from './lightningrod';
+import { createExtender } from './extender';
+import { createEverbattery } from './everbattery';
+import { createSunflower } from './sunflower';
+import { createWaterwheel } from './waterwheel';
+import { createBikegen } from './bikegen';
+import { createSmokemachine } from './smokemachine';
+import { createLasers } from './lasers';
+import { createPianopath } from './pianopath';
+import { createDrums } from './drums';
+import { createKaraoke } from './karaoke';
+import { createBasscannon } from './basscannon';
+import { createWheelspeaker } from './wheelspeaker';
+import { createSpeakerwall } from './speakerwall';
+import { createTurntable } from './turntable';
+import { createJukebox } from './jukebox';
 import { createDoghouse } from './doghouse';
 import { createFish } from './fish';
 
@@ -73,6 +116,16 @@ export interface BuildingTick {
   eat?: number;
   /** Its upgrade level, 0..3 (the big speaker turns gold at 3). */
   level?: number;
+  /** Seconds since it last acted (a drum hit, a bass blow, a shot, a bubble, a washed monster, a firework, a tap). */
+  pulse?: number;
+  /** Which drum was hit last: 0 the big drum, 1 the snare, 2 the cymbal. */
+  drum?: number;
+  /** The party is on it now (pedalling, singing, riding). */
+  busy?: boolean;
+  /** The weather pad: 0 sun, 1 rain, 2 snow, 3 rainbow. */
+  weather?: number;
+  /** The cinema: the url of the picture on its screen (null: dark). */
+  film?: string | null;
 }
 
 export { SHOW_LENGTH } from './buildingParts';
@@ -127,6 +180,49 @@ export const BUILDING_MODELS: Record<BuildingId, (skin: Skin) => BuildingModel> 
   icecream: createIcecream,
   swings: createSwings,
   station: createStation,
+  jukebox: createJukebox,
+  turntable: createTurntable,
+  speakerwall: createSpeakerwall,
+  wheelspeaker: createWheelspeaker,
+  basscannon: createBasscannon,
+  karaoke: createKaraoke,
+  drums: createDrums,
+  pianopath: createPianopath,
+  lasers: createLasers,
+  smokemachine: createSmokemachine,
+  bikegen: createBikegen,
+  waterwheel: createWaterwheel,
+  sunflower: createSunflower,
+  everbattery: createEverbattery,
+  extender: createExtender,
+  lightningrod: createLightningrod,
+  minisun: createMinisun,
+  neonsign: createNeonsign,
+  megagarland: createMegagarland,
+  efence: createEfence,
+  toastcannon: createToastcannon,
+  bigfan: createBigfan,
+  bubbler: createBubbler,
+  monsterwash: createMonsterwash,
+  weatherpad: createWeatherpad,
+  rainbowbridge: createRainbowbridge,
+  flowerbed: createFlowerbed,
+  beehive: createBeehive,
+  birdfeeder: createBirdfeeder,
+  wickerchair: createWickerchair,
+  ferriswheel: createFerriswheel,
+  toytrain: createToytrain,
+  bouncycastle: createBouncycastle,
+  waterslide: createWaterslide,
+  cinema: createCinema,
+  fireworks: createFireworks,
+  scooter: createScooter,
+  surprisebox: createSurprisebox,
+  rocketswing: createRocketswing,
+  telescope: createTelescope,
+  popcorn: createPopcorn,
+  candyfloss: createCandyfloss,
+  pieoven: createPieoven,
 };
 
 export function createBuilding(skin: Skin, id: BuildingId): BuildingModel {

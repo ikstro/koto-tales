@@ -14,6 +14,7 @@ import type { CharacterModel, IModels, ItemId, ModelRef, Rig, RigType, Skin } fr
 import { animate } from './animate';
 import { buildArtifact } from './artifacts';
 import { buildItem } from './items';
+import { build as buildBabusia } from './parts/babusia';
 import { buildAlien1, buildAlien2, buildAlien3, buildAlienCaptain, buildAlienElder, buildAlienKid } from './parts/alien';
 import { buildElf1, buildElf2, buildElf3, buildElfElder, buildElfKid, buildElfQueen } from './parts/elf';
 import { buildGnome1, buildGnome2, buildGnome3, buildGnomeElder, buildGnomeKid, buildGnomeKing } from './parts/gnome';
@@ -56,6 +57,7 @@ export const PART_BUILDERS: Record<string, (skin: Skin) => Rig> = {
   gnome_king: buildGnomeKing,
   robot_chief: buildRobotChief,
   alien_captain: buildAlienCaptain,
+  babusia: buildBabusia,
 };
 
 const RIG_PARTS: Record<RigType, string[]> = {

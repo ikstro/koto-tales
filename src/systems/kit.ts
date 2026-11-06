@@ -3,7 +3,8 @@ import type { IWorld } from '../contracts';
 import { overlapsBlock } from '../actors/physics';
 import { breatheGhost, createBuilding, createGhost, type BuildingModel, type BuildingTick } from '../assets/buildings';
 import { BUILDINGS, KIT_ORDER, type BuildingCard, type BuildingId } from '../content/buildings';
-import { hear, songOf } from '../content/music';
+import { findSpan } from '../content/gadgets';
+import { hear, songOf, type SpeakerSong } from '../content/music';
 import { MAX_LEVEL, upgraded } from '../content/upgrades';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
@@ -44,7 +45,7 @@ const SOFT = new Set<number>([B.WATER, B.LEAVES, B.LOG]);
  * (fx, fz, feet fy) along `yaw`. Uneven ground is fine by one block (a plinth fills it); the
  * floor stays within two blocks of the hero's feet (not down a cliff, not up on a hill).
  */
-export function findSpot(world: GroundView, size: [number, number], fx: number, fz: number, fy: number, yaw: number, blocked: (x: number, z: number) => boolean): Spot | null {
+export function findSpot(world: GroundView, size: [number, number], fx: number, fz: number, fy: number, yaw: number, blocked: (x: number, z: number) => boolean, fits: (x: number, z: number) => boolean = () => true): Spot | null {
   const [w, d] = size;
   const fwdX = Math.sin(yaw);
   const fwdZ = Math.cos(yaw);
@@ -68,7 +69,7 @@ export function findSpot(world: GroundView, size: [number, number], fx: number, 
         hi = Math.max(hi, g);
       }
     }
-    if (ok && hi - lo <= 1 && Math.abs(hi - fy) <= 2) return { x: x0, z: z0, y: hi, rot: 0, low: lo };
+    if (ok && hi - lo <= 1 && Math.abs(hi - fy) <= 2 && fits(x0, z0)) return { x: x0, z: z0, y: hi, rot: 0, low: lo };
   }
   return null;
 }
@@ -99,6 +100,17 @@ export function landingSpot(
     return { x: cx + 0.5, y: g, z: cz + 0.5 };
   }
   return null;
+}
+
+/** Water within two blocks of a `w × d` footprint (a water wheel stands at the edge). */
+export function byWater(world: GroundView, x0: number, z0: number, w: number, d: number): boolean {
+  for (let x = x0 - 2; x < x0 + w + 2; x++) {
+    for (let z = z0 - 2; z < z0 + d + 2; z++) {
+      const g = world.groundHeight(x, z);
+      if (world.isWater(x, g, z) || world.isWater(x, g - 1, z)) return true;
+    }
+  }
+  return false;
 }
 
 /** The cell right in front of the hero for a lantern: at the feet, stacking up a wall to two high. */
@@ -194,6 +206,11 @@ export function reserveCells(cells: [number, number][]): void {
   for (const [x, z] of cells) reserved.add(`${x},${z}`);
 }
 
+/** That ground is free again (Бабуся's yard when she moves on). */
+export function releaseCells(cells: [number, number][]): void {
+  for (const [x, z] of cells) reserved.delete(`${x},${z}`);
+}
+
 /** The house, other buildings and the portal keep their ground. */
 function blockedCell(ctx: Ctx, x: number, z: number): boolean {
   const f = ctx.house?.footprint;
@@ -201,7 +218,7 @@ function blockedCell(ctx: Ctx, x: number, z: number): boolean {
   if (reserved.has(`${x},${z}`)) return true;
   for (const s of standing) {
     // the robot walks about: its cell is never kept
-    if (s.folding || s.card.follow) continue;
+    if (s.folding || s.card.follow || s.card.mount) continue;
     const [x0, z0, x1, z1] = footprint(s);
     if (x >= x0 && x < x1 && z >= z0 && z < z1) return true;
   }
@@ -211,6 +228,11 @@ function blockedCell(ctx: Ctx, x: number, z: number): boolean {
 function barrierCells(s: Standing): [number, number, number][] {
   const out: [number, number, number][] = [];
   for (const c of s.card.solid) for (let k = 0; k < c.h; k++) out.push([s.rec.x + c.dx, s.rec.y + k, s.rec.z + c.dz]);
+  // a bridge's deck: an invisible floor over the water, level with its banks
+  if (s.card.span) {
+    const [w, d] = dims(s.card, s.rec.rot);
+    for (let x = s.rec.x; x < s.rec.x + w; x++) for (let z = s.rec.z; z < s.rec.z + d; z++) out.push([x, s.rec.y - 1, z]);
+  }
   return out;
 }
 
@@ -247,7 +269,7 @@ function raise(ctx: Ctx, rec: PlacedBuilding, fresh: boolean): Standing {
     model.root.userData.casts = true;
     cutawayModel(model.root);
     s.model = model;
-    if (!card.follow) fitPlinth(ctx, s);
+    if (!card.follow && !card.mount && !card.span) fitPlinth(ctx, s);
     ctx.scene.add(model.root);
     for (const [x, y, z] of barrierCells(s)) ctx.world.setBarrier?.(x, y, z, true);
     s.site = siteFor(ctx, rec, card, model, centre);
@@ -271,7 +293,7 @@ export function initKit(ctx: Ctx): void {
       return false;
     }
     // the robot is out with the party wherever it stood (systems/prizes.ts brings it along)
-    if (card.block !== undefined || card.follow || (standsOk(ctx, rec) && !onReserved(rec))) return true;
+    if (card.block !== undefined || card.follow || card.mount || card.span || (standsOk(ctx, rec) && !onReserved(rec))) return true;
     ctx.save.kit[rec.id] = (ctx.save.kit[rec.id] ?? 0) + 1;
     return false;
   });
@@ -369,7 +391,7 @@ export function pushHud(ctx: Ctx): void {
   ctx.hud.setKitItems(
     KIT_ORDER.filter((id) => BUILDINGS[id].count === null || owned(ctx, id) > 0).map((id) => {
       const card = BUILDINGS[id];
-      return { id, sprite: card.sprite, count: card.count === null ? null : (ctx.save.kit[id] ?? 0), level: ctx.save.upgrades[id] ?? 0 };
+      return { id, sprite: card.sprite, count: card.count === null ? null : (ctx.save.kit[id] ?? 0), level: ctx.save.upgrades[id] ?? 0, tab: card.tab };
     }),
   );
   ctx.hud.setKitMode(selected);
@@ -407,11 +429,32 @@ function findSpotNow(ctx: Ctx): void {
   if (!selected) return;
   spotTimer = 0.12;
   const card = BUILDINGS[selected];
-  spot =
-    card.block !== undefined
-      ? lanternSpot(ctx)
-      : findSpot(ctx.world, card.size, ctx.player.pos.x, ctx.player.pos.z, ctx.player.pos.y, ctx.player.yaw, (x, z) => blockedCell(ctx, x, z) || underHero(ctx, x, z));
+  const free = (x: number, z: number) => blockedCell(ctx, x, z) || underHero(ctx, x, z);
+  const p = ctx.player.pos;
+  if (card.block !== undefined) spot = lanternSpot(ctx);
+  else if (card.span) spot = spanSpot(ctx, card);
+  else spot = findSpot(ctx.world, card.size, p.x, p.z, p.y, ctx.player.yaw, free, card.water ? (x, z) => byWater(ctx.world, x, z, card.size[0], card.size[1]) : undefined);
   ctx.hud.setKitReady(!!spot);
+}
+
+/** A place across the water near the hero for a rainbow bridge. */
+function spanSpot(ctx: Ctx, card: BuildingCard): Spot | null {
+  const w = ctx.world;
+  const p = ctx.player.pos;
+  const s = findSpan(
+    {
+      height: (x, z) => w.groundHeight(x, z),
+      wet: (x, z) => {
+        const g = w.groundHeight(x, z);
+        return w.isWater(x, g, z) || w.isWater(x, g - 1, z);
+      },
+    },
+    card.size[0],
+    p.x,
+    p.z,
+    p.y,
+  );
+  return s && { ...s, low: s.y };
 }
 
 export function selectedBuilding(): BuildingId | null {
@@ -429,7 +472,7 @@ function place(ctx: Ctx): void {
     sfx.play('click');
     if (performance.now() - lastNoSpace > 8000) {
       lastNoSpace = performance.now();
-      voice.say('kit_nospace', { priority: 6, interrupt: true });
+      voice.say(card.water || card.span ? 'kit_need_water' : 'kit_nospace', { priority: 6, interrupt: true });
     }
     return;
   }
@@ -576,9 +619,24 @@ export function standingWhere(only: (c: BuildingCard) => boolean): Standing[] {
   return standing.filter((s) => !s.folding && only(s.card));
 }
 
+/** A speaker that is no kit building: Бабуся's jukebox, standing in her house. */
+export interface HouseSpeaker {
+  centre: THREE.Vector3;
+  hear: number;
+  dance: number;
+  loud: number;
+  song: SpeakerSong;
+}
+let houseSpeaker: HouseSpeaker | null = null;
+export function setHouseSpeaker(s: HouseSpeaker | null): void {
+  houseSpeaker = s;
+}
+
 /** Speakers that are playing: feet-level centres, how far they carry and how close monsters dance. */
 export function playingSpeakers(): { centre: THREE.Vector3; hear: number; dance: number }[] {
-  return standing.filter((s) => s.card.music && working(s)).map((s) => ({ centre: s.centre, hear: s.card.music!.hear, dance: s.card.music!.dance }));
+  const out = standing.filter((s) => s.card.music && working(s)).map((s) => ({ centre: s.centre, hear: s.card.music!.hear, dance: s.card.music!.dance }));
+  if (houseSpeaker) out.push(houseSpeaker);
+  return out;
 }
 
 /** The song heard at (x, z) and how loud (content/music.ts); the DJ console plays the song its note picked. */
@@ -586,6 +644,7 @@ function hearing(ctx: Ctx, x: number, z: number): { song: number; level: number 
   const speakers = standing
     .filter((s) => s.card.music && working(s))
     .map((s) => ({ x: s.centre.x, z: s.centre.z, hear: s.card.music!.hear, loud: s.card.music!.loud, song: songOf(s.card.music!.song, ctx.save.song) }));
+  if (houseSpeaker) speakers.push({ x: houseSpeaker.centre.x, z: houseSpeaker.centre.z, hear: houseSpeaker.hear, loud: houseSpeaker.loud, song: songOf(houseSpeaker.song, ctx.save.song) });
   return hear(speakers, x, z, music.songHeard);
 }
 
@@ -651,7 +710,7 @@ export function updateKit(ctx: Ctx, dt: number): void {
       root.scale.set(1 + squash, 1 - squash, 1 + squash);
       // a speaker plays when it works; the rest swing along when music is near
       const playing = s.card.music ? working(s) : heard;
-      s.model!.update(dt, { beat, playing, night, power: s.site?.view, song, feet: s.card.floor ? feet : undefined, ...s.extra });
+      s.model!.update(dt, { beat, playing, night, power: s.site?.view, song, feet: s.card.floor || s.card.keys ? feet : undefined, ...s.extra });
     }
   }
   music.update(dt, ctx.playing ? tune.song : -1, tune.level, voice.isSpeaking());

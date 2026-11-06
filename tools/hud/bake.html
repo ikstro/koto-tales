@@ -945,6 +945,8 @@ function folkPrint(id, bg, yaw = 0.3, part = 0.6) {
 {
   const RACE = { elves: ['elf', '#3fa142'], gnomes: ['gnome', C.coral], robots: ['robot', C.teal], aliens: ['alien', '#8f6fc8'] };
   const still = (o) => { const glows = []; o.traverse((m) => { if (m.isMesh && m.material.blending === THREE.AdditiveBlending) glows.push(m); }); glows.forEach((m) => m.parent.remove(m)); return o; };
+  // Бабуся's mark: on the map, on the tale piece, on the book's pages
+  shoot('map-babusia', roundTile(0.62, C.coral, folkPrint('babusia', C.coral, 0.3, 0.45), 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
   for (const [race, [folk, col]] of Object.entries(RACE)) {
     // the little one (the «find» picture), the thing to gather, the elder (map mark and album sticker)
     shoot('kid-' + race, roundTile(1, col, folkPrint(folk + '_kid', col, 0.3, 0.6), 0.6), 130, 130, { shadow: 'tile6-sh' });
@@ -1101,7 +1103,7 @@ shoot('jump', roundTile(1, C.green, printSpring, 0.6), 130, 130, { shadow: 'tile
 {
   const still = (o) => { const glows = []; o.traverse((m) => { if (m.isMesh && m.material.blending === THREE.AdditiveBlending) glows.push(m); }); glows.forEach((m) => m.parent.remove(m)); return o; };
   // the things, turned to show their best side and filling the print
-  for (const [kind, yaw, fill] of [['fish', 0.3, 0.46], ['scroll', 0.35, 0.48], ['yarn', 0.3, 0.6]]) {
+  for (const [kind, yaw, fill] of [['fish', 0.3, 0.46], ['scroll', 0.35, 0.48], ['yarn', 0.3, 0.6], ['daisy', 0.3, 0.55], ['pole', 0.3, 0.6], ['disc', 0.3, 0.55], ['shell', 0.3, 0.55], ['honey', 0.3, 0.72], ['berry', 0.3, 0.55]]) {
     const thing = createTaleThing(skin, kind); thing.update(0, 0); thing.root.children[0].rotation.y = 0;
     shoot('item-' + kind, roundTile(1, C.navy, modelPrint(still(thing.root), C.navy, yaw, fill), 0.6), 130, 130, { shadow: 'tile6-sh' });
   }
@@ -1120,6 +1122,8 @@ shoot('jump', roundTile(1, C.green, printSpring, 0.6), 130, 130, { shadow: 'tile
   for (const [id, card] of Object.entries(BUILDINGS)) {
     if (card.block || called.has(card.sprite)) continue;
     const b = createBuilding(skin, id); b.update(3.2, { beat: 1.05, playing: true, night: 0, power: PW });
+    // the smoke rolls far out of the cell: the sprite shows the machine alone
+    if (id === 'smokemachine') b.root.traverse((o) => { if (o.isInstancedMesh) o.visible = false; });
     const glows = []; b.root.traverse((o) => { if (o.isMesh && o.material.blending === THREE.AdditiveBlending) glows.push(o); }); glows.forEach((o) => o.parent.remove(o));
     shoot(card.sprite, fittedBox(b.root, 3.2, 3.6, -0.4), 200, 200, { oy: 1.0 });
   }

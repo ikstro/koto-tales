@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TERRAIN_VERSION } from '../contracts';
+import { freshBabusia } from '../content/babusia';
 import { SAVE_VERSION, freshSave, migrate, reconcileTerrain, restartSave } from './save';
 
 describe('save', () => {
@@ -161,6 +162,17 @@ describe('save', () => {
     });
     expect('level' in s.boss).toBe(false);
     expect('lanterns' in s.boss).toBe(false);
+  });
+
+  it('migrates v15 → v16: Бабуся has not come yet, everything else kept', () => {
+    const v15 = { ...freshSave(), v: 15, coins: 42, day: 9 } as Record<string, unknown>;
+    delete v15.babusia;
+    const s = migrate(v15);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.babusia).toEqual(freshBabusia());
+    expect(s.babusia.at).toBeNull();
+    expect(s.coins).toBe(42);
+    expect(s.day).toBe(9);
   });
 
   it('keeps the boss as it was left (health, baits, beaten day)', () => {

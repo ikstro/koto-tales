@@ -73,6 +73,9 @@ export function startEffect(ctx: Ctx, e: Effect): void {
       else if (ctx.house) void travelTo(ctx, ctx.house.wake, 0);
       break;
     }
+    // told by `effect:start`: systems/babusia.ts (the bell), systems/gadgets.ts (the magic can)
+    case 'babusia':
+    case 'bloom':
     case 'peace':
     case 'light':
       break;

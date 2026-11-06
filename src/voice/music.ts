@@ -1,9 +1,12 @@
 import { SONG_IDS } from '../content/music';
 import { getCtx, getMaster } from './audio';
+import { DISC_TUNES } from './discTunes';
+import { at, bell, chug, hiss, hz, osc, whistle, type Bars, type Song } from './synth';
 
 /**
  * The speakers' music, made in code on the shared AudioContext (no files, so it plays
- * offline). Four little songs (DESIGN.md «Music»; the order is SONG_IDS in content/music.ts):
+ * offline). The little songs (DESIGN.md «Music»; the order is SONG_IDS in content/music.ts; the
+ * later discs' tunes are in discTunes.ts):
  *   0 disco   — kick, clap, hats, octave bass, chord stabs, a bell tune; C–G–Am–F, 120 a minute
  *   1 rock    — kick and snare, chugging power chords, a square-wave riff; A–D–E–D, 132
  *   2 happy   — oom-pah bass, plucked chords, a whistled tune, shaker and woodblock; C–F–G–C, 108
@@ -17,102 +20,6 @@ import { getCtx, getMaster } from './audio';
 
 const LOOP = 64;
 const AHEAD = 0.2;
-
-const hz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
-
-let noiseBuf: AudioBuffer | null = null;
-function noise(c: AudioContext): AudioBuffer {
-  if (!noiseBuf) {
-    noiseBuf = c.createBuffer(1, c.sampleRate, c.sampleRate);
-    const d = noiseBuf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-  }
-  return noiseBuf;
-}
-
-function env(c: AudioContext, dest: AudioNode, t: number, vol: number, dur: number, attack = 0.005): GainNode {
-  const g = c.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(vol, t + attack);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  g.connect(dest);
-  return g;
-}
-
-function osc(c: AudioContext, dest: AudioNode, t: number, type: OscillatorType, f0: number, dur: number, vol: number, f1?: number): void {
-  const o = c.createOscillator();
-  o.type = type;
-  o.frequency.setValueAtTime(f0, t);
-  if (f1 !== undefined) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
-  o.connect(env(c, dest, t, vol, dur));
-  o.start(t);
-  o.stop(t + dur + 0.02);
-}
-
-function hiss(c: AudioContext, dest: AudioNode, t: number, type: BiquadFilterType, f: number, dur: number, vol: number): void {
-  const s = c.createBufferSource();
-  s.buffer = noise(c);
-  const flt = c.createBiquadFilter();
-  flt.type = type;
-  flt.frequency.value = f;
-  s.connect(flt).connect(env(c, dest, t, vol, dur, 0.002));
-  s.start(t, Math.random() * 0.5);
-  s.stop(t + dur + 0.02);
-}
-
-/** A song: its tempo, how loud it sits, and one 16th step of it at audio time `t`. */
-interface Song {
-  bpm: number;
-  gain: number;
-  step(c: AudioContext, out: AudioNode, step: number, t: number): void;
-}
-
-/** A bell-like note: a sine with a soft octave above. */
-function bell(c: AudioContext, out: AudioNode, t: number, n: number, dur: number, vol: number): void {
-  osc(c, out, t, 'sine', hz(n), dur, vol);
-  osc(c, out, t, 'triangle', hz(n + 12), dur * 0.5, vol * 0.28);
-}
-
-/** Three detuned saws through a low-pass: a toy power chord (root, fifth, octave). */
-function chug(c: AudioContext, out: AudioNode, t: number, root: number, dur: number, vol: number): void {
-  const flt = c.createBiquadFilter();
-  flt.type = 'lowpass';
-  flt.frequency.value = 1400;
-  flt.connect(env(c, out, t, vol, dur, 0.004));
-  for (const [n, d] of [
-    [root, -6],
-    [root + 7, 5],
-    [root + 12, 0],
-  ]) {
-    const o = c.createOscillator();
-    o.type = 'sawtooth';
-    o.frequency.value = hz(n);
-    o.detune.value = d;
-    o.connect(flt);
-    o.start(t);
-    o.stop(t + dur + 0.02);
-  }
-}
-
-/** A whistle: a sine with a little vibrato. */
-function whistle(c: AudioContext, out: AudioNode, t: number, n: number, dur: number, vol: number): void {
-  const o = c.createOscillator();
-  const lfo = c.createOscillator();
-  const depth = c.createGain();
-  o.type = 'sine';
-  o.frequency.value = hz(n);
-  lfo.frequency.value = 6;
-  depth.gain.value = hz(n) * 0.012;
-  lfo.connect(depth).connect(o.frequency);
-  o.connect(env(c, out, t, vol, dur, 0.02));
-  o.start(t);
-  lfo.start(t);
-  o.stop(t + dur + 0.02);
-  lfo.stop(t + dur + 0.02);
-}
-
-/** Notes as [step in the bar, midi note], one bar per chord. */
-type Bars = [number, number][][];
 
 const DISCO = {
   bass: [36, 43, 45, 41],
@@ -171,7 +78,51 @@ const LULLABY = {
   ] as Bars,
 };
 
-const at = (bars: Bars, bar: number, s: number) => bars[bar].filter(([k]) => k === s).map(([, n]) => n);
+// Бабуся's discs: three more little songs made here, all their own tunes
+const POLKA = {
+  bass: [36, 43, 41, 43],
+  chords: [
+    [60, 64, 67],
+    [59, 62, 67],
+    [60, 65, 69],
+    [59, 62, 67],
+  ],
+  tune: [
+    [[0, 72], [2, 76], [4, 79], [6, 76], [8, 74], [10, 77], [12, 81], [14, 77]],
+    [[0, 74], [2, 79], [4, 83], [6, 79], [8, 74], [12, 71]],
+    [[0, 77], [2, 81], [4, 84], [6, 81], [8, 79], [10, 76], [12, 74], [14, 76]],
+    [[0, 74], [2, 77], [4, 79], [6, 77], [8, 72], [12, 72]],
+  ] as Bars,
+};
+
+/** Bars of three beats: twelve steps. */
+const WALTZ = {
+  bass: [41, 36, 38, 34],
+  chords: [
+    [60, 65, 69],
+    [60, 64, 67],
+    [62, 65, 69],
+    [58, 62, 65],
+  ],
+  tune: [
+    [[0, 77], [4, 81], [8, 84]],
+    [[0, 84], [4, 79], [8, 76]],
+    [[0, 81], [4, 77], [6, 79], [8, 81]],
+    [[0, 82], [4, 81], [8, 77]],
+  ] as Bars,
+};
+
+const TWIST = {
+  roots: [36, 36, 41, 43],
+  /** The bass walks up and down the chord, a step every eighth. */
+  walk: [0, 4, 7, 9, 10, 9, 7, 4],
+  tune: [
+    [[0, 72], [3, 75], [4, 76], [8, 79], [10, 76], [12, 72]],
+    [[0, 72], [3, 75], [4, 76], [8, 79], [10, 81], [12, 79]],
+    [[0, 77], [3, 80], [4, 81], [8, 84], [10, 81], [12, 77]],
+    [[0, 79], [3, 82], [4, 83], [8, 86], [10, 83], [14, 79]],
+  ] as Bars,
+};
 
 /** The songs, in the order the DJ console steps through them. */
 export const SONGS: Song[] = [
@@ -246,6 +197,58 @@ export const SONGS: Song[] = [
       }
     },
   },
+  // polka
+  {
+    bpm: 126,
+    gain: 0.9,
+    step(c, out, step, t) {
+      const bar = Math.floor(step / 16) % 4;
+      const s = step % 16;
+      // oom-pah at a run: bass on the beat, the squeezebox chord right after it
+      if (s % 4 === 0) osc(c, out, t, 'triangle', hz(POLKA.bass[bar] + (s % 8 === 4 ? 7 : 0)), 0.14, 0.34);
+      if (s % 4 === 2) for (const n of POLKA.chords[bar]) osc(c, out, t, 'square', hz(n), 0.08, 0.022);
+      if (s % 8 === 2) hiss(c, out, t, 'bandpass', 3000, 0.05, 0.1);
+      for (const n of at(POLKA.tune, bar, s)) {
+        osc(c, out, t, 'square', hz(n), 0.13, 0.04);
+        osc(c, out, t, 'sawtooth', hz(n + 12), 0.1, 0.012);
+      }
+    },
+  },
+  // waltz
+  {
+    bpm: 112,
+    gain: 0.9,
+    loop: 48,
+    step(c, out, step, t) {
+      const bar = Math.floor(step / 12) % 4;
+      const s = step % 12;
+      // one on the bass, two and three on the strings, the tune sung by a bell and a whistle
+      if (s === 0) osc(c, out, t, 'triangle', hz(WALTZ.bass[bar]), 0.5, 0.34);
+      if (s === 4 || s === 8) for (const n of WALTZ.chords[bar]) osc(c, out, t, 'triangle', hz(n), 0.26, 0.04);
+      for (const n of at(WALTZ.tune, bar, s)) {
+        bell(c, out, t, n, 0.7, 0.07);
+        whistle(c, out, t, n, 0.42, 0.03);
+      }
+    },
+  },
+  // twist
+  {
+    bpm: 152,
+    gain: 0.9,
+    step(c, out, step, t) {
+      const bar = Math.floor(step / 16) % 4;
+      const s = step % 16;
+      // kick and clap, a bass walking on the eighths, a bright horn on top
+      if (s % 8 === 0) osc(c, out, t, 'sine', 150, 0.18, 0.8, 44);
+      if (s === 4 || s === 12) hiss(c, out, t, 'bandpass', 1800, 0.1, 0.3);
+      if (s % 2 === 0) {
+        hiss(c, out, t, 'highpass', 7000, 0.03, 0.05);
+        osc(c, out, t, 'triangle', hz(TWIST.roots[bar] + TWIST.walk[s / 2]), 0.13, 0.32);
+      }
+      for (const n of at(TWIST.tune, bar, s)) osc(c, out, t, 'square', hz(n), 0.14, 0.04);
+    },
+  },
+  ...DISC_TUNES,
 ];
 
 /** One song's player: its own clock and gain, so one song can fade out while another comes in. */
@@ -306,7 +309,7 @@ class Player {
     const step = this.stepLen;
     if (this.start + this.next * step < now - 0.1) this.next = Math.ceil((now - this.start) / step);
     while (this.start + this.next * step < now + AHEAD) {
-      SONGS[this.song].step(c, this.out, this.next % LOOP, this.start + this.next * step);
+      SONGS[this.song].step(c, this.out, this.next % (SONGS[this.song].loop ?? LOOP), this.start + this.next * step);
       this.next++;
     }
   }
@@ -332,6 +335,18 @@ class Music {
   /** The night show (DESIGN.md «Signal»): while it is on, every speaker plays disco. */
   setShow(on: boolean): void {
     this.show = on;
+  }
+
+  /** One sound right now, on top of the song (a drum hit, a piano key, the karaoke's voices). */
+  play(make: (c: AudioContext, out: AudioNode, t: number) => void): void {
+    if (this.volume <= 0) return;
+    try {
+      const c = getCtx();
+      if (c.state !== 'running') return;
+      make(c, getMaster(), c.currentTime + 0.01);
+    } catch {
+      /* audio unavailable: stay silent */
+    }
   }
 
   /** The song heard where the hero stands (the last one, when none carries this far). */

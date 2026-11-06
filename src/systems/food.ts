@@ -19,6 +19,8 @@ import { selectedBuilding, standingWhere, working, type Standing } from './kit';
  */
 
 const EAT_SECONDS = 3;
+/** A toasted snack is eaten in the last moment of the meal. */
+const TOAST_BITE = 1.2;
 /** How close to the building's centre the piece shows (blocks). */
 const NEAR = 3.6;
 /** Running speed while the ice cream lasts. */
@@ -48,9 +50,19 @@ export interface FoodPlace {
   gone(): boolean;
   /** A tap on it on screen (this point, within `reach` blocks) sits the party down at once, hurt or not (the kitchen table). */
   tap?: { at: THREE.Vector3; reach: number };
+  /** Said as the party sits down (Бабуся names the day's dish). */
+  onSit?(): void;
+  /** Seconds at the table, if not the usual. */
+  seconds?: number;
+  /** Hearts each hero gets back, if not all of them. */
+  hearts?: number;
+  /** The snack is held still (over a fire) until the last second, then this is eaten. */
+  toast?: SnackKind;
+  /** After the meal, instead of Пупся's line about running fast. */
+  onDone?(): void;
 }
 
-let meal: { s: FoodPlace; t: number; snacks: THREE.Object3D[]; bite: number } | null = null;
+let meal: { s: FoodPlace; t: number; snacks: THREE.Object3D[]; seated: Hero[]; bite: number; toasting: boolean } | null = null;
 let sparkT = 0;
 const at = new THREE.Vector3();
 const fwd = new THREE.Vector3();
@@ -117,25 +129,38 @@ export function sitOn(h: Hero, place: THREE.Object3D): void {
   h.model.root.rotation.y = h.yaw;
 }
 
-function sitDown(ctx: Ctx, s: FoodPlace): void {
+export function sitDown(ctx: Ctx, s: FoodPlace): void {
   const seats = s.seats;
   // the last seat is the cat's (on the ground: by the basket, by the kiosk's stools); the player sits first
   const heroes = [...ctx.heroes.values()].sort((a, b) => (a === ctx.player ? -1 : b === ctx.player ? 1 : 0));
   const cat = heroes.find((h) => h.id === 'pupsia');
   const free = [...seats.slice(-1), ...seats.slice(0, -1)];
   const snacks: THREE.Object3D[] = [];
+  const seated: Hero[] = [];
   const place = (h: Hero, o: THREE.Object3D) => {
     free.splice(free.indexOf(o), 1);
     sitOn(h, o);
-    h.model.play('eat');
+    h.model.play(s.toast ? 'sit' : 'eat');
     snacks.push(holdSnack(h.model, h.id === 'pupsia' ? 'fish' : s.snack));
+    seated.push(h);
   };
   if (cat && free.length) place(cat, free[0]);
   for (const h of heroes) if (h !== cat && free.length) place(h, free[0]);
   ctx.napping = true;
-  meal = { s, t: 0, snacks, bite: 0.4 };
+  meal = { s, t: 0, snacks, seated, bite: 0.4, toasting: !!s.toast };
   s.setEat(0);
   sfx.play('switch', { pitch: 1.4 });
+  s.onSit?.();
+}
+
+/** Toasted: off the stick and into the mouth. */
+function bite(m: NonNullable<typeof meal>): void {
+  m.toasting = false;
+  for (const o of m.snacks) o.removeFromParent();
+  m.snacks = m.seated.map((h) => {
+    h.model.play('eat');
+    return holdSnack(h.model, h.id === 'pupsia' ? 'fish' : m.s.toast!);
+  });
 }
 
 function finish(ctx: Ctx): void {
@@ -145,17 +170,16 @@ function finish(ctx: Ctx): void {
   m.s.setEat(undefined);
   for (const o of m.snacks) o.removeFromParent();
   for (const h of ctx.heroes.values()) {
-    h.hearts = HERO_STATS.maxHearts;
+    h.hearts = Math.min(HERO_STATS.maxHearts, h.hearts + (m.s.hearts ?? HERO_STATS.maxHearts));
     h.model.play('cheer');
     ctx.effects.poof(at.copy(h.pos).setY(h.pos.y + 1), 0xee6a82, 10);
   }
   sfx.play('sticker', { pitch: 1.2 });
   voice.say('eat_done', { priority: 7, interrupt: true });
   const fast = m.s.fast;
-  if (fast) {
-    ctx.fast = fast;
-    setTimeout(() => voice.say('eat_fast', { priority: 7 }), 1600);
-  }
+  if (fast) ctx.fast = fast;
+  if (m.s.onDone) setTimeout(() => m.s.onDone?.(), 1600);
+  else if (fast) setTimeout(() => voice.say('eat_fast', { priority: 7 }), 1600);
 }
 
 export function updateFood(ctx: Ctx, dt: number): void {
@@ -173,12 +197,14 @@ export function updateFood(ctx: Ctx, dt: number): void {
     ctx.hud.setFood(null);
     meal.t += dt;
     meal.s.setEat(meal.t);
+    const end = meal.s.seconds ?? EAT_SECONDS;
+    if (meal.toasting && meal.t >= end - TOAST_BITE) bite(meal);
     meal.bite -= dt;
-    if (meal.bite <= 0) {
+    if (meal.bite <= 0 && !meal.toasting) {
       meal.bite = 0.55 + Math.random() * 0.2;
       sfx.play('click', { pitch: 1.6 + Math.random() * 0.4, volume: 0.45 });
     }
-    if (meal.t >= EAT_SECONDS || meal.s.gone()) finish(ctx);
+    if (meal.t >= end || meal.s.gone()) finish(ctx);
     return;
   }
   const busy = ctx.sleeping || ctx.map.isOpen || !!selectedBuilding();

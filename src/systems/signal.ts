@@ -150,6 +150,16 @@ function openFind(ctx: Ctx): Place | null {
   return null;
 }
 
+/** The nearest place still under the clouds is found now (the telescope); false: nothing left, or one waits already. */
+export function scanFar(ctx: Ctx): boolean {
+  if (openFind(ctx)) return false;
+  const p = hidden(ctx, ctx.player.pos.x, ctx.player.pos.z)[0];
+  if (!p) return false;
+  exploredOf(ctx.save).add(squareAround(chunkOf(p.x), chunkOf(p.z), 1));
+  ctx.save.said.push(`rf:${Math.round(p.x)},${Math.round(p.z)},${p.icon}`);
+  return true;
+}
+
 function radars(ctx: Ctx, dt: number): void {
   const ex = exploredOf(ctx.save);
   for (const s of standingWhere((c) => !!c.scan)) {

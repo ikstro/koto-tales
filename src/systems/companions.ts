@@ -90,9 +90,17 @@ export function companionLight(x: number, z: number): boolean {
   return walkers.some((w) => w.card.trick.kind === 'light' && Math.hypot(w.body.pos.x - x, w.body.pos.z - z) < w.card.trick.reach);
 }
 
+/** What a friend throws other than an arrow: a pine cone, a sting. */
+const SHOTS = {
+  cone: { geo: new THREE.BoxGeometry(0.22, 0.28, 0.22), mat: new THREE.MeshBasicMaterial({ color: 0x8a5a2b, toneMapped: false }) },
+  sting: { geo: new THREE.BoxGeometry(0.08, 0.08, 0.3), mat: new THREE.MeshBasicMaterial({ color: 0xffd23a, toneMapped: false }) },
+};
+
 function shoot(ctx: Ctx, w: Walker, to: THREE.Vector3): void {
   const from = new THREE.Vector3(w.body.pos.x + Math.sin(w.yaw) * 0.4, w.body.pos.y + w.model.height * 0.6, w.body.pos.z + Math.cos(w.yaw) * 0.4);
-  const obj = createArrow(ctx.skin);
+  const trick = w.card.trick;
+  const look = trick.kind === 'shoot' && trick.shot ? SHOTS[trick.shot] : null;
+  const obj = look ? new THREE.Mesh(look.geo, look.mat) : createArrow(ctx.skin);
   obj.position.copy(from);
   ctx.scene.add(obj);
   const a = new Arrow(obj, from);

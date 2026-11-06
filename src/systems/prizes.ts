@@ -47,14 +47,8 @@ export const riding = (h: Hero) => riders.has(h);
 /** The swings: who sits on which seat, and how high it goes. */
 let swing: { s: Standing; seat: number; t: number; by: Hero } | null = null;
 let stillSwing = 0;
-/** The swing's largest angle (radians) and its pace. */
-const SWING_ARC = 0.6;
-const SWING_PACE = 2.3;
-/** On the swings the lightning charges this much faster. */
-const SWING_CHARGE = 3;
-
 function onPlatform(s: Standing, p: THREE.Vector3): boolean {
-  return Math.hypot(p.x - s.centre.x, p.z - s.centre.z) < 1.45 && Math.abs(p.y - s.centre.y) < 0.9;
+  return Math.hypot(p.x - s.centre.x, p.z - s.centre.z) < s.card.ride!.on && Math.abs(p.y - s.centre.y) < 0.9;
 }
 
 function getOff(ctx: Ctx): void {
@@ -64,7 +58,9 @@ function getOff(ctx: Ctx): void {
     const dx = p.x - ride.centre.x;
     const dz = p.z - ride.centre.z;
     const d = Math.hypot(dx, dz) || 1;
-    p.set(ride.centre.x + (dx / d) * 2.1, ride.centre.y + 0.6, ride.centre.z + (dz / d) * 2.1);
+    const out = ride.card.ride!.on + 0.65;
+    p.set(ride.centre.x + (dx / d) * out, ride.centre.y + 0.6, ride.centre.z + (dz / d) * out);
+    ride.extra.busy = false;
   }
   for (const h of riders) h.model.play('idle');
   riders.clear();
@@ -79,6 +75,7 @@ function carousel(ctx: Ctx, dt: number): void {
     stillOn = s && !moving ? stillOn + dt : 0;
     if (s && stillOn > 0.4 && s.model?.seats?.length) {
       ride = s;
+      s.extra.busy = true;
       for (const h of ctx.heroes.values()) riders.add(h);
       sfx.play('switch', { pitch: 1.3 });
     }
@@ -91,8 +88,8 @@ function carousel(ctx: Ctx, dt: number): void {
     st.getWorldPosition(seat);
     h.body.pos.set(seat.x, seat.y - 0.4, seat.z);
     h.body.vel.set(0, 0, 0);
-    // facing along the turn
-    h.yaw = Math.atan2(-(seat.z - ride.centre.z), seat.x - ride.centre.x);
+    // facing along the turn, or the way the seat says
+    h.yaw = (st.userData.face as number | undefined) ?? Math.atan2(-(seat.z - ride.centre.z), seat.x - ride.centre.x);
     h.model.root.position.copy(h.body.pos);
     h.model.root.rotation.y = h.yaw;
   }
@@ -129,11 +126,12 @@ function swings(ctx: Ctx, dt: number): void {
   const sw = swing!;
   sw.t += dt;
   // it gets going over a couple of swings
-  const a = SWING_ARC * Math.min(1, sw.t / 2.5) * Math.sin(sw.t * SWING_PACE);
+  const { arc, pace, rate } = sw.s.card.swing!;
+  const a = arc * Math.min(1, sw.t / 2.5) * Math.sin(sw.t * pace);
   const angles = [0, 0];
   angles[sw.seat] = a;
   sw.s.extra.swing = angles;
-  h.boltRate = SWING_CHARGE;
+  h.boltRate = rate;
   const o = sw.s.model!.seats![sw.seat];
   o.getWorldPosition(seat);
   h.body.pos.copy(seat);
@@ -267,7 +265,8 @@ function robots(ctx: Ctx, dt: number): void {
       return;
     }
     stepFollower(ctx, b, followSlot(ctx, i, tmpA), dt, 0x7ff3ff);
-    shootStep(ctx, b, s.card.follow!.reach, dancers, dt, (to) => fireBolt(ctx, b, to));
+    // the wheeled speaker only rolls along
+    if (s.card.follow!.reach > 0) shootStep(ctx, b, s.card.follow!.reach, dancers, dt, (to) => fireBolt(ctx, b, to));
     s.extra.walk = Math.hypot(b.body.vel.x, b.body.vel.z);
     moveFollower(s, b.body.pos, b.yaw);
   });
@@ -439,6 +438,7 @@ export function updatePrizes(ctx: Ctx, dt: number): void {
     if (riders.size) {
       for (const h of riders) h.model.play('idle');
       riders.clear();
+      if (ride) ride.extra.busy = false;
       ride = null;
     }
     offSwing(ctx);

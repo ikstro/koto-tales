@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS } from './buildings';
-import { DJ_FIRST_SONG, hear, loudness, SONG_IDS, songOf, type Speaker } from './music';
+import { DISC_SONGS, DJ_FIRST_SONG, hear, loudness, nextSong, ownedSongs, SONG_IDS, songOf, type Speaker } from './music';
 
 const at = (id: 'boombox' | 'bigspeaker' | 'djconsole', x: number, djSong = DJ_FIRST_SONG): Speaker => {
   const m = BUILDINGS[id].music!;
@@ -36,6 +36,21 @@ describe('music', () => {
     // further off the bigger one carries
     expect(heard(disco, 20)).toBe('rock');
     expect(heard(disco, -40)).toBeNull();
+  });
+
+  it('plays only the songs the party has: the four built in and every disc found', () => {
+    const names = (found: string[]) => ownedSongs(found).map((i) => SONG_IDS[i]);
+    expect(names([])).toEqual(['disco', 'rock', 'happy', 'lullaby']);
+    expect(names(['apple', 'disc_waltz'])).toEqual(['disco', 'rock', 'happy', 'lullaby', 'waltz']);
+    expect(names(Object.keys(DISC_SONGS))).toEqual(SONG_IDS.filter((s) => s !== 'birds'));
+  });
+
+  it('steps the note through the songs the party has, and round to the first', () => {
+    const song = (s: string) => SONG_IDS.indexOf(s as (typeof SONG_IDS)[number]);
+    expect(SONG_IDS[nextSong(song('disco'), [])]).toBe('rock');
+    expect(SONG_IDS[nextSong(song('lullaby'), [])]).toBe('disco');
+    expect(SONG_IDS[nextSong(song('lullaby'), ['disc_twist'])]).toBe('twist');
+    expect(SONG_IDS[nextSong(song('twist'), ['disc_twist'])]).toBe('disco');
   });
 
   it('keeps the song heard until another is clearly stronger', () => {

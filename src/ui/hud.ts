@@ -1,4 +1,5 @@
 import type { HeroId } from '../contracts';
+import { KIT_TABS } from '../content/buildings';
 import { HERO_ORDER } from '../content/heroes';
 import { readParams } from '../core/params';
 import { goFullscreen } from './fullscreen';
@@ -321,6 +322,8 @@ export interface KitItem {
   count: number | null;
   /** Upgrade level 0..3: gold studs on the cell. */
   level?: number;
+  /** Which picture tab it sits on (KIT_TABS). */
+  tab: string;
 }
 
 /** Something the party carries and can use (the kit plate's second row): its picture and how many. */
@@ -425,6 +428,15 @@ export class Hud {
   private prompt: PromptKind | null = null;
   private kitItems: KitItem[] = [];
   private kitCells = new Map<string, { p: Piece; count: Counter | null; studs: HTMLElement[] }>();
+  /** The plate and its cells: rebuilt on a tab switch, while the tabs above them stay and spring. */
+  private kitBody: HTMLDivElement;
+  private kitTabRow: HTMLDivElement;
+  private kitTabPieces = new Map<string, Piece>();
+  /** The tab the child chose last (kept while the game runs) and the one on show. */
+  private kitTab: string | null = null;
+  private kitTabShown: string | null = null;
+  /** No room beside the action column: the plate with tabs opens above it. */
+  private kitAbove = false;
   private kitNext: { sprite: string; task: string } | null = null;
   private carriedItems: CarriedItem[] = [];
   private carriedCells = new Map<string, { p: Piece; count: Counter }>();
@@ -628,6 +640,8 @@ export class Hud {
 
     // The kit plate: a studded plate with the buildings in the box, filled by setKitItems.
     this.gKit = new Group(r, 'g-kit hidden');
+    this.kitBody = div('kbody', this.gKit.inner);
+    this.kitTabRow = div('ktabs', this.gKit.inner);
 
     // The pause menu: picture pieces on a plate. ▶ continue, sound, «?» guide, «Зміст гри» (the
     // parents' list), the door, «start again» (a sprout on its own stud ring, held while the ring
@@ -767,7 +781,9 @@ export class Hud {
     GTl.place(GM.x - gap * 0.5 - GTl.w * tsT, GM.y + (GM.h * ms - GTl.h * tsT) / 2, tsT);
     this.placeBoss(g, gap, ts, topBottom);
 
-    if (this.kitOpen) this.placeKit();
+    // a plate with tabs fits its cells to the screen; the plain one only moves
+    if (this.kitTabPieces.size) this.buildKit();
+    else if (this.kitOpen) this.placeKit();
     this.placeMenu();
   }
 
@@ -803,7 +819,19 @@ export class Hud {
     const [bx, by] = this.gAct.toScreen(SIDE_X + 40, KIT_Y - 120);
     const x = Math.min(W - g - T.w * s, Math.max(g, bx - T.w * s));
     const y = Math.min(H - g - T.h * s, Math.max(g, by));
-    T.place(x, y, s);
+    if (this.kitAbove) T.place(W - g - T.w * s, Math.max(g, this.gAct.y - g - T.h * s), s);
+    else T.place(x, y, s);
+  }
+
+  /** The room a plate with tabs has (design px): left of the action column, or above it on a portrait screen or when that is too narrow for the tabs. */
+  private kitRoom(tabsW: number): { w: number; h: number } {
+    const g = 8;
+    const s = this.gAct.s * 1.05;
+    const [bx] = this.gAct.toScreen(SIDE_X + 40, KIT_Y - 120);
+    this.kitAbove = window.innerWidth < window.innerHeight || (bx - g) / s < tabsW + KIT_PAD + 16;
+    return this.kitAbove
+      ? { w: (window.innerWidth - 2 * g) / s - 16, h: (this.gAct.y - 2 * g) / s - 20 }
+      : { w: (bx - g) / s - 16, h: (window.innerHeight - 2 * g) / s - 20 };
   }
 
   private placeMenu(): void {
@@ -888,41 +916,124 @@ export class Hud {
     this.catcher.classList.toggle('hidden', !this.fanOpen && !this.kitOpen);
     if (on) {
       this.placeKit();
-      this.gKit.pieces.forEach((p, i) => p.drop(i * 34, 40));
+      this.dropKit(true);
       this.onKitOpen?.();
     }
+  }
+
+  /** The pieces fall onto the plate, the tabs first; a big tab falls faster, so it is never a long wait. */
+  private dropKit(tabs: boolean): void {
+    const cells = this.gKit.pieces;
+    const all = tabs ? [...this.kitTabPieces.values(), ...cells] : cells;
+    const step = this.kitTabPieces.size ? Math.min(34, 420 / all.length) : 34;
+    all.forEach((p, i) => p.drop(i * step, 40));
+  }
+
+  /** The tabs with a building on them, in KIT_TABS order; none until the child has KIT_TABS_FROM buildings. */
+  private ownedTabs(): string[] {
+    if (this.kitItems.length < KIT_TABS_FROM) return [];
+    return KIT_TABS.filter((t) => this.kitItems.some((i) => i.tab === t));
+  }
+
+  /** One round piece per tab, right to left from the box. Kept across tab switches, so the lift can spring. */
+  private buildKitTabs(tabs: string[]): void {
+    if (tabs.join() === [...this.kitTabPieces.keys()].join()) return;
+    this.kitTabRow.replaceChildren();
+    this.kitTabPieces.clear();
+    tabs.forEach((tab, i) => {
+      const pic = TAB_PICS[tab];
+      const own = pic.startsWith('item-');
+      const p = new Piece(this.kitTabRow, own ? pic : 'bolt-empty', (i - tabs.length + 1) * TAB_STEP, 0, 'tile6-sh');
+      // a building stands on a plain top: the tile's own colour over the bolt it was baked with
+      if (!own) div('ktile', p.pr);
+      p.layer('rim6', 'sp rim');
+      if (!own) {
+        const [x0, y0, x1, y1] = rectOf(pic);
+        const k = Math.min(TAB_PIC_W / (x1 - x0), TAB_PIC_H / (y1 - y0));
+        const box = div('ktp', p.pr);
+        box.style.transform = `translate(${(-k * (x0 + x1)) / 2}px, ${TAB_PIC_Y - (k * (y0 + y1)) / 2}px) scale(${k.toFixed(3)})`;
+        box.appendChild(sprite(pic));
+      }
+      this.press(p, p.target(TAB_STEP), () => this.pickKitTab(tab), { ui: true });
+      this.kitTabPieces.set(tab, p);
+    });
+  }
+
+  private pickKitTab(tab: string): void {
+    this.kitTab = tab;
+    if (tab === this.kitTabShown) return;
+    this.buildKit();
+    this.dropKit(false);
   }
 
   /** (Re)builds the kit plate: one cell per building, then the next reward, dark, with its task. */
   private buildKit(): void {
     const K = this.gKit;
-    K.inner.replaceChildren();
+    const body = this.kitBody;
+    body.replaceChildren();
     K.pieces.length = 0;
     this.kitCells.clear();
     this.carriedCells.clear();
-    const n = this.kitItems.length + (this.kitNext ? 1 : 0);
+    const tabs = this.ownedTabs();
+    this.buildKitTabs(tabs);
+    const shown = this.kitTab !== null && tabs.includes(this.kitTab) ? this.kitTab : (tabs[0] ?? null);
+    this.kitTabShown = shown;
+    for (const [tab, p] of this.kitTabPieces) p.el.classList.toggle('on', tab === shown);
+    const items = shown === null ? this.kitItems : this.kitItems.filter((i) => i.tab === shown);
+    const next = this.kitNext ? 1 : 0;
     const nc = this.carriedItems.length;
-    // up to two rows while it fits: wider before taller (short landscape screens)
-    const cols = n <= 4 ? Math.max(1, n, Math.min(4, nc)) : n <= 8 ? 4 : Math.min(6, Math.ceil(n / 2));
-    // what the party carries starts a row of its own under the buildings (the owner's call 2026-10-30)
-    const bRows = Math.ceil(n / cols);
-    const rows = bRows + Math.ceil(nc / cols);
-    const cell = 118;
-    const tw = cols * cell + 60;
-    const th = rows * cell + 60;
-    const plate = ninePlate(K.inner, tw, th);
-    plate.style.left = `${-tw / 2}px`;
-    plate.style.top = `${-th / 2}px`;
-    (plate.previousElementSibling as HTMLElement).style.cssText += `;left:${-tw / 2 + 14}px;top:${-th / 2 + 18}px`;
-    const at = (i: number) => [-tw / 2 + 30 + cell * ((i % cols) + 0.5), -th / 2 + 30 + cell * (Math.floor(i / cols) + 0.5) + 30];
-    this.kitItems.forEach((item, i) => {
+    let grid = plainGrid(items.length + next, nc);
+    let tw = grid.cols * KIT_CELL + KIT_PAD;
+    let th = grid.rows * KIT_CELL + KIT_PAD;
+    // without tabs the frame is the plate; with tabs it holds the biggest tab, so nothing under the
+    // finger moves on a switch: the plate hangs from the frame's top right corner, by the tabs
+    let fw = tw;
+    let fh = th;
+    this.kitAbove = false;
+    if (shown !== null) {
+      const tabsW = tabs.length * TAB_STEP;
+      const room = this.kitRoom(tabsW);
+      fw = fh = 0;
+      for (const tab of tabs) {
+        const g = fitGrid(this.kitItems.filter((i) => i.tab === tab).length + next, nc, room.w, room.h);
+        const w = Math.max(g.cols * g.cell, tabsW) + KIT_PAD;
+        const h = g.rows * g.cell + TAB_ROW + KIT_PAD;
+        fw = Math.max(fw, w);
+        fh = Math.max(fh, h);
+        if (tab === shown) {
+          grid = g;
+          tw = w;
+          th = h;
+        }
+      }
+      this.kitTabRow.style.left = `${fw / 2 - KIT_PAD / 2 - TAB_STEP / 2}px`;
+      this.kitTabRow.style.top = `${-fh / 2 + TAB_FOOT}px`;
+    }
+    const { cols, bRows, cell } = grid;
+    const fit = cell / KIT_CELL;
+    const px = fw / 2 - tw;
+    const py = -fh / 2;
+    const plate = ninePlate(body, tw, th);
+    plate.style.left = `${px}px`;
+    plate.style.top = `${py}px`;
+    (plate.previousElementSibling as HTMLElement).style.cssText += `;left:${px + 14}px;top:${py + 18}px`;
+    const gx = px + (tw - cols * cell) / 2;
+    const gy = py + KIT_PAD / 2 + (shown === null ? 0 : TAB_ROW);
+    const at = (i: number) => [gx + cell * ((i % cols) + 0.5), gy + cell * (Math.floor(i / cols) + 0.5) + 30 * fit];
+    const scaled = (holder: HTMLElement, k = 0.82) => {
+      holder.style.transform = `scale(${k * fit})`;
+    };
+    // on a full tab every row is taken, so a picture may not reach into the row above or under it
+    const shift = (name: string, k = 0.82) => (shown === null ? 0 : keepInCell(name as SpriteName, k));
+    items.forEach((item, i) => {
       const [cx, cy] = at(i);
-      const holder = div('tb kb', K.inner);
+      const holder = div('tb kb', body);
       holder.style.cssText = `left:${cx}px;top:${cy}px`;
       // the lantern is taller than a building's square frame
       const tall = item.sprite.startsWith('brick-');
-      if (tall) holder.style.transform = 'scale(0.62)';
-      const p = new Piece(holder, item.sprite as SpriteName, 0, 0);
+      scaled(holder, tall ? 0.62 : 0.82);
+      const dy = shift(item.sprite, tall ? 0.62 : 0.82);
+      const p = new Piece(holder, item.sprite as SpriteName, 0, dy);
       if (tall) p.pr.insertBefore(div('lamp-glow'), p.img);
       let count: Counter | null = null;
       if (item.count !== null) {
@@ -936,21 +1047,23 @@ export class Hud {
         const lv = div('kl', holder);
         for (let i = 0; i < 3; i++) studs.push(new Piece(lv, 'lvl' as SpriteName, -46 + i * 24, -40, null).el);
       }
-      this.press(p, p.target(cell, cell, 34), () => this.pickKit(item.id), { ui: true });
+      this.press(p, p.target(KIT_CELL, KIT_CELL, 34 + dy), () => this.pickKit(item.id), { ui: true });
       K.pieces.push(p);
       this.kitCells.set(item.id, { p, count, studs });
     });
     if (this.kitNext) {
-      const [cx, cy] = at(this.kitItems.length);
-      const holder = div('tb kb', K.inner);
+      const [cx, cy] = at(items.length);
+      const holder = div('tb kb', body);
       holder.style.cssText = `left:${cx}px;top:${cy}px`;
-      const p = new Piece(holder, this.kitNext.sprite as SpriteName, 0, 0);
+      scaled(holder);
+      const dy = shift(this.kitNext.sprite);
+      const p = new Piece(holder, this.kitNext.sprite as SpriteName, 0, dy);
       p.el.classList.add('locked');
       const tk = div('kt', holder);
       const task = new Piece(tk, this.kitNext.task as SpriteName, 0, 0);
       this.press(
         p,
-        p.target(cell, cell, 34),
+        p.target(KIT_CELL, KIT_CELL, 34 + dy),
         () => {
           task.bump();
           this.onKitTask?.();
@@ -961,8 +1074,9 @@ export class Hud {
     }
     this.carriedItems.forEach((item, j) => {
       const [cx, cy] = at(bRows * cols + j);
-      const holder = div('tb kb carry', K.inner);
+      const holder = div('tb kb carry', body);
       holder.style.cssText = `left:${cx}px;top:${cy}px`;
+      scaled(holder);
       // the item's sticker tile, as in the album, with how many on a number tile
       const p = new Piece(holder, 'sticker-on', 0, 0, 'sticker-sh');
       const img = document.createElement('img');
@@ -975,15 +1089,15 @@ export class Hud {
       const ch = div('kc', holder);
       ch.style.cssText = `left:44px;top:4px`;
       const count = new Counter(new Piece(ch, 'numtile', 0, 0, null));
-      this.press(p, p.target(cell, cell, 34), () => this.useCarried(item.id), { ui: true });
+      this.press(p, p.target(KIT_CELL, KIT_CELL, 34), () => this.useCarried(item.id), { ui: true });
       K.pieces.push(p);
       this.carriedCells.set(item.id, { p, count });
     });
-    K.minX = -tw / 2;
-    K.minY = -th / 2;
-    K.w = tw + 16;
-    K.h = th + 20;
-    K.inner.style.transform = `translate(${tw / 2}px, ${th / 2}px)`;
+    K.minX = -fw / 2;
+    K.minY = -fh / 2;
+    K.w = fw + 16;
+    K.h = fh + 20;
+    K.inner.style.transform = `translate(${fw / 2}px, ${fh / 2}px)`;
     this.refreshKitCells();
     if (this.kitOpen) this.placeKit();
   }
@@ -1673,6 +1787,63 @@ const COL_X = -81;
 const KIT_Y = -362;
 const BOLT_Y = -214;
 const SIDE_X = -216;
+
+/** The kit plate (design px): one cell, and the plate's rim on both sides together. */
+const KIT_CELL = 118;
+const KIT_PAD = 60;
+/** With this many buildings the plate gets its picture tabs (DESIGN.md «Kit»). */
+const KIT_TABS_FROM = 13;
+/** The picture on each tab: a sprite of its own, or a building standing on a plain round tile. */
+const TAB_PICS: Record<string, SpriteName> = { home: 'b-tent', music: 'b-boombox', power: 'b-windmill', nature: 'item-daisy', fun: 'b-swings' };
+/** The tabs' spacing, the band they take on top of the plate, and the feet of the tiles from its top. */
+const TAB_STEP = 104;
+const TAB_ROW = 92;
+const TAB_FOOT = 82;
+/** The box a building's picture is fitted to on a tile, and the height of the tile's top over its foot. */
+const TAB_PIC_W = 64;
+const TAB_PIC_H = 58;
+const TAB_PIC_Y = -16;
+
+interface KitGrid {
+  cols: number;
+  /** Rows of buildings; `rows` counts what the party carries too. */
+  bRows: number;
+  rows: number;
+  cell: number;
+}
+
+/** The plate without tabs: up to two rows while it fits, wider before taller (short landscape screens). */
+function plainGrid(n: number, nc: number): KitGrid {
+  const cols = n <= 4 ? Math.max(1, n, Math.min(4, nc)) : n <= 8 ? 4 : Math.min(6, Math.ceil(n / 2));
+  // what the party carries starts a row of its own under the buildings (the owner's call 2026-10-30)
+  const bRows = Math.ceil(n / cols);
+  return { cols, bRows, rows: bRows + Math.ceil(nc / cols), cell: KIT_CELL };
+}
+
+/**
+ * A tab's cells in the room the screen gives (design px): the biggest cell that fits, and at the same
+ * size the fewest rows, so the plate grows wider before taller. It never scrolls: cells get smaller.
+ */
+function fitGrid(n: number, nc: number, roomW: number, roomH: number): KitGrid {
+  const widest = Math.max(1, nc, n <= 4 ? n : Math.max(4, Math.ceil(n / 2)));
+  let best: KitGrid | null = null;
+  for (let cols = Math.min(4, widest); cols <= widest; cols++) {
+    const bRows = Math.ceil(n / cols);
+    const rows = bRows + Math.ceil(nc / cols);
+    const cell = Math.min(KIT_CELL, (roomW - KIT_PAD) / cols, (roomH - KIT_PAD - TAB_ROW) / rows);
+    if (!best || cell > best.cell + 0.5 || (cell > best.cell - 0.5 && rows < best.rows)) best = { cols, bRows, rows, cell };
+  }
+  return best as KitGrid;
+}
+
+/** How far a picture moves from its cell's foot (in its holder's px, drawn at scale `k`) to stay inside the cell. */
+function keepInCell(name: SpriteName, k: number): number {
+  const [, y0, , y1] = rectOf(name);
+  const top = -(KIT_CELL / 2 + 30) / k;
+  const bottom = (KIT_CELL / 2 - 30) / k;
+  if (y1 - y0 >= bottom - top) return (top + bottom - y0 - y1) / 2;
+  return y0 < top ? top - y0 : y1 > bottom ? bottom - y1 : 0;
+}
 
 /** Press / lift springs are CSS transitions; their easings go into custom properties once. */
 let springVarsSet = false;

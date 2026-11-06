@@ -1,3 +1,4 @@
+import { initBabusia, updateBabusia } from '../systems/babusia';
 import * as THREE from 'three';
 import type { HeroId } from '../contracts';
 import { HERO_STATS } from '../content/heroes';
@@ -22,6 +23,7 @@ import { exposeDefense, updateDefense } from '../systems/defense';
 import { updatePower } from '../systems/power';
 import { updatePrizes } from '../systems/prizes';
 import { eating, updateFood } from '../systems/food';
+import { initGadgets, updateGadgets } from '../systems/gadgets';
 import { updateSignal } from '../systems/signal';
 import { chestNear, updateCastles } from '../systems/castles';
 import { initTales, updateTales } from '../systems/tales';
@@ -30,6 +32,7 @@ import { exposeCompanions, initCompanions, updateCompanions } from '../systems/c
 import { applyDebugParams } from '../debug/give';
 import { pushBubble } from '../systems/tasks';
 import { updateVillages } from '../systems/villages';
+import { initWeather, updateWeather } from '../systems/weather';
 import { updateLanterns } from '../render/lanterns';
 import { updateHeroMark } from '../render/heroMark';
 import { cutaway } from '../render/skins/cutaway';
@@ -94,6 +97,7 @@ export class Game {
   ) {
     this.cam = new FollowCamera(ctx.camera, FRAMINGS[ctx.params.cam ?? 1] ?? FRAMINGS[1]);
     initNarration(ctx);
+    initWeather(ctx, quality);
     events.on('attack:bolt', ({ hero }) => {
       if (hero === ctx.player?.id) this.cam.shake(0.3);
     });
@@ -219,11 +223,13 @@ export class Game {
     ctx.hud.onKitPick = (id) => pick(ctx, id as BuildingId);
     this.wireMenu();
     initProgress(ctx);
+    initBabusia(ctx);
     initTales(ctx);
     initPortals(ctx);
     initDisco(ctx);
     initEffects(ctx);
     initCompanions(ctx);
+    initGadgets(ctx);
     exposeMonsters(ctx);
     exposeDefense();
     exposeEffects(ctx);
@@ -328,6 +334,7 @@ export class Game {
       music.update(dt, -1, 0, false);
       ctx.world.update(ctx.player.pos); // keeps streaming if paused before the world finished loading
       ctx.skin.updateScene(ctx.clock.daylight, ctx.player.pos);
+      updateWeather(ctx, 0, true);
       ctx.skin.render(ctx.renderer, ctx.scene, ctx.camera);
       return;
     }
@@ -354,6 +361,7 @@ export class Game {
       updateEffects(ctx, dt);
       updateSignal(ctx, dt);
       updateFood(ctx, dt);
+      updateGadgets(ctx, dt);
       updateProgress(ctx);
       updateSleep(ctx);
       ctx.hud.setPrompt(ctx.sleeping || eating() ? null : chestNear(ctx) ? 'chest' : sleepPlace(ctx) ? 'moon' : canFold(ctx) ? 'fold' : null);
@@ -365,6 +373,7 @@ export class Game {
     updateLandmarks(ctx, dt);
     updateVillages(ctx, dt);
     updateCastles(ctx, dt);
+    updateBabusia(ctx, dt);
     updateTales(ctx, dt);
     pushBubble(ctx);
     updatePickups(ctx, dt);
@@ -406,6 +415,7 @@ export class Game {
     }
     const intro = ctx.playing ? null : this.intro;
     ctx.skin.updateScene(intro ? intro.daylight : ctx.clock.daylight, focus);
+    updateWeather(ctx, dt);
     intro?.light?.();
     ctx.skin.render(ctx.renderer, ctx.scene, ctx.camera);
     intro?.overlay?.(ctx.renderer);

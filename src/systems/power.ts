@@ -222,6 +222,22 @@ function balance(ctx: Ctx): void {
   });
 }
 
+/** Fills the batteries of the network this site is on; true when anything went in (a lightning rod). */
+export function chargeNetOf(key: string, amount: number): boolean {
+  const i = order.findIndex((s) => s.key === key);
+  const net = nets.find((n) => n.includes(i));
+  if (i < 0 || !net) return false;
+  let left = amount;
+  for (const j of net) {
+    const cap = nodes[j].card.store;
+    if (!cap || left <= 0) continue;
+    const add = Math.min(left, cap - nodes[j].charge);
+    nodes[j].charge += add;
+    left -= add;
+  }
+  return left < amount;
+}
+
 /** Where powered lights keep monsters away at night: working sites with a light. */
 export function lightZones(): { x: number; z: number; r: number }[] {
   const out: { x: number; z: number; r: number }[] = [];

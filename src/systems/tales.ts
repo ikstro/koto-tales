@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Monster } from '../actors/entities';
-import { holdSnack } from '../assets/food';
+import { createStork } from '../assets/babusia';
+import { holdSnack, type SnackKind } from '../assets/food';
 import { createPlane, createTaleThing, type PlaneModel, type TaleThing } from '../assets/tales';
 import type { LineId } from '../content/lines';
 import { SPAWN } from '../content/monsters';
@@ -8,6 +9,7 @@ import { entryOf, nextTale, PROLOGUE, stepGoal, taleById, TALE_ITEMS, TALES, typ
 import { RACE_CARDS } from '../content/villages';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
+import { setWeather } from './weather';
 import { setMapMarker } from '../ui/map';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
@@ -16,6 +18,7 @@ import type { LighthouseSite } from '../world/landmarks';
 import { homeDistance } from './house';
 import { owned, selectedBuilding } from './kit';
 import { giveArtifact } from './artifacts';
+import { babusiaCentre, babusiaReady, giveGifts } from './babusia';
 import { giveCompanion } from './companions';
 import { spawnAt } from './monsters';
 import { giveCoins, musicNear, offerBubble, runWave, spotAround, type Wave, type WaveRule } from './tasks';
@@ -30,11 +33,15 @@ import { giveCoins, musicNear, offerBubble, runWave, spotAround, type Wave, type
  */
 
 /** Where a place step counts (blocks from the place). */
-const NEAR: Record<'home' | 'village' | 'lighthouse', number> = { home: 8, village: 26, lighthouse: 10 };
+const NEAR: Record<'home' | 'village' | 'lighthouse' | 'babusia', number> = { home: 8, village: 26, lighthouse: 10, babusia: 14 };
 /** One already standing this close to the place counts (one put up during the step counts anywhere). */
 const PLACE_AT = 30;
 const MUSIC_AT = 15;
 const THIEF_FROM: [number, number] = [19, 24];
+/** No monster comes near Бабуся: a thief of hers keeps outside her ring. */
+const THIEF_FROM_HER: [number, number] = [38, 46];
+/** What a thief carries in its hand. */
+const IN_HAND: Partial<Record<TaleItem, SnackKind>> = { pole: 'pole', disc: 'disc' };
 /** The thief comes out when the hero is this close to its spot. */
 const THIEF_NEAR = 36;
 const WAVE = (line: LineId): WaveRule => ({ from: [19, 25], near: 45, atOnce: 3, line });
@@ -137,6 +144,7 @@ function placeOf(ctx: Ctx, at: TalePlace): THREE.Vector3 {
   const home = ctx.house?.centre ?? ctx.player.pos;
   if (at === 'home') return home.clone();
   if (at === 'here') return ctx.player.pos.clone();
+  if (at === 'babusia') return babusiaCentre(ctx) ?? home.clone();
   if (at === 'lighthouse') {
     const l = darkLighthouse(ctx);
     return l ? lighthouseAt(l) : ctx.player.pos.clone();
@@ -202,7 +210,7 @@ function makeRun(ctx: Ctx, step: TaleStep, key: string): Run {
       break;
     }
     case 'thief':
-      r.thiefSpot = freeSpot(ctx, r.target, ...THIEF_FROM);
+      r.thiefSpot = freeSpot(ctx, r.target, ...(step.at === 'babusia' ? THIEF_FROM_HER : THIEF_FROM));
       break;
     case 'place':
       ctx.hud.suggestKit(true);
@@ -234,7 +242,7 @@ function begin(ctx: Ctx, t: TaleCard, how: 'wake' | 'dream' | 'letter'): void {
   s.cur = t.id;
   s.step = 0;
   s.got = 0;
-  const lines: LineId[] = how === 'letter' ? ['tale_letter'] : [];
+  const lines: LineId[] = how === 'letter' ? [t.from === 'babusia' ? 'tale_stork' : 'tale_letter'] : [];
   if (t.lyosha) lines.push('tale_lyosha');
   tell(...lines, t.open, t.steps[0].ask);
   if (how === 'dream') dreamT = DREAM_BUBBLE;
@@ -277,10 +285,13 @@ function complete(ctx: Ctx, t: TaleCard, at?: THREE.Vector3): void {
   ctx.effects.ring(ctx.player.pos, 0xffd23a, 2.4);
   ctx.effects.poof(ctx.player.pos.clone().setY(ctx.player.pos.y + 1.2), 0xffd23a, 24);
   for (const h of ctx.heroes.values()) h.model.play('cheer');
-  tell(t.thanks, 'tale_page');
+  if (t.after) tell(t.thanks, t.after, 'tale_page');
+  else tell(t.thanks, 'tale_page');
+  if (t.weather !== undefined) setWeather(ctx, t.weather);
   // the tale's rare thing and a friend who joins, when the card has them
   if (t.artifact) giveArtifact(ctx, t.artifact);
   if (t.companion) giveCompanion(ctx, t.companion);
+  if (t.gifts) giveGifts(ctx, t.gifts);
   events.emit('tale:done', { id: t.id });
   syncRun(ctx);
 }
@@ -349,8 +360,8 @@ function updateStep(ctx: Ctx, r: Run, step: TaleStep, dt: number): number {
       }
       const spot = r.thiefSpot!;
       if (!r.thief && !ctx.sleeping && Math.hypot(p.x - spot.x, p.z - spot.z) < THIEF_NEAR) {
-        r.thief = spawnAt(ctx, 'zombie', spot.x, spot.z);
-        holdSnack(r.thief.model, 'fish', ctx.skin);
+        r.thief = spawnAt(ctx, step.monster ?? 'zombie', spot.x, spot.z);
+        if (!step.monster) holdSnack(r.thief.model, IN_HAND[step.item ?? 'fish'] ?? 'fish', ctx.skin);
       }
       setMapMarker('tale:thief', { pos: r.thief ? r.thief.pos : spot, icon: 'mark-monster', pointer: true });
       return 0;
@@ -369,11 +380,12 @@ function updateStep(ctx: Ctx, r: Run, step: TaleStep, dt: number): number {
       return 0;
     }
     case 'visit': {
-      const race = step.at === 'home' || step.at === 'here' || step.at === 'lighthouse' ? null : step.at;
+      const race = step.at === 'home' || step.at === 'here' || step.at === 'lighthouse' || step.at === 'babusia' ? null : step.at;
       const isVillage = race !== null;
+      // Бабуся has her own mark on the map, always with its arrow
       if (race) setMapMarker('tale:goal', { pos: r.target, icon: RACE_CARDS[race].mark, pointer: true });
       const d = Math.hypot(p.x - r.target.x, p.z - r.target.z);
-      if (d < (isVillage ? NEAR.village : step.at === 'lighthouse' ? NEAR.lighthouse : NEAR.home)) {
+      if (d < (isVillage ? NEAR.village : step.at === 'lighthouse' ? NEAR.lighthouse : step.at === 'babusia' ? NEAR.babusia : NEAR.home)) {
         stepDone(ctx);
         return 8;
       }
@@ -420,9 +432,10 @@ const STAMP: Record<string, string> = { elves: '#3fa142', gnomes: '#e0583f', rob
 /** A friend's letter flies in from the way of their village and lands in front of the hero. */
 function launch(ctx: Ctx, t: TaleCard): void {
   const p = ctx.player.pos;
-  const v = t.from === 'pupsia' ? null : villageOf(ctx, t.from);
+  const v = t.from === 'pupsia' ? null : t.from === 'babusia' ? babusiaCentre(ctx) : villageOf(ctx, t.from);
   const a = v ? Math.atan2(v.x - p.x, v.z - p.z) : Math.random() * Math.PI * 2;
-  const model = createPlane(ctx.skin, STAMP[t.from] ?? '#e0583f');
+  // Бабуся's letters come with a stork
+  const model = t.from === 'babusia' ? createStork(ctx.skin) : createPlane(ctx.skin, STAMP[t.from] ?? '#e0583f');
   const pos = new THREE.Vector3(p.x + Math.sin(a) * 30, p.y + 14, p.z + Math.cos(a) * 30);
   model.root.position.copy(pos);
   ctx.scene.add(model.root);
@@ -472,15 +485,19 @@ export function taleReminder(ctx: Ctx): LineId | null {
   return step.ask;
 }
 
+/** The step's ask, once more (a tap on the tale piece, or on the one who asked). False: no step is under way. */
+export function sayAsk(ctx: Ctx): boolean {
+  const step = stepOf(ctx);
+  if (!step) return false;
+  voice.say(step.ask, { priority: 7, interrupt: true });
+  idle = 0;
+  return true;
+}
+
 export function initTales(ctx: Ctx): void {
   const s = ctx.save.tales;
   const forced = ctx.params.tale && taleById(ctx.params.tale);
-  ctx.hud.onTaleTap = () => {
-    const step = stepOf(ctx);
-    if (!step) return;
-    voice.say(step.ask, { priority: 7, interrupt: true });
-    idle = 0;
-  };
+  ctx.hud.onTaleTap = () => sayAsk(ctx);
   events.on('sleep:done', () => {
     if (stepOf(ctx)?.kind === 'sleep') stepDone(ctx);
     // Пупся's dream comes as the party wakes
@@ -569,7 +586,7 @@ export function updateTales(ctx: Ctx, dt: number): void {
     const how = entryOf(next);
     // the prologue's things are out at once; its lines wait their turn after the first tips
     if (how === 'wake' && ctx.clock.elapsed > PROLOGUE_AT) begin(ctx, next, 'wake');
-    else if (how === 'letter' && calm(ctx)) launch(ctx, next);
+    else if (how === 'letter' && calm(ctx) && (next.from !== 'babusia' || babusiaReady(ctx))) launch(ctx, next);
     return;
   }
 
@@ -587,5 +604,5 @@ export function updateTales(ctx: Ctx, dt: number): void {
   }
   const cur = stepOf(ctx);
   const from = tale(ctx)?.from;
-  ctx.hud.setTale(ctx.sleeping || !cur || !from ? null : { face: from === 'pupsia' ? 'mark-pupsia' : RACE_CARDS[from].mark, picture: cur.picture, lit: Math.max(0, lit) });
+  ctx.hud.setTale(ctx.sleeping || !cur || !from ? null : { face: from === 'pupsia' ? 'mark-pupsia' : from === 'babusia' ? 'map-babusia' : RACE_CARDS[from].mark, picture: cur.picture, lit: Math.max(0, lit) });
 }

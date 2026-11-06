@@ -35,6 +35,8 @@ export interface MonsterCard {
   armor?: 'bolt' | 'lantern';
   /** Runs away instead of chasing: from working lights at night ('light') or from playing music instead of dancing ('music'). */
   flee?: 'light' | 'music';
+  /** Runs away from the heroes and never bites (a gift on little legs). */
+  shy?: true;
   /** Льоша made it up: its album sticker has the gold rim. */
   lyosha?: true;
 }
@@ -120,6 +122,26 @@ export const MONSTERS = {
     cry: { kind: 'siren', every: 8 },
     armor: 'bolt',
     lyosha: true,
+  },
+  giftbox: {
+    kind: 'giftbox',
+    model: { kind: 'parts', id: 'giftbox' },
+    name: 'Подарунок-втікач',
+    about: 'Бабусин жарт: подарунок на ніжках тікає від героїв, треба його наздогнати.',
+    hp: 1,
+    wanderSpeed: 2,
+    chaseSpeed: 3.6,
+    damage: 0,
+    sight: 11,
+    radius: 0.35,
+    height: 0.9,
+    when: 'any',
+    weight: 0,
+    coins: [3, 5],
+    color: 0xee6a82,
+    shy: true,
+    spotLine: 'monster_giftbox_spot',
+    defeatLine: 'defeat_giftbox',
   },
 } satisfies Record<string, MonsterCard>;
 

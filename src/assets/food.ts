@@ -384,7 +384,7 @@ export function createSwings(skin: Skin): BuildingModel {
 
 // ─── snacks ─────────────────────────────────────────────────────────────────
 
-export type SnackKind = 'apple' | 'icecream' | 'fish' | 'pie';
+export type SnackKind = 'apple' | 'icecream' | 'fish' | 'pie' | 'cutlet' | 'pancake' | 'varenyk' | 'pole' | 'disc' | 'marshmallowStick' | 'marshmallow' | 'cocoa';
 
 /** Merges boxes, each with its own vertex colour (one mesh, one draw). */
 function boxes(list: [V3, V3, string, V3?][]): THREE.BufferGeometry {
@@ -441,6 +441,60 @@ const SNACKS: Record<SnackKind, () => THREE.BufferGeometry> = {
       [[0.04, 0.02, 0.13], [0.06, 0.03, 0], WAFFLE_DARK],
       [[0.04, 0.02, 0.13], [-0.06, 0.03, 0], WAFFLE_DARK],
       [[0.03, 0.01, 0.03], [0.02, 0.112, 0.042], '#fff1c8'],
+    ]),
+  // Бабуся's table (content/babusia.ts DISHES): a cutlet, a stack of pancakes with butter, a varenyk with sour cream
+  cutlet: () =>
+    boxes([
+      [[0.2, 0.06, 0.14], [0, 0.03, 0], '#9a5a2c'],
+      [[0.16, 0.05, 0.11], [0, 0.075, 0], '#b06a33'],
+      [[0.05, 0.015, 0.03], [0.03, 0.105, 0.01], '#c98a4c'],
+      [[0.04, 0.015, 0.03], [-0.04, 0.105, -0.02], '#7d4520'],
+    ]),
+  pancake: () =>
+    boxes([
+      [[0.22, 0.03, 0.22], [0, 0.015, 0], '#e9b860'],
+      [[0.21, 0.03, 0.21], [0, 0.045, 0], '#f0c878'],
+      [[0.2, 0.03, 0.2], [0, 0.075, 0], '#e9b860'],
+      [[0.07, 0.02, 0.07], [0, 0.1, 0], '#fff1c8'],
+    ]),
+  varenyk: () =>
+    boxes([
+      [[0.18, 0.05, 0.09], [0, 0.03, 0], '#fff1d8'],
+      [[0.14, 0.04, 0.07], [0, 0.07, 0], '#fbe7c4'],
+      [[0.03, 0.02, 0.1], [-0.06, 0.02, 0], '#efd9ae'],
+      [[0.03, 0.02, 0.1], [0.06, 0.02, 0], '#efd9ae'],
+      [[0.06, 0.02, 0.05], [0, 0.095, 0], '#ffffff'],
+    ]),
+  // a marshmallow on a long stick, for the fire; what comes off it; a mug of cocoa
+  marshmallowStick: () =>
+    boxes([
+      [[0.035, 0.96, 0.035], [0, 0.48, 0], '#8a5a34'],
+      [[0.15, 0.17, 0.15], [0, 1.02, 0], '#fff6e6'],
+      [[0.155, 0.06, 0.155], [0, 0.98, 0], '#e9b860'],
+    ]),
+  marshmallow: () =>
+    boxes([
+      [[0.13, 0.13, 0.13], [0, 0.07, 0], '#fff6e6'],
+      [[0.135, 0.04, 0.135], [0, 0.04, 0], '#e9b860'],
+    ]),
+  cocoa: () =>
+    boxes([
+      [[0.14, 0.14, 0.14], [0, 0.07, 0], '#56b5ab'],
+      [[0.11, 0.012, 0.11], [0, 0.142, 0], '#6b4226'],
+      [[0.05, 0.02, 0.05], [0.02, 0.15, 0.01], '#fff6e6'],
+      [[0.03, 0.08, 0.05], [0.085, 0.07, 0], '#3f9c93'],
+    ]),
+  // what a thief runs off with in a tale of hers
+  pole: () =>
+    boxes([
+      [[0.035, 0.56, 0.035], [0, 0.28, 0], '#2f7fd6'],
+      [[0.07, 0.08, 0.07], [0, 0.58, 0], '#4a2c14'],
+    ]),
+  disc: () =>
+    boxes([
+      [[0.24, 0.02, 0.24], [0, 0.02, 0], '#2a2230'],
+      [[0.09, 0.025, 0.09], [0, 0.02, 0], '#e0583f'],
+      [[0.03, 0.03, 0.03], [0, 0.02, 0], '#ffe3a3'],
     ]),
   fish: () =>
     boxes([

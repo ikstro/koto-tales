@@ -46,6 +46,7 @@ The album order is the cards' order. No sprite: the album portrait is rendered a
     `lantern`: arrows hurt it only within 6 blocks of a placed lantern.
   - `flee: 'light' | 'music'` — runs away from a working lamp / lit zone at night (`light`) or from
     playing music (`music`) instead of dancing.
+  - `shy: true` — runs from the heroes and never bites (the runaway gift).
 - Rig types: `biped` (`bipedFrame`), `quadruped`, `spider` (see `contracts.ts`). Nearest examples:
   `zombie.ts` (biped), `spider.ts`.
 
@@ -57,6 +58,9 @@ found and when its sticker is tapped). Add the id to `ITEM_ORDER` (album order) 
   the plate closes and the effect starts. `use: 'auto'` — never shown in the row; fires by itself near
   its lock (keys).
 - Prompt pieces (apple, cone) are buildings' food, not items; they stay as they are.
+- A music disc is an item `disc_<song>` in `ITEM_ORDER`, weight 0, no `use`, plus one entry in `DISC_SONGS`
+  (`src/content/music.ts`) and a line `song_<song>`. Found, its song joins the note's round. The song itself
+  is engine work (`src/voice/music.ts`), always a tune of our own.
 
 ## Effect — `src/content/effects.ts`
 `{ kind, for?: seconds, reach?: blocks }`. One shape for an item's `use` (timed) and an artifact's
@@ -69,6 +73,8 @@ found and when its sticker is tapped). Add the id to `ITEM_ORDER` (album order) 
 | `freeze` | monsters within `reach` (10) stand still for `for` s (3) | monsters within `reach` wait |
 | `light` | no monster appears within `reach` (8) for `for` s (60) | no monster appears within `reach` at night |
 | `home` | the party is carried home (portal) | — (not allowed) |
+| `babusia` | the party is carried to her gate | — (not allowed) |
+| `bloom` | daisies and poppies come up round the hero | — (not allowed) |
 A new kind = one entry in `EFFECTS` + one branch in `src/systems/effects.ts` (engine work).
 
 ## Artifact — `src/content/artifacts.ts`
@@ -86,6 +92,8 @@ a place in `REWARDS` (`src/content/progress.ts`, product order — ask the owner
 - Verbs (flags): `power` (`give`, `solar`, `take`, `store`, `light`, `reach`, `arcs`), `music`, `floor`,
   `dj`, `zap`, `traffic`, `ride`, `beam`, `bounce`, `sleep`, `shelter`, `slam`, `follow`, `fly`, `signal`,
   `jump`, `scan`, `food`, `swing` — each documented on `BuildingCard`. Upgrades: `src/content/upgrades.ts`.
+- `tab`: which tab of the kit plate it sits in (`home | music | power | nature | fun`).
+- Бабуся's verbs (each documented on `BuildingCard`, run by `src/systems/gadgets.ts`): `blast` (throws monsters back), `stage` (standing on it the party sings), `tap` (`drum | weather | cinema | fireworks | surprise | telescope`, a tap on the thing), `keys`, `fog`, `pedal`, `water` (set by water only), `rod`, `turret`, `bubble`, `wash`, `span` (bank to bank across water), `mount` (a hero rides it), `daily` (a thing by it each morning). `ride` and `swing` take their numbers.
 - `BuildingModel.update(dt, tick)` animates it; `powerBulb` (`buildingParts.ts`) for powered ones.
 
 ## Companion — `src/content/companions.ts`
@@ -105,9 +113,13 @@ lines `companion_<id>_hi` (joins) and `companion_<id>_yay` (does its trick). Giv
 Card `TaleCard` (`lyosha: true` puts it first); lines `tale_<id>_open`, `tale_<id>_1..n`, `tale_<id>_thanks`,
 `tale_<id>_retell`. Steps (`StepKind`): `gather` N things (`item`, `goal`, `spread` around `at`), `thief`,
 `place` a building (`needs`), `visit` (home / a village), `music` N s, `defend` a wave, `sleep`, `light` a
-lighthouse. Asker (`from`): Пупся (a dream) or a race (a paper plane); never the children. At the end:
-`coins`, and optionally an `artifact` and/or a `companion`. Things to gather: `TALE_ITEMS`
-(`src/assets/tales.ts`).
+lighthouse. Asker (`from`): Пупся (a dream), a race (a paper plane) or `babusia` (a stork); never the children. A step's
+`at` may be `babusia`: wherever she stands that day, and she stays put while a tale leads to her. At the end:
+`coins`, and optionally an `artifact`, a `companion` and/or `gifts` (`[{ item, n? } | { building }]`, straight
+into the box); `weather` (the weather she makes) and `after` (a word from someone else after the thanks). The `monster` of a `thief` step says who runs off (Зомбік unless said). Things to gather: `TALE_ITEMS` (`src/assets/tales.ts`). A thief of `pole` or `disc` shows it in
+its hand (`IN_HAND`, `src/systems/tales.ts`).
+Бабуся's tales: no family details, no real names, nothing bad happens to her (DESIGN.md «Бабуся»). She says
+«котики». Food is what grandmothers cook, never cakes.
 
 ## Hero (playable)
 Four, in `src/content/heroes.ts` (`HERO_ORDER`: Льоша, Соломія, Пупся, Давид — Давид added on the owner's

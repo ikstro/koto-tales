@@ -13,6 +13,7 @@ export type FaceId =
   | 'lyosha'
   | 'solomiia'
   | 'pupsia'
+  | 'babusia'
   | 'elf'
   | 'elf_elder'
   | 'elf_queen'
@@ -244,6 +245,24 @@ const DEFS_FOLK: Record<string, FaceSpec> = {
   }),
 };
 
+/** Бабуся's face lives here (the table below needs it); her part file exports it as `face`. */
+export const BABUSIA_FACE: FaceSpec = {
+  // skin, hair, hair shade, ear, hair light
+  swatches: ['#f3c4a0', '#c8ab72', '#a88c58', '#e6ad88', '#d8bd85'],
+  pal: { H: '#c8ab72', K: '#2a1c16', B: '#5f86a0', W: '#ffffff', P: '#f2917f', f: '#dc9f78', M: '#c9625a', R: '#e88f8a' },
+  open: [
+    'HHHHHHHH',
+    '........',
+    '.BW..BW.',
+    '.KB..KB.',
+    'PPf..fPP',
+    '.MWWWWM.',
+    '..MRRM..',
+    '........',
+  ],
+  closed: { 2: '........', 3: '.KK..KK.' },
+};
+
 const DEFS: Record<FaceId, FaceSpec> = {
   lyosha: {
     // skin, hair, hair shade, ear, cheek
@@ -293,6 +312,7 @@ const DEFS: Record<FaceId, FaceSpec> = {
     ],
     closed: { 3: '........', 4: '.KK..KK.' },
   },
+  babusia: BABUSIA_FACE,
   ...(DEFS_FOLK as Record<
     'elf' | 'elf_elder' | 'elf_queen' | 'gnome' | 'gnome_elder' | 'gnome_kid' | 'robot' | 'robot_elder' | 'robot_kid' | 'alien' | 'alien_lilac' | 'alien_mint' | 'alien_elder' | 'alien_kid',
     FaceSpec

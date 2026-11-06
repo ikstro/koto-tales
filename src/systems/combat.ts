@@ -20,6 +20,8 @@ export function nearestMonster(ctx: Ctx, from: THREE.Vector3, range: number, yaw
   let bestScore = Infinity;
   for (const m of ctx.monsters) {
     if (!m.alive || skip?.has(m)) continue;
+    // helpers (who pass `skip`) leave the runaway gift to the child
+    if (skip && m.card.shy) continue;
     const dx = m.pos.x - from.x;
     const dz = m.pos.z - from.z;
     const d = Math.hypot(dx, dz);
