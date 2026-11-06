@@ -9,7 +9,7 @@ import { updateCombat } from '../systems/combat';
 import { updateDayNight } from '../systems/daynight';
 import { createHeroes, updateHeroes, type HeroHandoff } from '../systems/heroes';
 import { updateHouse } from '../systems/house';
-import { exposeMonsters, updateMonsters } from '../systems/monsters';
+import { exposeMonsters, spawnLog, updateMonsters } from '../systems/monsters';
 import { canFold, pick, updateKit } from '../systems/kit';
 import { initNarration, updateNarration } from '../systems/narration';
 import { updatePickups } from '../systems/pickups';
@@ -125,6 +125,7 @@ export class Game {
     if (ctx.params.stats) {
       this.stats = document.createElement('div');
       Object.assign(this.stats.style, { position: 'fixed', left: '8px', bottom: '8px', font: '14px monospace', color: '#fff', background: 'rgba(0,0,0,.5)', padding: '2px 6px', zIndex: '9' });
+      this.stats.style.whiteSpace = 'pre-line';
       document.body.appendChild(this.stats);
     }
 
@@ -424,9 +425,13 @@ export class Game {
       this.fps += ((dt > 0 ? 1 / dt : 60) - this.fps) * 0.05;
       const info = ctx.renderer.info.render;
       const h = this.hitch;
+      const alive = ctx.monsters.filter((m) => m.alive);
+      const hidden = alive.filter((m) => m.model.root.layers.mask === 0).length;
+      const spawns = Object.entries(spawnLog).map(([k, v]) => `${k} ${v}`).join(' · ');
       this.stats.textContent =
         `${this.fps.toFixed(0)} fps · ${info.calls} calls · ${(info.triangles / 1000).toFixed(0)}k tris · L${this.quality.level} @${this.quality.fps}` +
-        ` · worst ${Math.round(h.worst)} ms · freezes ${h.freezes} · ${ctx.renderer.info.programs?.length ?? 0} shaders`;
+        ` · worst ${Math.round(h.worst)} ms · freezes ${h.freezes} · ${ctx.renderer.info.programs?.length ?? 0} shaders` +
+        `\nmonsters ${alive.length} (hidden ${hidden}) · ${spawns}`;
     }
   }
 

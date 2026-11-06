@@ -103,6 +103,10 @@ describe('moving on', () => {
     expect(shouldMove(b, 5 + BABUSIA.moveEvery, BABUSIA.moveAway + 1, false)).toBe(true);
     expect(shouldMove(b, 5 + BABUSIA.moveEvery, BABUSIA.moveAway - 1, false)).toBe(false);
     expect(shouldMove(b, 5 + BABUSIA.moveEvery - 1, 200, false)).toBe(false);
+    // a house an older version left too near the heroes' home goes at the first chance, unseen
+    expect(shouldMove(b, 6, 200, false, BABUSIA.keepHome - 1)).toBe(true);
+    expect(shouldMove(b, 6, BABUSIA.moveAway - 1, false, BABUSIA.keepHome - 1)).toBe(false);
+    expect(shouldMove(b, 6, 200, true, BABUSIA.keepHome - 1)).toBe(false);
   });
   it('stays while a tale leads to her', () => {
     expect(shouldMove(b, 99, 200, true)).toBe(false);
@@ -129,6 +133,10 @@ describe('her ring', () => {
     const [cx, cz] = centreOf(b.at);
     expect(inSafeRing(b, cx + BABUSIA.safe - 1, cz)).toBe(true);
     expect(inSafeRing(b, cx + BABUSIA.safe + 1, cz)).toBe(false);
+    // the yard is inside it, and not much more
+    const reach = Math.hypot(YARD.x1 - BABUSIA_HOUSE.sizeX / 2, YARD.z1 - BABUSIA_HOUSE.sizeZ / 2);
+    expect(BABUSIA.safe).toBeGreaterThan(reach);
+    expect(BABUSIA.safe).toBeLessThan(reach + 6);
     expect(inSafeRing(freshBabusia(), 0, 0)).toBe(false);
   });
 });

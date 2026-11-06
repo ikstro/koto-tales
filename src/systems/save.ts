@@ -293,6 +293,15 @@ export function loadSave(): SaveData {
   return freshSave();
 }
 
+/** The save as it is stored, untouched (?savefile=1). */
+export function saveFileText(): string | null {
+  try {
+    return localStorage.getItem(KEY) ?? localStorage.getItem(LEGACY_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export function writeSave(data: SaveData): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(data));

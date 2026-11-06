@@ -24,7 +24,7 @@ import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { B } from '../world/blocks';
 import { hash2 } from '../world/rng';
-import { BOSS, BOSS_KINDS, BossBrain, biteSpot, bossMaxHp, bossScale, nextBossKind, pickSite, shouldReturn, trapped, type BossKind, type GroundAt, type HitResult } from './bossLogic';
+import { BOSS, BOSS_KINDS, BossBrain, biteSpot, bossMaxHp, bossScale, lakeSpots, nextBossKind, pickLake, pickSite, shouldReturn, trapped, type BossKind, type GroundAt, type HitResult } from './bossLogic';
 import { hurtHero } from './combat';
 import { devour, landingSpot, pick, pickedByBoss, playingSpeakers, selectedBuilding, standingWhere } from './kit';
 import { dropCoins } from './pickups';
@@ -452,10 +452,10 @@ function siteWet(ctx: Ctx, [x, z]: [number, number]): boolean {
 
 /** Villages and castles keep their land: no lair within this of one. */
 const VILLAGE_KEEP = 64;
-function nearVillage(ctx: Ctx, [x, z]: [number, number]): boolean {
+function nearVillage(ctx: Ctx, [x, z]: [number, number], her = true): boolean {
   const near = (s: { x: number; z: number }) => Math.hypot(s.x - x, s.z - z) < VILLAGE_KEEP;
   const b = ctx.save.babusia.at;
-  return (ctx.world.villages?.() ?? []).some(near) || (ctx.world.castles?.() ?? []).some(near) || (!!b && near({ x: b[0], z: b[2] }));
+  return (ctx.world.villages?.() ?? []).some(near) || (ctx.world.castles?.() ?? []).some(near) || (her && !!b && near({ x: b[0], z: b[2] }));
 }
 
 function chooseSite(ctx: Ctx, level: number): [number, number] {
@@ -508,15 +508,41 @@ function gentleShore(ctx: Ctx, x: number, z: number): boolean {
 }
 
 /**
+ * Goes round the rings from the house and stops at the first few good spots: a big lake with a
+ * gentle shore. Failing that a big one, a smaller one, and last one by Бабуся's house.
+ */
+function findLake(ctx: Ctx, home: { x: number; z: number }, level: number, keep: (x: number, z: number, her?: boolean) => boolean): [number, number] | null {
+  const { world } = ctx;
+  const best: [number, number][] = [];
+  const big: [number, number][] = [];
+  const small: [number, number][] = [];
+  const byHer: [number, number][] = [];
+  for (const at of lakeSpots(home)) {
+    const [x, z] = at;
+    if (!world.isWater(x, world.groundHeight(x, z), z)) continue;
+    const water = waterAround(ctx, x, z, 14);
+    if (water < 0.4 || !keep(x, z, false)) continue;
+    if (!keep(x, z)) byHer.push(at);
+    else if (water < 0.65) small.push(at);
+    else {
+      big.push(at);
+      if (gentleShore(ctx, x, z)) best.push(at);
+      if (best.length >= BOSS.lakeChoice) break;
+    }
+  }
+  return pickLake([best, big, small, byHer].find((l) => l.length) ?? [], level);
+}
+
+/**
  * A lake big enough for the monster, far from home: a candidate ring like the
  * Eater's, then the centre of its water (so she swims in the middle of it).
  * A shore the child can walk down to comes first; a steep-banked lake is the
  * fallback (the fish count from its rim all the same).
  */
-function chooseLake(ctx: Ctx, level: number): [number, number] {
+function chooseLake(ctx: Ctx, level: number): [number, number] | null {
   const { world } = ctx;
   const home = ctx.house ? ctx.house.centre : new THREE.Vector3();
-  const near = (x: number, z: number) => !nearVillage(ctx, [x, z]) && !(world.lighthousesNear?.(x, z, 48) ?? []).some((l) => Math.hypot(l.x + 1.5 - x, l.z + 1.5 - z) < 48);
+  const near = (x: number, z: number, her = true) => !nearVillage(ctx, [x, z], her) && !(world.lighthousesNear?.(x, z, 48) ?? []).some((l) => Math.hypot(l.x + 1.5 - x, l.z + 1.5 - z) < 48);
   const open = (x: number, z: number) => waterAround(ctx, x, z, 14) >= 0.65;
   const good = (x: number, z: number) => open(x, z) && gentleShore(ctx, x, z) && near(x, z);
   const any = (x: number, z: number) => open(x, z) && near(x, z);
@@ -524,6 +550,12 @@ function chooseLake(ctx: Ctx, level: number): [number, number] {
   // no gentle shore still beats no lake, so ask again, relaxed
   let [x, z] = pickSite(world.seed ^ 0x1a2e, level, home, good);
   if (!good(x, z)) [x, z] = pickSite(world.seed ^ 0x1a2e, level, home, any);
+  // the forty tries missed: every lake in reach; with no water there is no place for her
+  if (!any(x, z)) {
+    const lake = findLake(ctx, home, level, near);
+    if (!lake) return null;
+    [x, z] = lake;
+  }
   // the middle of the water it found: the average of the wet cells around it
   let sx = 0;
   let sz = 0;
@@ -672,14 +704,23 @@ export function initBoss(ctx: Ctx): void {
 
 function spawn(ctx: Ctx, atStart: boolean): void {
   const s = ctx.save.boss;
+  // the lake monster lives in a lake: a new one, or one left on dry land, finds one; with none in reach the Eater comes
+  if (BOSS_KINDS[s.kind].water && (!s.site || waterAround(ctx, s.site[0], s.site[1], 8) < 0.25)) {
+    const lake = chooseLake(ctx, s.levels[s.kind]);
+    s.baits = [];
+    if (lake) s.site = lake;
+    else {
+      s.kind = 'eater';
+      s.site = null;
+      s.hp = null;
+    }
+  }
   const kind = s.kind;
   const level = s.levels[kind];
   const water = BOSS_KINDS[kind].water;
-  // no lair yet, or the world moved under one not eaten yet (a river runs there now / the lake dried)
-  const badLair =
-    !s.site ||
-    (!s.eatenAt && (water ? waterAround(ctx, s.site[0], s.site[1], 8) < 0.25 : siteWet(ctx, s.site) || nearVillage(ctx, s.site)));
-  if (badLair) s.site = water ? chooseLake(ctx, level) : chooseSite(ctx, level);
+  // no lair yet, or the world moved under one not eaten yet (a river runs there now)
+  const badLair = !water && (!s.site || (!s.eatenAt && (siteWet(ctx, s.site) || nearVillage(ctx, s.site))));
+  if (badLair) s.site = chooseSite(ctx, level);
   const site = s.site!;
   const tune = tuneOf(ctx);
   const maxHp = bossMaxHp(level, tune.bossHp);
@@ -1254,6 +1295,13 @@ function updateEating(ctx: Ctx): void {
 
 function exposeForChecks(ctx: Ctx): void {
   (window as unknown as { __kotoBoss: object }).__kotoBoss = {
+    /** Where the lake monster would live at this level, how much water is there and how long the search took. */
+    lakeFor: (level: number) => {
+      const t = performance.now();
+      const site = chooseLake(ctx, level);
+      const ms = Math.round(performance.now() - t);
+      return { site, water: site ? +waterAround(ctx, site[0], site[1], 8).toFixed(2) : 0, ms };
+    },
     get state() {
       const s = ctx.save.boss;
       const b = boss;

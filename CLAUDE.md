@@ -6,7 +6,7 @@ A blocky 3D browser game for a 6-year-old (Льоша) who invents its stories; 
 @CONTENT.md
 
 ## Commands
-- `npm run dev` — dev server (`--host`), URL switches in `src/core/params.ts` (`?skin= &autostart=1 &hero= &x= &z= &time= &freeze=1 &fresh=1 &demo=1 &hud=0 &stats=1 &kit=1 &pause=1 &spawn=<monster> &give=<card id>`).
+- `npm run dev` — dev server (`--host`), URL switches in `src/core/params.ts` (`?skin= &autostart=1 &hero= &x= &z= &time= &freeze=1 &fresh=1 &demo=1 &hud=0 &stats=1 &kit=1 &pause=1 &spawn=<monster> &give=<card id> &savefile=1`; the last one downloads a copy of the save and starts nothing).
 - `npm run check` — tsc + vitest (includes the content check: every card has its model and lines).
 - `npm run shots` — tablet-size screenshots of fixed scenes into `design-lab/shots/`.
 - `npm run voice` — `src/content/lines.json` → `public/voice/*.mp3` (Azure Speech; keys in User env).

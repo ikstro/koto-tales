@@ -1195,7 +1195,8 @@ export function initBabusia(ctx: Ctx): void {
     if (phase === 'evening' && away > BABUSIA.moveAway && movesTomorrow(b, ctx.save.day, held(ctx))) setTimeout(() => voice.say('babusia_move_soon', { priority: 5 }), 3000);
     if (phase !== 'morning') return;
     if (home) home.table.snack = home.yard.snack = dishOfDay(ctx.save.day);
-    if (!job && shouldMove(b, ctx.save.day, away, held(ctx))) job = moveJob(ctx, ctx.player.pos.clone());
+    const homeAway = ctx.house ? centre.distanceTo(tmp.copy(ctx.house.centre).setY(centre.y)) : Infinity;
+    if (!job && shouldMove(b, ctx.save.day, away, held(ctx), homeAway)) job = moveJob(ctx, ctx.player.pos.clone());
   });
   // her bell: the party is carried to her gate; a jump ends a walk she was on
   events.on('effect:start', ({ kind }) => {

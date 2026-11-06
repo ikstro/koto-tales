@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it } from 'vitest';
-import { BOSS, BOSS_KINDS, BossBrain, biteSpot, bossMaxHp, bossScale, nextBossKind, pickSite, shouldReturn, trapped, type BossEvent, type GroundAt } from './bossLogic';
+import { BOSS, BOSS_KINDS, BossBrain, biteSpot, bossMaxHp, bossScale, lakeSpots, nextBossKind, pickLake, pickSite, shouldReturn, trapped, type BossEvent, type GroundAt } from './bossLogic';
 
 /** Equal within one simulation step. */
 const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(0.051);
@@ -189,5 +189,25 @@ describe('the boss never shuts anyone in', () => {
       cells[`${spot[0]},${spot[1]}`] = g(spot[0], spot[1]) - 1;
       for (let x = -6; x <= 6; x++) for (let z = -6; z <= 6; z++) expect(trapped(g, x, z)).toBe(false);
     }
+  });
+});
+
+describe('the search for a lake', () => {
+  it('goes round the house from the lair ring out to its reach', () => {
+    const home = { x: 10, z: -20 };
+    const spots = lakeSpots(home);
+    const far = spots.map(([x, z]) => Math.hypot(x - home.x, z - home.z));
+    expect(Math.min(...far)).toBeGreaterThan(BOSS.siteMin - 1);
+    expect(Math.max(...far)).toBeLessThan(BOSS.lakeReach + 1);
+    expect(far[0]).toBeLessThan(far[far.length - 1]);
+    expect(spots.length).toBeLessThan(3000);
+  });
+  it('gives nothing when there is no lake, and the same lake for the same level', () => {
+    expect(pickLake([], 3)).toBeNull();
+    expect(pickLake(['a', 'b', 'c'], 2)).toBe(pickLake(['a', 'b', 'c'], 2));
+    expect(pickLake(['a', 'b', 'c'], 1)).not.toBe(pickLake(['a', 'b', 'c'], 2));
+    // the far rings wait until there is nothing nearer
+    const rings = Array.from({ length: 100 }, (_, i) => i);
+    for (let level = 1; level < 30; level++) expect(pickLake(rings, level)).toBeLessThan(BOSS.lakeChoice);
   });
 });

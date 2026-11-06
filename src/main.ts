@@ -10,6 +10,7 @@ import { readParams } from './core/params';
 import { Quality } from './core/quality';
 import { applyWaitingUpdate, bootStarted, bootSucceeded, registerPWA } from './pwa';
 import { Effects } from './render/effects';
+import { offerSaveFile } from './ui/saveFile';
 import { initLanterns } from './render/lanterns';
 import { initHeroMark } from './render/heroMark';
 import { createSkin } from './render/skins';
@@ -55,10 +56,12 @@ function placeDemo(ctx: Ctx): void {
 }
 
 async function boot(): Promise<void> {
+  const params = readParams();
+  // a copy of the save to send for a look: the game does not start, so nothing is written
+  if (params.savefile) return offerSaveFile();
   await bootStarted();
   registerPWA();
   persistStorage();
-  const params = readParams();
   const ui = document.getElementById('ui')!;
   // The loading screen is the title's logo assembling from bricks (CSS until the world is up).
   const loading = startLoader(ui);

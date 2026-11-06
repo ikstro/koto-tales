@@ -40,41 +40,60 @@ function pickKind(ctx: Ctx, x: number, z: number): MonsterKind | null {
   return null;
 }
 
+/** What spawning has run into so far (?stats=1 shows it): a real device can say why nothing comes. */
+export const spawnLog: Record<string, number> = {};
+const note = (what: string) => {
+  spawnLog[what] = (spawnLog[what] ?? 0) + 1;
+};
+
+/** Why no monster may appear here, or null. */
+function spawnBlock(ctx: Ctx, x: number, z: number, night: boolean): string | null {
+  const bx = Math.floor(x);
+  const bz = Math.floor(z);
+  const y = ctx.world.groundHeight(bx, bz);
+  if (y <= SEA_LEVEL || ctx.world.isWater(bx, y, bz)) return 'water';
+  if (homeDistance(ctx, new THREE.Vector3(x, y, z)) < SPAWN.houseSafeRadius + 4) return 'home';
+  // villages are safe like home (their own defence waves come from systems/villages.ts)
+  if (inVillage(ctx, x, z)) return 'village';
+  // nor round Бабуся's house
+  if (inSafeRing(ctx.save.babusia, x, z, 4)) return 'babusia';
+  // the boss's wasteland is its own: no regular monsters spawn there
+  if (ctx.boss?.inZone(x, z, 2)) return 'boss';
+  // nor where powered lamps and lighthouses shine at night, nor round a tree house
+  if (night && (inLight(x, z) || sheltered(x, z) || companionLight(x, z))) return 'light';
+  // nor where an item's or artifact's light is around the party
+  if (lightAt(ctx, x, z, night)) return 'effect';
+  return null;
+}
+
 /** Monsters arrive in a small pack of one kind, a few blocks apart. */
 function trySpawn(ctx: Ctx): void {
   const tune = tuneOf(ctx);
   const night = isNight(ctx);
   const alive = ctx.monsters.filter((m) => m.alive).length;
   const cap = night ? tune.capNight : tune.capDay;
-  if (alive >= cap) return;
+  if (alive >= cap) {
+    note('cap');
+    return;
+  }
   const p = ctx.player.pos;
   const a = Math.random() * Math.PI * 2;
   const d = SPAWN.minDist + Math.random() * (SPAWN.maxDist - SPAWN.minDist);
   const cx = p.x + Math.sin(a) * d;
   const cz = p.z + Math.cos(a) * d;
   const kind = pickKind(ctx, cx, cz);
-  if (!kind) return;
+  if (!kind) {
+    note('kind');
+    return;
+  }
   const [lo, hi] = tune.pack;
   const size = Math.min(cap - alive, lo + Math.floor(Math.random() * (hi - lo + 1)));
   for (let i = 0; i < size; i++) {
     const x = cx + (Math.random() - 0.5) * 4;
     const z = cz + (Math.random() - 0.5) * 4;
-    const bx = Math.floor(x);
-    const bz = Math.floor(z);
-    const y = ctx.world.groundHeight(bx, bz);
-    if (y <= SEA_LEVEL || ctx.world.isWater(bx, y, bz)) continue;
-    if (homeDistance(ctx, new THREE.Vector3(x, y, z)) < SPAWN.houseSafeRadius + 4) continue;
-    // villages are safe like home (their own defence waves come from systems/villages.ts)
-    if (inVillage(ctx, x, z)) continue;
-    // nor round Бабуся's house
-    if (inSafeRing(ctx.save.babusia, x, z, 4)) continue;
-    // the boss's wasteland is its own: no regular monsters spawn there
-    if (ctx.boss?.inZone(x, z, 2)) continue;
-    // nor where powered lamps and lighthouses shine at night, nor round a tree house
-    if (night && (inLight(x, z) || sheltered(x, z) || companionLight(x, z))) continue;
-    // nor where an item's or artifact's light is around the party
-    if (lightAt(ctx, x, z, night)) continue;
-    spawnAt(ctx, kind, x, z);
+    const why = spawnBlock(ctx, x, z, night);
+    note(why ?? 'made');
+    if (!why) spawnAt(ctx, kind, x, z);
   }
 }
 

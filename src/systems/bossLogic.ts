@@ -66,6 +66,10 @@ export const BOSS = {
   /** The lair is this far from the house. */
   siteMin: 140,
   siteMax: 180,
+  /** A lake may lie further than a lair: the search goes out this far from the house. */
+  lakeReach: 360,
+  /** The search stops at this many good spots: the nearest lakes. */
+  lakeChoice: 4,
   baseHp: 30,
   /** Each return: +30% health, +10% size. */
   hpPerLevel: 0.3,
@@ -117,6 +121,22 @@ export function pickSite(seed: number, level: number, home: { x: number; z: numb
   }
   return first!;
 }
+
+/** Every place worth a look for a lake, ring by ring out from the house. */
+export function lakeSpots(home: { x: number; z: number }): [number, number][] {
+  const out: [number, number][] = [];
+  for (let r = BOSS.siteMin; r <= BOSS.lakeReach; r += 20) {
+    const n = Math.round((Math.PI * 2 * r) / 20);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      out.push([Math.round(home.x + Math.sin(a) * r), Math.round(home.z + Math.cos(a) * r)]);
+    }
+  }
+  return out;
+}
+
+/** One of the nearest lakes found (they come ring by ring), for this level: the same every time, another one each return. */
+export const pickLake = <T>(lakes: T[], level: number): T | null => (lakes.length ? lakes[(level * 7) % Math.min(lakes.length, BOSS.lakeChoice)] : null);
 
 export type BossEvent = 'mouth-open' | 'mouth-close' | 'stomp-warn' | 'stomp' | 'dance' | 'dance-end';
 export type HitResult = 'bounce' | 'hurt' | 'defeated';

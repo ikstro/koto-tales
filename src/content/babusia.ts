@@ -20,8 +20,8 @@ const WALL_TOP = 4;
 const DOOR_X = 6;
 
 export const BABUSIA = {
-  /** No monster within this of her house (like a friendly castle); hearts come back fast. */
-  safe: 34,
+  /** No monster within this of the middle of her house: the yard and a little past it; hearts come back fast. */
+  safe: 20,
   /** Пупся sees the house for the first time within this. */
   spot: 30,
   /** She says hello within this, and again after `talkAgain` seconds. */
@@ -30,7 +30,7 @@ export const BABUSIA = {
   /** Further than this her house is put aside. */
   park: 130,
   /** She lands this far from the party. */
-  land: [50, 90] as [number, number],
+  land: [110, 170] as [number, number],
   /** She moves on only while the party is further than this. */
   moveAway: 50,
   /** A day is five minutes of play: she stays at least this many days. */
@@ -39,8 +39,8 @@ export const BABUSIA = {
   glades: 12,
   /** The stork comes at most this often (seconds). */
   storkEvery: 120,
-  /** Her house stays this far from the heroes' home. */
-  keepHome: 44,
+  /** Her house stays this far from the heroes' home, about as far as the elves' village: reaching her is a trip. */
+  keepHome: 120,
   /** The ground around the yard may differ by this much: a jump gets out of anywhere. */
   rim: 2,
   /** She comes over (cocoa, a joke by the fire) from no further than this. */
@@ -317,9 +317,13 @@ export function inSafeRing(b: BabusiaSave, x: number, z: number, margin = 0): bo
   return Math.hypot(x - cx, z - cz) < BABUSIA.safe + margin;
 }
 
-/** Whether she moves on this morning. A tale that leads to her keeps her where she is. */
-export function shouldMove(b: BabusiaSave, day: number, partyAway: number, held: boolean): boolean {
-  return !!b.at && !held && partyAway > BABUSIA.moveAway && day - b.movedDay >= BABUSIA.moveEvery;
+/**
+ * Whether she moves on this morning. A tale that leads to her keeps her where she is. A house an
+ * older version left too near the heroes' home does not wait out its days.
+ */
+export function shouldMove(b: BabusiaSave, day: number, partyAway: number, held: boolean, homeAway = Infinity): boolean {
+  if (!b.at || held || partyAway <= BABUSIA.moveAway) return false;
+  return day - b.movedDay >= BABUSIA.moveEvery || homeAway < BABUSIA.keepHome;
 }
 
 /** Tomorrow would be a day to move: she tells the party the evening before. */
