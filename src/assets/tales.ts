@@ -30,6 +30,7 @@ const COLUMN: Record<TaleItem, string> = {
   shell: '#ffb3c4',
   honey: '#ffc23d',
   berry: '#ff7a7a',
+  ladybird: '#ff8a6a',
 };
 const CREAM_EYE = '#fff4d8';
 
@@ -183,6 +184,21 @@ function body(skin: Skin, kind: TaleItem): THREE.Object3D {
       b.geo(new THREE.TorusGeometry(0.155, 0.014, 6, 24), [0, 0.175, 0], '#b5763a', { rot: [HP, 0, 0] });
       b.ball(0.026, [0, 0.175, 0.156], '#b5763a', { seg: 8 });
       for (const s of [-1, 1]) b.cyl(0.012, 0.14, [s * 0.03, 0.115, 0.178], '#b5763a', { rot: [0.12, 0, s * 0.35], seg: 6 });
+      b.finish();
+      return b.root;
+    }
+    case 'ladybird': {
+      // a round red shell tipped back to the sky, a dark line down its middle, seven dark spots, a dark head with two feelers
+      const b = new Build(skin, 'tale-ladybird');
+      b.ball(0.3, [0, -0.02, 0], '#e0343a', { s: [1, 1, 0.5], seg: 18 });
+      b.box([0.03, 0.56, 0.02], [0, -0.02, 0.15], '#2b2422');
+      for (const [x, y, r] of [[-0.14, 0.12, 0.055], [0.14, 0.12, 0.055], [-0.18, -0.06, 0.06], [0.18, -0.06, 0.06], [-0.11, -0.2, 0.05], [0.11, -0.2, 0.05]] as const) {
+        b.ball(r, [x, y, 0.12], '#2b2422', { s: [1, 1, 0.4], seg: 10 });
+      }
+      b.ball(0.15, [0, 0.3, 0.02], '#2b2422', { s: [1, 0.8, 0.6], seg: 12 });
+      b.ball(0.035, [-0.07, 0.34, 0.1], '#fff4d8', { seg: 8 });
+      b.ball(0.035, [0.07, 0.34, 0.1], '#fff4d8', { seg: 8 });
+      for (const x of [-1, 1]) b.cyl(0.012, 0.16, [x * 0.09, 0.45, 0.02], '#2b2422', { rot: [0, 0, -x * 0.5], seg: 6 });
       b.finish();
       return b.root;
     }

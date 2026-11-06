@@ -84,3 +84,31 @@ describe('which tale comes', () => {
     }
   });
 });
+
+describe('whose tale it is', () => {
+  const all = () => true;
+  const fresh = (done: string[]) => ({ ...freshTales(), done });
+  const everyOther = (keep: string) => TALES.filter((t) => t.id !== keep).map((t) => t.id);
+  it('a tale of the one away waits until she is back', () => {
+    const left = fresh(everyOther('babusia_owl'));
+    expect(nextTale(left, all, 5, true, 'yulia')).toBeNull();
+    expect(nextTale(left, all, 5, true, 'olia')?.id).toBe('babusia_owl');
+    const hers = fresh(everyOther('babusia_wreath'));
+    expect(nextTale(hers, all, 5, true, 'olia')).toBeNull();
+    expect(nextTale(hers, all, 5, true, 'yulia')?.id).toBe('babusia_wreath');
+  });
+  it('the hello of Оля comes before everything once she is at home', () => {
+    expect(talesLeft(['fish'], all, 'olia')[0].id).toBe('olia_hi');
+    expect(talesLeft(['fish'], all, 'yulia').some((t) => t.id === 'olia_hi')).toBe(false);
+  });
+  it('the book still lists both', () => {
+    const ids = talesLeft([], all).map((t) => t.id);
+    expect(ids).toContain('olia_hi');
+    expect(ids).toContain('babusia_hi');
+  });
+  it('six older tales went to Оля with her mark on them', () => {
+    const hers = TALES.filter((t) => t.host === 'olia');
+    expect(hers.length).toBe(9);
+    for (const t of hers) for (const s of t.steps) expect(s.picture).not.toBe('map-babusia');
+  });
+});

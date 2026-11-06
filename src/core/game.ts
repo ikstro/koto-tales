@@ -1,4 +1,4 @@
-import { initBabusia, updateBabusia } from '../systems/babusia';
+import { initBabusia, updateBabusia, weatherAsk } from '../systems/babusia';
 import * as THREE from 'three';
 import type { HeroId } from '../contracts';
 import { HERO_STATS } from '../content/heroes';
@@ -367,6 +367,7 @@ export class Game {
       updateSleep(ctx);
       ctx.hud.setPrompt(ctx.sleeping || eating() ? null : chestNear(ctx) ? 'chest' : sleepPlace(ctx) ? 'moon' : canFold(ctx) ? 'fold' : null);
       ctx.hud.setNote(!ctx.sleeping && djNear(ctx));
+      ctx.hud.setAsk(weatherAsk(ctx));
       updateNarration(ctx, dt);
     }
     updatePortals(ctx, dt);

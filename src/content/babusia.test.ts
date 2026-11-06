@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import lines from './lines.json';
+import { SAVE_VERSION, migrate } from '../systems/save';
+import { hostAfterMove, hostLine, HOSTS, noteDue, otherHost, SHARED_LINES } from './babusia';
 import { addGlade, BABUSIA, BABUSIA_BLOCKS, BABUSIA_HOUSE, centreOf, DISHES, dishOfDay, flowerSpots, freshBabusia, GARDEN, inSafeRing, judgeSite, movesTomorrow, routineAt, shouldMove, WALK_LOOP, YARD, type SiteProbe, nextJoke, POLE, poleAngle, poleDay, tapReply, BABUSIA_SPOTS, CHAIR_FLOWERS, chairFlowerSpots, PRESENTS, presentDue, strollDue } from './babusia';
 import { TALES } from './tales';
 import { B } from '../world/blocks';
@@ -180,5 +183,46 @@ describe('the house', () => {
     expect(flowerSpots(40, -12, 20, 0, 9)).toEqual(flowerSpots(40, -12, 20, 0, 9));
     expect(flowerSpots(40, -12, 20, 0, 9).some((f) => f.kind === 0)).toBe(true);
     expect(flowerSpots(40, -12, 20, 0, 9).some((f) => f.kind === 1)).toBe(true);
+  });
+});
+
+describe('two hostesses', () => {
+  it('swap on a move once the first has said hello, and not before', () => {
+    expect(hostAfterMove('yulia', [])).toBe('yulia');
+    expect(hostAfterMove('yulia', ['babusia_hi'])).toBe('olia');
+    expect(hostAfterMove('olia', ['babusia_hi'])).toBe('yulia');
+    expect(otherHost(otherHost('olia'))).toBe('olia');
+  });
+  it('each has her own day: no walk, swim or television for Оля', () => {
+    for (let t = 0; t < 1; t += 0.01) {
+      expect(['feed', 'bugs', 'notes']).toContain(routineAt(t, 'olia'));
+      expect(['walk', 'swim', 'tv', 'garden', 'coffee']).toContain(routineAt(t, 'yulia'));
+    }
+  });
+  it('have the same moments in their own voices', () => {
+    const all = lines as Record<string, { speaker: string }>;
+    for (const id of SHARED_LINES) {
+      const own = hostLine(id, 'olia');
+      expect(own).toBe(id.replace('babusia_', 'olia_'));
+      expect(all[own]?.speaker, own).toBe('olia');
+      expect(hostLine(id, 'yulia')).toBe(id);
+    }
+    expect(hostLine('babusia_joke_1', 'olia')).toBe('babusia_joke_1');
+  });
+  it('have a mark and a model each', () => {
+    expect(HOSTS.yulia.part).not.toBe(HOSTS.olia.part);
+    expect(HOSTS.yulia.mark).not.toBe(HOSTS.olia.mark);
+  });
+  it('the one away sends one greeting a trip, from the day after', () => {
+    expect(noteDue({ noted: false, movedDay: 5 }, 5)).toBe(false);
+    expect(noteDue({ noted: false, movedDay: 5 }, 6)).toBe(true);
+    expect(noteDue({ noted: true, movedDay: 5 }, 9)).toBe(false);
+  });
+  it('an old save keeps Юля until the next move, unless a tale of Оля is under way', () => {
+    const old = (cur: string | null) => migrate({ v: 16, babusia: freshBabusia(), tales: { cur, done: [], after: 0 } } as never);
+    expect(old(null).v).toBe(SAVE_VERSION);
+    expect(old(null).babusia.host).toBe('yulia');
+    expect(old('babusia_walk').babusia.host).toBe('yulia');
+    expect(old('babusia_owl').babusia.host).toBe('olia');
   });
 });

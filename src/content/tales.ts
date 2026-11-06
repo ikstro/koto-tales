@@ -1,4 +1,5 @@
 import type { Race } from '../world/villages';
+import type { Host } from './babusia';
 import type { BuildingId } from './buildings';
 import type { ItemId } from './items';
 import type { LineId } from './lines';
@@ -16,7 +17,7 @@ import { RAIN, RAINBOW } from './weather';
  */
 
 /** Things lying about for a tale (assets/tales.ts models; the picture is a HUD sprite). */
-export type TaleItem = 'fish' | 'scroll' | 'yarn' | 'chest' | 'daisy' | 'pole' | 'disc' | 'shell' | 'honey' | 'berry';
+export type TaleItem = 'fish' | 'scroll' | 'yarn' | 'chest' | 'daisy' | 'pole' | 'disc' | 'shell' | 'honey' | 'berry' | 'ladybird';
 export const TALE_ITEMS: Record<TaleItem, { icon: string; /** After a number: one, two to four, five and more (the «Зміст гри» page). */ words: [string, string, string] }> = {
   fish: { icon: 'item-fish', words: ['рибку', 'рибки', 'рибок'] },
   scroll: { icon: 'item-scroll', words: ['шматок карти', 'шматки карти', 'шматків карти'] },
@@ -28,6 +29,7 @@ export const TALE_ITEMS: Record<TaleItem, { icon: string; /** After a number: on
   shell: { icon: 'item-shell', words: ['мушлю', 'мушлі', 'мушель'] },
   honey: { icon: 'item-honey', words: ['баночку меду', 'баночки меду', 'баночок меду'] },
   berry: { icon: 'item-berry', words: ['ягідку', 'ягідки', 'ягідок'] },
+  ladybird: { icon: 'item-ladybird', words: ['сонечко', 'сонечка', 'сонечок'] },
 };
 
 /** Where a step happens: home, around the hero when it begins, the nearest dark lighthouse, Бабуся's house, a village. */
@@ -67,6 +69,10 @@ export interface TaleCard {
   from: TaleFrom;
   /** Льоша made it up: it comes before the others, and its page in the book has a gold rim. */
   lyosha?: boolean;
+  /** A tale of Бабуся's: who asks; it comes only while she is at home (none said: Юля). */
+  host?: Host;
+  /** Her hello: it comes before all others once she is at home. */
+  arrives?: boolean;
   /** Offered only once the child has one of these buildings (until then the others go first). */
   needs?: BuildingId[];
   /** The request (the letter, the dream); the first step's ask follows it. */
@@ -241,13 +247,64 @@ export const TALES: TaleCard[] = [
     coins: 15,
   },
   {
+    id: 'olia_hi',
+    name: 'Бабуся Оля приїхала',
+    from: 'babusia',
+    host: 'olia',
+    arrives: true,
+    open: 'tale_olia_hi_open',
+    steps: [
+      { kind: 'visit', at: 'babusia', ask: 'tale_olia_hi_1', picture: 'map-olia' },
+      { kind: 'gather', at: 'babusia', item: 'berry', goal: 4, spread: [13, 26], ask: 'tale_olia_hi_2', picture: 'item-berry' },
+    ],
+    thanks: 'tale_olia_hi_thanks',
+    retell: 'tale_olia_hi_retell',
+    sticker: 'map-olia',
+    coins: 10,
+    gifts: [{ item: 'babusia_pie', n: 3 }],
+  },
+  {
+    id: 'olia_ladybirds',
+    name: 'Сім сонечок',
+    from: 'babusia',
+    host: 'olia',
+    open: 'tale_olia_ladybirds_open',
+    steps: [
+      { kind: 'gather', at: 'babusia', item: 'ladybird', goal: 7, spread: [12, 28], ask: 'tale_olia_ladybirds_1', picture: 'item-ladybird' },
+      { kind: 'visit', at: 'babusia', ask: 'tale_olia_ladybirds_2', picture: 'map-olia' },
+    ],
+    thanks: 'tale_olia_ladybirds_thanks',
+    retell: 'tale_olia_ladybirds_retell',
+    sticker: 'item-ladybird',
+    coins: 15,
+    gifts: [{ item: 'babusia_pie', n: 2 }],
+  },
+  {
+    id: 'olia_moths',
+    name: 'Метелики до лампи',
+    from: 'babusia',
+    host: 'olia',
+    needs: ['lamp'],
+    open: 'tale_olia_moths_open',
+    steps: [
+      { kind: 'place', at: 'babusia', building: 'lamp', ask: 'tale_olia_moths_1', picture: 'b-lamp' },
+      { kind: 'sleep', at: 'babusia', ask: 'tale_olia_moths_2', picture: 'moon' },
+    ],
+    thanks: 'tale_olia_moths_thanks',
+    retell: 'tale_olia_moths_retell',
+    sticker: 'b-lamp',
+    coins: 15,
+    gifts: [{ item: 'babusia_pie', n: 2 }],
+  },
+  {
     id: 'babusia_runaway',
     name: 'Подарунок-втікач',
     from: 'babusia',
+    host: 'olia',
     open: 'tale_babusia_runaway_open',
     steps: [
       { kind: 'thief', at: 'babusia', monster: 'giftbox', item: 'chest', ask: 'tale_babusia_runaway_1', picture: 'chest' },
-      { kind: 'visit', at: 'babusia', ask: 'tale_babusia_runaway_2', picture: 'map-babusia' },
+      { kind: 'visit', at: 'babusia', ask: 'tale_babusia_runaway_2', picture: 'map-olia' },
     ],
     thanks: 'tale_babusia_runaway_thanks',
     retell: 'tale_babusia_runaway_retell',
@@ -384,10 +441,11 @@ export const TALES: TaleCard[] = [
     after: 'rubber_fish_pupsia',
     name: 'Гумова рибка',
     from: 'babusia',
+    host: 'olia',
     open: 'tale_babusia_rubber_fish_open',
     steps: [
       { kind: 'gather', at: 'babusia', item: 'fish', goal: 3, spread: [12, 28], ask: 'tale_babusia_rubber_fish_1', picture: 'item-fish' },
-      { kind: 'visit', at: 'babusia', ask: 'tale_babusia_rubber_fish_2', picture: 'map-babusia' },
+      { kind: 'visit', at: 'babusia', ask: 'tale_babusia_rubber_fish_2', picture: 'map-olia' },
     ],
     thanks: 'tale_babusia_rubber_fish_thanks',
     retell: 'tale_babusia_rubber_fish_retell',
@@ -399,10 +457,11 @@ export const TALES: TaleCard[] = [
     id: 'babusia_hedgehog',
     name: 'Їжачок у траві',
     from: 'babusia',
+    host: 'olia',
     open: 'tale_babusia_hedgehog_open',
     steps: [
       { kind: 'gather', at: 'babusia', item: 'berry', goal: 4, spread: [10, 26], ask: 'tale_babusia_hedgehog_1', picture: 'item-berry' },
-      { kind: 'visit', at: 'babusia', ask: 'tale_babusia_hedgehog_2', picture: 'map-babusia' },
+      { kind: 'visit', at: 'babusia', ask: 'tale_babusia_hedgehog_2', picture: 'map-olia' },
     ],
     thanks: 'tale_babusia_hedgehog_thanks',
     retell: 'tale_babusia_hedgehog_retell',
@@ -430,10 +489,11 @@ export const TALES: TaleCard[] = [
     id: 'babusia_owl',
     name: 'Сова-сторож',
     from: 'babusia',
+    host: 'olia',
     open: 'tale_babusia_owl_open',
     steps: [
       { kind: 'sleep', at: 'babusia', ask: 'tale_babusia_owl_1', picture: 'moon' },
-      { kind: 'visit', at: 'babusia', ask: 'tale_babusia_owl_2', picture: 'map-babusia' },
+      { kind: 'visit', at: 'babusia', ask: 'tale_babusia_owl_2', picture: 'map-olia' },
     ],
     thanks: 'tale_babusia_owl_thanks',
     retell: 'tale_babusia_owl_retell',
@@ -446,10 +506,11 @@ export const TALES: TaleCard[] = [
     id: 'babusia_honey',
     name: 'Мед для бабусі',
     from: 'babusia',
+    host: 'olia',
     open: 'tale_babusia_honey_open',
     steps: [
       { kind: 'gather', at: 'babusia', item: 'honey', goal: 4, spread: [14, 32], ask: 'tale_babusia_honey_1', picture: 'item-honey' },
-      { kind: 'visit', at: 'babusia', ask: 'tale_babusia_honey_2', picture: 'map-babusia' },
+      { kind: 'visit', at: 'babusia', ask: 'tale_babusia_honey_2', picture: 'map-olia' },
     ],
     thanks: 'tale_babusia_honey_thanks',
     retell: 'tale_babusia_honey_retell',
@@ -478,10 +539,11 @@ export const TALES: TaleCard[] = [
     id: 'babusia_fox',
     name: 'Лисеня і клубочки',
     from: 'babusia',
+    host: 'olia',
     open: 'tale_babusia_fox_open',
     steps: [
       { kind: 'gather', at: 'here', item: 'yarn', goal: 3, spread: [12, 30], ask: 'tale_babusia_fox_1', picture: 'item-yarn' },
-      { kind: 'visit', at: 'babusia', ask: 'tale_babusia_fox_2', picture: 'map-babusia' },
+      { kind: 'visit', at: 'babusia', ask: 'tale_babusia_fox_2', picture: 'map-olia' },
     ],
     thanks: 'tale_babusia_fox_thanks',
     retell: 'tale_babusia_fox_retell',
@@ -581,9 +643,10 @@ export const freshTales = (): TalesSave => ({ cur: null, step: 0, got: 0, done: 
  * The tales still to come, in the order they come: Льоша's first, then the book's order. One
  * waiting for a building the child hasn't got is left out until then.
  */
-export function talesLeft(done: readonly string[], has: (b: BuildingId) => boolean): TaleCard[] {
-  const open = TALES.filter((t) => !done.includes(t.id) && (!t.needs || t.needs.some(has)));
-  return [...open.filter((t) => t.lyosha), ...open.filter((t) => !t.lyosha)];
+export function talesLeft(done: readonly string[], has: (b: BuildingId) => boolean, home?: Host): TaleCard[] {
+  const open = TALES.filter((t) => !done.includes(t.id) && (!t.needs || t.needs.some(has)) && (!home || t.from !== 'babusia' || (t.host ?? 'yulia') === home));
+  const rest = open.filter((t) => !t.arrives);
+  return [...(home ? open.filter((t) => t.arrives) : []), ...rest.filter((t) => t.lyosha), ...rest.filter((t) => !t.lyosha), ...(home ? [] : open.filter((t) => t.arrives))];
 }
 
 /**
@@ -591,9 +654,9 @@ export function talesLeft(done: readonly string[], has: (b: BuildingId) => boole
  * dream comes only right after a night's sleep (`slept`); if the next is a dream and a whole day
  * went by without sleep, the next letter comes first (the dream keeps its place).
  */
-export function nextTale(s: TalesSave, has: (b: BuildingId) => boolean, day: number, slept: boolean): TaleCard | null {
+export function nextTale(s: TalesSave, has: (b: BuildingId) => boolean, day: number, slept: boolean, home: Host = 'yulia'): TaleCard | null {
   if (s.cur || day < s.after) return null;
-  const left = talesLeft(s.done, has);
+  const left = talesLeft(s.done, has, home);
   const first = left[0];
   if (!first) return null;
   if (entryOf(first) !== 'dream' || slept) return first;

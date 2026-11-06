@@ -18,6 +18,7 @@ import type { LighthouseSite } from '../world/landmarks';
 import { homeDistance } from './house';
 import { owned, selectedBuilding } from './kit';
 import { giveArtifact } from './artifacts';
+import { HOSTS } from '../content/babusia';
 import { babusiaCentre, babusiaReady, giveGifts } from './babusia';
 import { giveCompanion } from './companions';
 import { spawnAt } from './monsters';
@@ -501,7 +502,7 @@ export function initTales(ctx: Ctx): void {
   events.on('sleep:done', () => {
     if (stepOf(ctx)?.kind === 'sleep') stepDone(ctx);
     // Пупся's dream comes as the party wakes
-    const t = nextTale(s, has(ctx), ctx.save.day, true);
+    const t = nextTale(s, has(ctx), ctx.save.day, true, ctx.save.babusia.host);
     if (t && entryOf(t) === 'dream') setTimeout(() => !s.cur && begin(ctx, t, 'dream'), 1500);
   });
   events.on('building:placed', ({ id }) => {
@@ -513,7 +514,7 @@ export function initTales(ctx: Ctx): void {
   });
   events.on('time:phase', ({ phase }) => {
     // the next tale is a dream: Пупся asks to go to bed
-    const t = phase === 'evening' ? nextTale(s, has(ctx), ctx.save.day + 1, true) : null;
+    const t = phase === 'evening' ? nextTale(s, has(ctx), ctx.save.day + 1, true, ctx.save.babusia.host) : null;
     if (t && entryOf(t) === 'dream') setTimeout(() => tell('tale_sleepy'), 6000);
   });
   // ?tale=<id> (test only): that tale begins at once
@@ -581,7 +582,7 @@ export function updateTales(ctx: Ctx, dt: number): void {
     checkT -= dt;
     if (plane || ctx.sleeping || checkT > 0) return;
     checkT = 1;
-    const next = nextTale(s, has(ctx), ctx.save.day, false);
+    const next = nextTale(s, has(ctx), ctx.save.day, false, ctx.save.babusia.host);
     if (!next) return;
     const how = entryOf(next);
     // the prologue's things are out at once; its lines wait their turn after the first tips
@@ -604,5 +605,5 @@ export function updateTales(ctx: Ctx, dt: number): void {
   }
   const cur = stepOf(ctx);
   const from = tale(ctx)?.from;
-  ctx.hud.setTale(ctx.sleeping || !cur || !from ? null : { face: from === 'pupsia' ? 'mark-pupsia' : from === 'babusia' ? 'map-babusia' : RACE_CARDS[from].mark, picture: cur.picture, lit: Math.max(0, lit) });
+  ctx.hud.setTale(ctx.sleeping || !cur || !from ? null : { face: from === 'pupsia' ? 'mark-pupsia' : from === 'babusia' ? HOSTS[tale(ctx)?.host ?? 'yulia'].mark : RACE_CARDS[from].mark, picture: cur.picture, lit: Math.max(0, lit) });
 }

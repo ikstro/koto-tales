@@ -14,15 +14,22 @@ import {
   BABUSIA_HOUSE,
   BABUSIA_SPOTS,
   centreOf,
+  chairAct,
   dishOfDay,
+  FEED,
   flowerSpots,
   FRONT_WINDOWS,
   GARDEN,
+  hostAfterMove,
+  hostLine,
+  HOSTS,
   inSafeRing,
   judgeSite,
   LANTERN_CELL,
   movesTomorrow,
   nextJoke,
+  noteDue,
+  otherHost,
   POLE,
   poleAngle,
   poleDay,
@@ -36,6 +43,7 @@ import {
   YARD,
   type Act,
   type Dish,
+  type Host,
   type Site,
   type SiteProbe,
 } from '../content/babusia';
@@ -57,13 +65,15 @@ import { pushCarried } from './effects';
 import { chunkKey, chunkOf, exploredOf, squareAround } from './explore';
 import { addFoodPlace, eating, eatingAt, sitDown, type FoodPlace } from './food';
 import { addToKit, landingSpot, releaseCells, reserveCells, selectedBuilding, setHouseSpeaker, type HouseSpeaker } from './kit';
+import { placeYard, showYard, updateYard } from './babusiaYard';
 import { sayAsk } from './tales';
 import { faceTo, giveCoins, musicNear, walkTo } from './tasks';
 import { travelTo } from './travel';
+import { nextWeather } from './weather';
 
 /**
- * Бабуся (DESIGN.md «Бабуся», the rules in content/babusia.ts): the hostess of a house that
- * travels. She lands once the prologue is done; from then on, on a morning when the party is far
+ * Бабуся (DESIGN.md «Бабуся», the rules in content/babusia.ts): two hostesses of a house that
+ * travels, Юля and Оля, who swap when it moves. The first lands once the prologue is done; from then on, on a morning when the party is far
  * and no tale of hers is under way, the house is carried off and a meadow of daisies and poppies
  * stays behind. Around her no monster comes, hearts come back fast, the party may sleep in her
  * beds, and she always has something to eat, new every day. All the moving is done a step at a
@@ -80,7 +90,6 @@ const BUDGET = 2.5;
 /** Edits given back between two looks at the clock. */
 const REVERT_STEP = 200;
 const CLEAR_HEIGHT = 12;
-const PETAL = 0xffc9d6;
 const MEAL_FAST = 20;
 /** A tap on her counts within this of the hero. */
 const TAP_NEAR = 9;
@@ -101,6 +110,25 @@ const JOKES: LineId[] = [
   'babusia_joke_10',
 ];
 const STORIES: LineId[] = ['babusia_story_1', 'babusia_story_2', 'babusia_story_3'];
+const OLIA_JOKES: LineId[] = ['olia_joke_1', 'olia_joke_2', 'olia_joke_3', 'olia_joke_4', 'olia_joke_5', 'olia_joke_6'];
+const FACTS: LineId[] = ['olia_fact_1', 'olia_fact_2', 'olia_fact_3', 'olia_fact_4', 'olia_fact_5', 'olia_fact_6', 'olia_fact_7', 'olia_fact_8', 'olia_fact_9', 'olia_fact_10', 'olia_fact_11', 'olia_fact_12'];
+/** A tap on Оля is a true thing about insects two times in three. */
+const FACT_CHANCE = 2 / 3;
+/** Now and then she calls them bunnies and puts it right. */
+const SLIP_CHANCE = 0.15;
+const SLIPS: Record<Host, LineId[]> = { yulia: ['babusia_slip_1', 'babusia_slip_2'], olia: ['olia_slip_1', 'olia_slip_2', 'olia_slip_3'] };
+const OTHER: Record<Host, LineId[]> = { yulia: ['babusia_other_1', 'babusia_other_2', 'babusia_other_3'], olia: ['olia_other_1', 'olia_other_2', 'olia_other_3'] };
+const NOTES: Record<Host, LineId[]> = { yulia: ['babusia_note_1', 'babusia_note_2', 'babusia_note_3'], olia: ['olia_note_1', 'olia_note_2', 'olia_note_3'] };
+const CAME: Record<Host, LineId> = { yulia: 'host_yulia_came', olia: 'host_olia_came' };
+const WEATHER_LINE: LineId[] = ['babusia_weather_sun', 'babusia_weather_rain', 'babusia_weather_snow', 'babusia_weather_rainbow'];
+/** Юля hears a wish for the weather from this near. */
+const ASK_NEAR = 5;
+/** Her forearm and arm while she looks through the glass, her head bent to it. */
+const GLASS_FORE = -1.5;
+const GLASS_ARM = -0.5;
+const GLASS_HEAD = 0.4;
+/** Her forearms while she writes in her notebook. */
+const WRITE_FORE = -1.25;
 const FIRE_CAT: LineId[] = ['babusia_fire_pupsia_1', 'babusia_fire_pupsia_2', 'babusia_fire_pupsia_3'];
 /** Her wicker chair is turned a little towards the fire. */
 const CHAIR_YAW = 0.55;
@@ -161,18 +189,26 @@ interface Her {
   errand: (() => void) | null;
   /** Seconds she stays looking at the hero. */
   pause: number;
-  gear: Record<'body' | 'armL' | 'armR' | 'foreL' | 'foreR' | 'poleL' | 'poleR' | 'cup', THREE.Object3D>;
+  /** Runs while she is about: her butterfly's wings. */
+  flap: number;
+  /** Her head is bent to the glass. */
+  bent: boolean;
+  gear: Record<'body' | 'head' | 'armL' | 'armR' | 'foreL' | 'foreR' | 'poleL' | 'poleR' | 'cup' | 'glass' | 'pendant' | 'notebook' | 'pencil' | 'wingL' | 'wingR', THREE.Object3D>;
 }
 
 interface Stork {
   pos: THREE.Vector3;
   landed: boolean;
   t: number;
+  /** A greeting from the one away, with a pie for the bag. */
+  note: boolean;
 }
 
 let job: Generator<void> | null = null;
 let home: Home | null = null;
 let her: Her | null = null;
+/** Both, built the first time each comes; only the one at home is shown. */
+const hers: Partial<Record<Host, Her>> = {};
 let swim: Swim | null = null;
 let flowers: THREE.Group | null = null;
 const glades = new Map<string, THREE.Group>();
@@ -185,7 +221,8 @@ let giftT = -1;
 let fireworkT = 3;
 let nightSaid = -1;
 let askedAt = -ASK_AGAIN;
-const lastTold = { joke: -1, story: -1, cat: -1 };
+const lastTold = { joke: -1, story: -1, cat: -1, fact: -1 };
+let noteCheck = 0;
 let host: Hostess;
 /** The party is asleep in her beds: the roof stays off, so the child sees them lie down. */
 let asleepHere = false;
@@ -208,6 +245,13 @@ export function babusiaCentre(ctx: Ctx): THREE.Vector3 | null {
 export const babusiaReady = (ctx: Ctx) => !!ctx.save.babusia.at && !ctx.save.babusia.moving;
 
 const world = (at: Site, dx: number, dz: number): XZ => [at[0] + dx, at[2] + dz];
+
+const puff = (ctx: Ctx) => HOSTS[ctx.save.babusia.host].puff;
+
+/** The same moment in the voice of whoever is at home. */
+const line = (ctx: Ctx, id: LineId): LineId => hostLine(id, ctx.save.babusia.host);
+
+const dayOf = (ctx: Ctx): Act => routineAt(ctx.clock.t, ctx.save.babusia.host);
 
 function insideHouse(ctx: Ctx, p: THREE.Vector3): boolean {
   const at = ctx.save.babusia.at;
@@ -265,10 +309,10 @@ function givePresent(ctx: Ctx, now: boolean): void {
   giveGifts(ctx, [g]);
   ctx.effects.ring(ctx.player.pos, 0xee6a82, 2.2);
   sfx.play('sticker', { pitch: 1.1 });
-  voice.say(PRESENT_LINES[b.presents % PRESENT_LINES.length], { priority: 6, interrupt: now });
+  voice.say(line(ctx, PRESENT_LINES[b.presents % PRESENT_LINES.length]), { priority: 6, interrupt: now });
   b.presents++;
-  const line = 'building' in g ? BUILDINGS[g.building].rewardLine : ITEMS[g.item].line;
-  if (line) setTimeout(() => voice.say(line, { priority: 6 }), 3200);
+  const what = 'building' in g ? BUILDINGS[g.building].rewardLine : ITEMS[g.item].line;
+  if (what) setTimeout(() => voice.say(what, { priority: 6 }), 3200);
 }
 
 /** The small gift of the day: from her trips when one is due, a pie while the party has few, otherwise coins. `now`: a tap asked for it. */
@@ -280,10 +324,10 @@ function smallGift(ctx: Ctx, now = false): void {
     giveItem(ctx, 'babusia_pie', 1);
     ctx.effects.ring(ctx.player.pos, 0xeab02b, 1.6);
     sfx.play('sticker', { pitch: 1.2 });
-    voice.say('babusia_gift_pie', { priority: 6, interrupt: now });
+    voice.say(line(ctx, 'babusia_gift_pie'), { priority: 6, interrupt: now });
   } else {
     giveCoins(ctx, 5, her?.pos ?? ctx.player.pos);
-    voice.say('babusia_gift_coins', { priority: 6, interrupt: now });
+    voice.say(line(ctx, 'babusia_gift_coins'), { priority: 6, interrupt: now });
   }
 }
 
@@ -412,17 +456,24 @@ function* putUp(ctx: Ctx, at: Site): Generator<void> {
 /** The move saved in `moving`, from wherever it was left: everything in it can be done twice. */
 function* carryOut(ctx: Ctx): Generator<void> {
   const b = ctx.save.babusia;
-  const { from, to } = b.moving!;
+  const { from, to, host: arriving = b.host } = b.moving!;
   if (from) {
     if (home) home.root.visible = false;
     if (her) her.model.root.visible = false;
+    showYard(false);
     yield* clearYard(ctx, from);
     const [x, z] = centreOf(from);
-    b.glades = b.glades.some((g) => g[0] === x && g[1] === z) ? b.glades : addGlade(b.glades, x, z);
+    // the meadow is Юля's: only she leaves one
+    if (b.host === 'yulia' && !b.glades.some((g) => g[0] === x && g[1] === z)) b.glades = addGlade(b.glades, x, z);
     b.flowers = 0;
   }
   yield* putUp(ctx, to);
   b.at = to;
+  if (arriving !== b.host) {
+    b.host = arriving;
+    b.noted = false;
+    b.told = false;
+  }
   // back from a trip with something (not the first landing): the next meeting gives it
   if (b.at) b.brought = true;
   b.movedDay = ctx.save.day;
@@ -435,13 +486,14 @@ function* moveJob(ctx: Ctx, party: THREE.Vector3): Generator<void> {
   if (!site) return;
   const b = ctx.save.babusia;
   const moved = !!b.at;
-  b.moving = { from: b.at, to: site };
+  const was = b.host;
+  b.moving = { from: b.at, to: site, host: moved ? hostAfterMove(b.host, ctx.save.tales.done) : b.host };
   yield* carryOut(ctx);
   if (!moved) return;
   // the news comes with a little wind of petals
-  ctx.effects.poof(tmp.copy(ctx.player.pos).setY(ctx.player.pos.y + 1.4), PETAL, 22);
+  ctx.effects.poof(tmp.copy(ctx.player.pos).setY(ctx.player.pos.y + 1.4), puff(ctx), 22);
   sfx.play('sticker', { pitch: 1.4 });
-  voice.say('babusia_moved', { priority: 6 });
+  voice.say(b.host === was ? 'babusia_moved' : CAME[b.host], { priority: 6 });
 }
 
 /** A way from a corner of the house to the water: straight, over open ground, no steep steps. */
@@ -514,15 +566,19 @@ function* settle(ctx: Ctx): Generator<void> {
   swim = findSwim(ctx, at);
   yield;
   if (flowers) ctx.scene.remove(flowers);
-  flowers = plant(ctx, cx, cz, 90, 8, 24, at);
+  const who = ctx.save.babusia.host;
+  flowers = plant(ctx, cx, cz, HOSTS[who].flowers, 8, 24, at);
   exploredOf(ctx.save).add(squareAround(chunkOf(cx), chunkOf(cz), 1));
-  setMapMarker('babusia', { pos: centre, icon: 'map-babusia', pointer: true, onTap: () => jump(ctx) });
-  if (!her) makeHer(ctx);
-  her!.model.root.visible = true;
+  setMapMarker('babusia', { pos: centre, icon: HOSTS[who].mark, pointer: true, onTap: () => jump(ctx) });
+  her = hers[who] ??= makeHer(ctx, who);
+  for (const h of Object.values(hers)) h.model.root.visible = h === her;
   // the swim she was on stayed behind with the old house
-  her!.outSwimming = false;
-  her!.errand = null;
-  beginAct(ctx, routineAt(ctx.clock.t), true);
+  her.outSwimming = false;
+  her.errand = null;
+  her.act = null;
+  beginAct(ctx, dayOf(ctx), true);
+  placeYard(ctx, at);
+  showYard(who === 'olia');
 }
 
 /** A tap on her mark: the party is carried to her gate, portal or no portal. */
@@ -661,7 +717,7 @@ function* build(ctx: Ctx): Generator<void> {
   ctx.scene.add(root);
 
   const dish = () => dishOfDay(ctx.save.day);
-  const say = () => voice.say(DISH_LINE[dish()], { priority: 7, interrupt: true });
+  const say = () => voice.say(line(ctx, DISH_LINE[dish()]), { priority: 7, interrupt: true });
   const place = (seats: THREE.Object3D[], open: FoodPlace['open']): FoodPlace => ({
     centre: new THREE.Vector3(),
     seats,
@@ -692,7 +748,7 @@ function* build(ctx: Ctx): Generator<void> {
     setEat: () => undefined,
     gone: () => false,
     onSit: () => voice.say('babusia_marshmallow', { priority: 7, interrupt: true }),
-    onDone: () => fireTalk(),
+    onDone: () => fireTalk(ctx),
   };
   const seats: YardSeats = { rocker: chair.root, yaw: CHAIR_YAW, seat: chair.seat, patch, toast };
   home = { root, roof, roofMats, roofFade: 1, tv, jukebox, fire, kitchen, chair: chair.seat, beds, table: tablePlace, yard: yardPlace, seats };
@@ -738,12 +794,13 @@ function updateHome(ctx: Ctx, h: Home, dt: number): void {
 
 // ─── her day ─────────────────────────────────────────────────────────────────
 
-function makeHer(ctx: Ctx): void {
-  const model = ctx.models.character({ kind: 'parts', id: 'babusia' });
+function makeHer(ctx: Ctx, who: Host): Her {
+  const model = ctx.models.character({ kind: 'parts', id: HOSTS[who].part });
   model.root.userData.casts = true;
   ctx.scene.add(model.root);
-  const part = (n: string) => model.root.getObjectByName(n)!;
-  her = {
+  // what one has and the other has not stands in as an empty joint
+  const part = (n: string) => model.root.getObjectByName(n) ?? new THREE.Object3D();
+  return {
     model,
     pos: new THREE.Vector3(),
     yaw: 0,
@@ -756,7 +813,25 @@ function makeHer(ctx: Ctx): void {
     poles: false,
     errand: null,
     pause: 0,
-    gear: { body: part('body'), armL: part('armL'), armR: part('armR'), foreL: part('foreL'), foreR: part('foreR'), poleL: part('poleL'), poleR: part('poleR'), cup: part('cup') },
+    flap: 0,
+    bent: false,
+    gear: {
+      body: part('body'),
+      head: part('head'),
+      armL: part('armL'),
+      armR: part('armR'),
+      foreL: part('foreL'),
+      foreR: part('foreR'),
+      poleL: part('poleL'),
+      poleR: part('poleR'),
+      cup: part('cup'),
+      glass: part('glass'),
+      pendant: part('pendant'),
+      notebook: part('notebook'),
+      pencil: part('pencil'),
+      wingL: part('wingL'),
+      wingR: part('wingR'),
+    },
   };
 }
 
@@ -767,8 +842,34 @@ function setPose(h: Her, pose: Her['pose']): void {
 }
 
 /** What is in her hands. Comes after the animation, which sets these joints anew every frame. */
-function holdGear(h: Her): void {
+function holdGear(h: Her, dt: number): void {
   const g = h.gear;
+  h.flap += dt;
+  const wing = 0.25 + Math.abs(Math.sin(h.flap * 7)) * 0.8;
+  g.wingL.rotation.z = wing;
+  g.wingR.rotation.z = -wing;
+  // Оля: bugs under the glass at each stop, her notes in the chair
+  const looking = h.act === 'bugs' && h.pose === 'idle' && !h.path.length && !h.errand && h.pause <= 0;
+  g.glass.visible = looking;
+  g.pendant.visible = !looking;
+  if (looking) {
+    g.armR.rotation.x = GLASS_ARM;
+    g.foreR.rotation.x = GLASS_FORE;
+    g.head.rotation.x = GLASS_HEAD;
+    g.glass.rotation.x = -(GLASS_ARM + GLASS_FORE);
+    h.bent = true;
+  } else if (h.bent) {
+    g.head.rotation.x = 0;
+    h.bent = false;
+  }
+  const writing = h.act === 'notes' && h.pose === 'sit';
+  g.notebook.visible = g.pencil.visible = writing;
+  if (writing) {
+    g.foreL.rotation.x = WRITE_FORE;
+    g.foreR.rotation.x = WRITE_FORE + Math.sin(h.flap * 6) * 0.07;
+    g.notebook.rotation.x = -(g.armL.rotation.x + g.foreL.rotation.x);
+    g.pencil.rotation.x = -(g.armR.rotation.x + g.foreR.rotation.x);
+  }
   const poles = h.poles && h.pose === 'idle' && !h.errand;
   g.poleL.visible = g.poleR.visible = poles;
   if (poles) {
@@ -794,26 +895,33 @@ function beginAct(ctx: Ctx, act: Act, snap: boolean): void {
     home?.tv.setOn(false);
     if (!snap && h.pos.distanceTo(ctx.player.pos) < 16) voice.say('babusia_tv', { priority: 5 });
   }
+  if (!snap && was !== act && h.pos.distanceTo(ctx.player.pos) < 12) {
+    if (act === 'feed') voice.say('olia_feed', { priority: 4 });
+    if (act === 'notes') voice.say('olia_notes', { priority: 4 });
+  }
   const swimming = act === 'swim' && !!swim;
   const doing: Act = act === 'swim' && !swim ? 'garden' : act;
   h.act = act;
   h.wait = 0;
   h.next = 0;
   h.poles = doing === 'walk' && poleDay(ctx.save.day, ctx.save.tales.done);
+  home?.tv.setOn(false);
   setPose(h, 'idle');
   const path: XZ[] = [];
   const inside = insideHouse(ctx, h.pos);
   const wantsIn = doing === 'tv';
   if (h.outSwimming) {
-    path.push(...[...swim!.way].reverse(), world(at, S.doorOut.dx, S.doorOut.dz));
+    // the house may have just landed where there is no water: then she is simply back at the door
+    if (swim) path.push(...[...swim.way].reverse(), world(at, S.doorOut.dx, S.doorOut.dz));
     h.outSwimming = false;
   }
   if (inside && !wantsIn) path.push(world(at, S.doorIn.dx, S.doorIn.dz), world(at, S.doorOut.dx, S.doorOut.dz));
   if (!inside && wantsIn) path.push(world(at, S.doorOut.dx, S.doorOut.dz), world(at, S.doorIn.dx, S.doorIn.dz));
   if (doing === 'walk') path.push(world(at, ...WALK_LOOP[0]));
-  if (doing === 'garden') path.push(world(at, ...GARDEN[0]));
+  if (doing === 'garden' || doing === 'bugs') path.push(world(at, ...GARDEN[0]));
+  if (doing === 'feed') path.push(world(at, ...FEED[0]));
   if (doing === 'tv') path.push(world(at, S.watch.dx, S.watch.dz));
-  if (doing === 'coffee') path.push(world(at, S.chair.dx + 0.6, S.chair.dz + 0.8));
+  if (chairAct(doing)) path.push(world(at, S.chair.dx + 0.6, S.chair.dz + 0.8));
   if (swimming) {
     path.push(world(at, S.doorOut.dx, S.doorOut.dz), ...swim!.way);
     h.outSwimming = true;
@@ -834,7 +942,7 @@ function arrived(ctx: Ctx, h: Her, dt: number): void {
     h.errand = null;
     h.pause = HAND_OVER;
     served();
-    beginAct(ctx, routineAt(ctx.clock.t), false);
+    beginAct(ctx, dayOf(ctx), false);
     return;
   }
   switch (h.act === 'swim' && !swim ? 'garden' : h.act) {
@@ -843,12 +951,16 @@ function arrived(ctx: Ctx, h: Her, dt: number): void {
       h.path = [world(at, ...WALK_LOOP[h.next])];
       break;
     case 'garden':
+    case 'bugs':
+    case 'feed': {
       h.wait -= dt;
       if (h.wait > 0) break;
       h.wait = 3 + Math.random() * 3;
-      h.next = (h.next + 1) % GARDEN.length;
-      h.path = [world(at, ...GARDEN[h.next])];
+      const stops = h.act === 'feed' ? FEED : GARDEN;
+      h.next = (h.next + 1) % stops.length;
+      h.path = [world(at, ...stops[h.next])];
       break;
+    }
     case 'swim':
       h.next = 1 - h.next;
       h.path = [h.next ? swim!.b : swim!.a];
@@ -858,6 +970,7 @@ function arrived(ctx: Ctx, h: Her, dt: number): void {
       faceTo(h, at[0] + BABUSIA_SPOTS.tv.dx, at[2] + BABUSIA_SPOTS.tv.dz, dt);
       break;
     case 'coffee':
+    case 'notes':
       if (!home) break;
       // a child is rocking in it: she waits beside it with her cup
       if (sittingInChair()) {
@@ -875,12 +988,12 @@ function arrived(ctx: Ctx, h: Her, dt: number): void {
 function updateHer(ctx: Ctx, h: Her, dt: number): void {
   const p = ctx.player.pos;
   const at = ctx.save.babusia.at!;
-  const want = routineAt(ctx.clock.t);
+  const want = dayOf(ctx);
   // behind the house on her walk she finishes the way round first: the wall is in the way
   const behind = h.act === 'walk' && h.pos.z < at[2] + BABUSIA_HOUSE.sizeZ + 0.5;
   if (want !== h.act && !behind && !h.errand) beginAct(ctx, want, false);
   const near = Math.hypot(p.x - h.pos.x, p.z - h.pos.z);
-  const strolling = (h.act === 'walk' || h.act === 'garden') && !behind && !h.errand;
+  const strolling = (h.act === 'walk' || h.act === 'garden' || h.act === 'feed' || h.act === 'bugs') && !behind && !h.errand;
   let speed = 0;
   if (h.pose !== 'sit' && !h.errand && musicNear(h.pos, 13)) setPose(h, 'dance');
   else if (h.pose === 'dance') setPose(h, 'idle');
@@ -899,22 +1012,29 @@ function updateHer(ctx: Ctx, h: Her, dt: number): void {
   h.model.root.position.copy(h.pos);
   h.model.root.rotation.set(h.pose === 'sit' ? chairRock() : 0, h.yaw, 0, 'YXZ');
   h.model.update(dt, speed);
-  holdGear(h);
+  holdGear(h, dt);
   tapAt.copy(h.pos).setY(h.pos.y + 1);
 }
 
 // ─── meeting her ─────────────────────────────────────────────────────────────
 
-function tell(list: LineId[], kind: keyof typeof lastTold): void {
+function tell(ctx: Ctx, list: LineId[], kind: keyof typeof lastTold): void {
   lastTold[kind] = nextJoke(lastTold[kind], list.length, Math.random());
-  voice.say(list[lastTold[kind]], { priority: 6, interrupt: true });
+  voice.say(line(ctx, list[lastTold[kind]]), { priority: 6, interrupt: true });
+}
+
+/** Her own funny word: Юля's joke; Оля's joke, or more often something true about insects. */
+function joke(ctx: Ctx): void {
+  if (ctx.save.babusia.host === 'yulia') tell(ctx, JOKES, 'joke');
+  else if (Math.random() < FACT_CHANCE) tell(ctx, FACTS, 'fact');
+  else tell(ctx, OLIA_JOKES, 'joke');
 }
 
 /** After the marshmallows: a joke or a very short tale from her, or Пупся's word when she is away. */
-function fireTalk(): void {
-  if (!host.near()) tell(FIRE_CAT, 'cat');
-  else if (Math.random() < 1 / 3) tell(STORIES, 'story');
-  else tell(JOKES, 'joke');
+function fireTalk(ctx: Ctx): void {
+  if (!host.near()) tell(ctx, FIRE_CAT, 'cat');
+  else if (Math.random() < 1 / 3) tell(ctx, STORIES, 'story');
+  else joke(ctx);
 }
 
 /** A tap on her: she answers at once, then does the one thing the moment calls for. */
@@ -924,7 +1044,7 @@ function tapped(ctx: Ctx, h: Her): void {
   // her hello must not talk over the answer
   talkT = Math.max(talkT, 8);
   if (h.pose === 'idle') h.model.play('happy');
-  ctx.effects.poof(tmp.copy(h.pos).setY(h.pos.y + 1.2), PETAL, 12);
+  ctx.effects.poof(tmp.copy(h.pos).setY(h.pos.y + 1.2), puff(ctx), 12);
   sfx.play('click', { pitch: 1.4 });
   const tale = held(ctx);
   const reply = tapReply({
@@ -935,13 +1055,39 @@ function tapped(ctx: Ctx, h: Her): void {
   if (reply === 'feed' && home) {
     const place = insideHouse(ctx, ctx.player.pos) ? home.table : home.yard;
     place.snack = dishOfDay(ctx.save.day);
-    for (const hero of ctx.heroes.values()) ctx.effects.poof(tmp.copy(hero.pos).setY(hero.pos.y + 0.8), PETAL, 8);
+    for (const hero of ctx.heroes.values()) ctx.effects.poof(tmp.copy(hero.pos).setY(hero.pos.y + 0.8), puff(ctx), 8);
     sitDown(ctx, place);
   } else if (reply === 'gift') {
     giftT = -1;
     smallGift(ctx, true);
   } else if (reply === 'ask' && sayAsk(ctx)) askedAt = ctx.clock.elapsed;
-  else tell(JOKES, 'joke');
+  else joke(ctx);
+}
+
+/** Her hello: first where the other one went, now and then a slip, otherwise one of her greetings. */
+function greet(ctx: Ctx): void {
+  const b = ctx.save.babusia;
+  const pick = (l: LineId[]) => l[Math.floor(Math.random() * l.length)];
+  if (!b.told) {
+    b.told = true;
+    voice.say(pick(OTHER[b.host]), { priority: 6 });
+  } else if (Math.random() < SLIP_CHANCE) voice.say(pick(SLIPS[b.host]), { priority: 6 });
+  else voice.say(line(ctx, pick(HELLO)), { priority: 6 });
+}
+
+/** Standing by Юля the weather piece breathes: the children may ask her for any weather. */
+export function weatherAsk(ctx: Ctx): boolean {
+  const h = her;
+  if (!h || ctx.save.babusia.host !== 'yulia' || !h.model.root.visible || eating() || ctx.sleeping || ctx.napping) return false;
+  return Math.hypot(ctx.player.pos.x - h.pos.x, ctx.player.pos.z - h.pos.z) < ASK_NEAR;
+}
+
+function askWeather(ctx: Ctx, h: Her): void {
+  const w = nextWeather(ctx);
+  if (h.pose === 'idle') h.model.play('happy');
+  ctx.effects.poof(tmp.copy(h.pos).setY(h.pos.y + 1.6), puff(ctx), 14);
+  sfx.play('switch', { pitch: 1.3 });
+  voice.say(WEATHER_LINE[w], { priority: 7, interrupt: true });
 }
 
 function talk(ctx: Ctx, h: Her, dt: number): void {
@@ -952,6 +1098,14 @@ function talk(ctx: Ctx, h: Her, dt: number): void {
   if (Math.hypot(p.x - centre.x, p.z - centre.z) < BABUSIA.spot && !ctx.save.said.includes('babusia_spot') && voice.quietSeconds() > 1) {
     ctx.save.said.push('babusia_spot');
     voice.say('babusia_spot', { priority: 5 });
+  }
+  if (b.host === 'olia' && d < BABUSIA.spot && !ctx.save.said.includes('olia_spot') && voice.quietSeconds() > 1) {
+    ctx.save.said.push('olia_spot');
+    voice.say('olia_spot', { priority: 5 });
+  }
+  if (weatherAsk(ctx) && !ctx.save.said.includes('babusia_weather_hint') && voice.quietSeconds() > 1) {
+    ctx.save.said.push('babusia_weather_hint');
+    voice.say('babusia_weather_hint', { priority: 5 });
   }
   if (giftT >= 0) {
     giftT -= dt;
@@ -966,7 +1120,7 @@ function talk(ctx: Ctx, h: Her, dt: number): void {
   talkT = BABUSIA.talkAgain;
   b.met = true;
   if (h.pose === 'idle') h.model.play('happy');
-  voice.say(HELLO[Math.floor(Math.random() * HELLO.length)], { priority: 6 });
+  greet(ctx);
   if (b.giftDay !== ctx.save.day && !held(ctx)) giftT = 4.5;
 }
 
@@ -978,7 +1132,7 @@ function night(ctx: Ctx, dt: number): void {
   if (!inSafeRing(b, p.x, p.z)) return;
   if (nightSaid !== ctx.save.day && voice.quietSeconds() > 2 && !ctx.sleeping) {
     nightSaid = ctx.save.day;
-    voice.say('babusia_night', { priority: 5 });
+    voice.say(line(ctx, 'babusia_night'), { priority: 5 });
   }
   fireworkT -= dt;
   if (fireworkT > 0 || ctx.sleeping) return;
@@ -1029,19 +1183,20 @@ function maybeStroll(ctx: Ctx, h: Her, dt: number): void {
   h.act = null;
   h.errand = null;
   setPose(h, 'idle');
-  h.poles = poleDay(ctx.save.day, ctx.save.tales.done);
+  h.poles = b.host === 'yulia' && poleDay(ctx.save.day, ctx.save.tales.done);
   h.model.root.visible = true;
-  ctx.effects.poof(tmp.copy(h.pos).setY(h.pos.y + 1), PETAL, 14);
+  ctx.effects.poof(tmp.copy(h.pos).setY(h.pos.y + 1), puff(ctx), 14);
   const away = a + 1 + Math.random();
   stroll = { phase: 'come', t: 0, to: [spot.x + Math.sin(away) * 14, spot.z + Math.cos(away) * 14] };
-  voice.say(STROLL[Math.floor(Math.random() * STROLL.length)], { priority: 6 });
+  voice.say(line(ctx, STROLL[Math.floor(Math.random() * STROLL.length)]), { priority: 6 });
 }
 
 function endStroll(ctx: Ctx, h: Her): void {
   stroll = null;
-  ctx.effects.poof(tmp.copy(h.pos).setY(h.pos.y + 1), PETAL, 14);
+  ctx.effects.poof(tmp.copy(h.pos).setY(h.pos.y + 1), puff(ctx), 14);
   h.model.root.visible = false;
   home!.root.visible = false;
+  showYard(false);
 }
 
 function updateStroll(ctx: Ctx, h: Her, s: Stroll, dt: number): void {
@@ -1062,16 +1217,16 @@ function updateStroll(ctx: Ctx, h: Her, s: Stroll, dt: number): void {
         // a pie out of her pocket
         for (const hero of ctx.heroes.values()) hero.hearts = HERO_STATS.maxHearts;
         ctx.effects.ring(p, 0xeab02b, 1.8);
-        voice.say('babusia_gift_pie', { priority: 6 });
+        voice.say(line(ctx, 'babusia_gift_pie'), { priority: 6 });
       } else if (ctx.save.babusia.giftDay !== ctx.save.day && !held(ctx)) smallGift(ctx);
-      else tell(JOKES, 'joke');
+      else joke(ctx);
     }
   } else if (s.phase === 'chat') {
     faceTo(h, p.x, p.z, dt, 5);
     if (s.t > STROLL_CHAT && voice.quietSeconds() > 0.5) {
       s.phase = 'go';
       s.t = 0;
-      voice.say('babusia_stroll_bye', { priority: 6 });
+      voice.say(line(ctx, 'babusia_stroll_bye'), { priority: 6 });
     }
   } else {
     speed = WALK_SPEED;
@@ -1083,14 +1238,14 @@ function updateStroll(ctx: Ctx, h: Her, s: Stroll, dt: number): void {
   }
   if (near < TAP_NEAR && ctx.input.taps.length && tappedAt(ctx, tapAt, 0.9)) {
     h.model.play('happy');
-    ctx.effects.poof(tmp.copy(h.pos).setY(h.pos.y + 1.2), PETAL, 12);
+    ctx.effects.poof(tmp.copy(h.pos).setY(h.pos.y + 1.2), puff(ctx), 12);
     sfx.play('click', { pitch: 1.4 });
-    tell(JOKES, 'joke');
+    joke(ctx);
   }
   h.model.root.position.copy(h.pos);
   h.model.root.rotation.set(0, h.yaw, 0, 'YXZ');
   h.model.update(dt, speed);
-  holdGear(h);
+  holdGear(h, dt);
   tapAt.copy(h.pos).setY(h.pos.y + 1);
 }
 
@@ -1103,10 +1258,26 @@ function callStork(ctx: Ctx): void {
   if (!b.at || !b.met || ctx.clock.elapsed < storkAt || ctx.player.hearts > 1) return;
   if (ctx.sleeping || ctx.napping || inSafeRing(b, p.x, p.z) || (ctx.boss?.alive && ctx.boss.inZone(p.x, p.z))) return;
   storkAt = ctx.clock.elapsed + BABUSIA.storkEvery;
+  sendStork(ctx, false);
+}
+
+function sendStork(ctx: Ctx, note: boolean): void {
+  const p = ctx.player.pos;
   storkModel ??= createStork(ctx.skin);
   ctx.scene.add(storkModel.root);
-  const a = Math.atan2(centre.x - p.x, centre.z - p.z);
-  stork = { pos: new THREE.Vector3(p.x + Math.sin(a) * 30, p.y + 14, p.z + Math.cos(a) * 30), landed: false, t: 1.4 };
+  const a = note ? Math.random() * Math.PI * 2 : Math.atan2(centre.x - p.x, centre.z - p.z);
+  stork = { pos: new THREE.Vector3(p.x + Math.sin(a) * 30, p.y + 14, p.z + Math.cos(a) * 30), landed: false, t: 1.4, note };
+}
+
+/** The one away: a greeting and a pie by stork once a trip, by day, when all is calm and the party is out and about. */
+function callNote(ctx: Ctx): void {
+  const b = ctx.save.babusia;
+  const p = ctx.player.pos;
+  if (!b.at || b.moving || !noteDue(b, ctx.save.day) || ctx.clock.daylight < 0.6 || ctx.sleeping || ctx.napping || eating() || job) return;
+  if (inSafeRing(b, p.x, p.z) || voice.quietSeconds() < 2 || (ctx.boss?.alive && ctx.boss.inZone(p.x, p.z))) return;
+  if (ctx.monsters.some((m) => m.alive && Math.hypot(m.pos.x - p.x, m.pos.z - p.z) < 14)) return;
+  b.noted = true;
+  sendStork(ctx, true);
 }
 
 function flyStork(ctx: Ctx, s: Stork, dt: number): void {
@@ -1126,13 +1297,20 @@ function flyStork(ctx: Ctx, s: Stork, dt: number): void {
   m.root.position.copy(s.pos);
   m.update(dt, !s.landed, 1 - ctx.clock.daylight);
   if (s.t > 0) return;
+  ctx.scene.remove(m.root);
+  stork = null;
+  sfx.play('sticker', { pitch: 1.2 });
+  if (s.note) {
+    const list = NOTES[otherHost(ctx.save.babusia.host)];
+    giveItem(ctx, 'babusia_pie', 1);
+    ctx.effects.ring(p, 0xeab02b, 1.6);
+    voice.say(list[ctx.save.day % list.length], { priority: 7, interrupt: true });
+    return;
+  }
   for (const h of ctx.heroes.values()) {
     h.hearts = HERO_STATS.maxHearts;
     ctx.effects.poof(tmp.copy(h.pos).setY(h.pos.y + 1), 0xee6a82, 10);
   }
-  ctx.scene.remove(m.root);
-  stork = null;
-  sfx.play('sticker', { pitch: 1.2 });
   voice.say('babusia_stork', { priority: 7, interrupt: true });
 }
 
@@ -1156,9 +1334,10 @@ function onScreen(ctx: Ctx, at: THREE.Vector3): XZ {
 function hostess(ctx: Ctx): Hostess {
   const awayFromPlayer = (h: Her) => h.pos.distanceTo(ctx.player.pos) >= BABUSIA.comes;
   return {
-    wantsChair: () => her?.act === 'coffee',
+    wantsChair: () => chairAct(her?.act ?? null),
     inChair: () => her?.pose === 'sit',
     near: () => !!her && !her.outSwimming && her.act !== 'tv' && !awayFromPlayer(her),
+    line: (id) => line(ctx, id),
     bring(served) {
       const h = her;
       const at = ctx.save.babusia.at;
@@ -1173,7 +1352,7 @@ function hostess(ctx: Ctx): Hostess {
     recall() {
       if (!her?.errand) return;
       her.errand = null;
-      beginAct(ctx, routineAt(ctx.clock.t), false);
+      beginAct(ctx, dayOf(ctx), false);
     },
   };
 }
@@ -1184,7 +1363,8 @@ export function initBabusia(ctx: Ctx): void {
   if (b.moving) job = carryOut(ctx);
   else if (b.at) job = settle(ctx);
   // ?tale=babusia_… (test only): she is there at once
-  else if (ctx.params.tale?.startsWith('babusia')) {
+  else if (ctx.params.tale?.startsWith('babusia') || ctx.params.tale?.startsWith('olia')) {
+    b.host = taleById(ctx.params.tale)?.host ?? b.host;
     const landing = moveJob(ctx, ctx.player.pos.clone());
     while (!landing.next().done);
   }
@@ -1207,6 +1387,7 @@ export function initBabusia(ctx: Ctx): void {
     stroll = null;
     her.model.root.visible = false;
     if (home) home.root.visible = false;
+    showYard(false);
   });
   events.on('hero:sleep', () => {
     if (!home || !babusiaBeds(ctx)) return;
@@ -1216,13 +1397,18 @@ export function initBabusia(ctx: Ctx): void {
   events.on('sleep:done', ({ where }) => {
     asleepHere = false;
     if (home) for (const bed of home.beds) bed.fold(1);
-    if (where === 'babusia') setTimeout(() => voice.say('babusia_morning', { priority: 7 }), 900);
+    if (where === 'babusia') setTimeout(() => voice.say(line(ctx, 'babusia_morning'), { priority: 7 }), 900);
   });
   // For automated checks.
   (window as unknown as { __kotoBabusia: object }).__kotoBabusia = {
     get state() {
       return {
         at: b.at,
+        host: b.host,
+        noted: b.noted,
+        told: b.told,
+        glass: her?.gear.glass.visible ?? false,
+        notebook: her?.gear.notebook.visible ?? false,
         moving: !!b.moving,
         job: !!job,
         built: !!home,
@@ -1246,6 +1432,16 @@ export function initBabusia(ctx: Ctx): void {
     /** She lands, or moves on, now. */
     move: () => {
       job = moveJob(ctx, ctx.player.pos.clone());
+    },
+    /** The greeting from the one away is due now. */
+    note: () => {
+      b.noted = false;
+      b.movedDay = ctx.save.day - 1;
+      noteCheck = 0;
+    },
+    ask: () => ctx.input.press('prompt:weather'),
+    get asking() {
+      return weatherAsk(ctx);
     },
     /** The party stands right next to her. */
     beside: () => {
@@ -1353,8 +1549,16 @@ export function updateBabusia(ctx: Ctx, dt: number): void {
     updateGlades(ctx);
   }
   if (stork) flyStork(ctx, stork, dt);
-  else callStork(ctx);
+  else {
+    callStork(ctx);
+    noteCheck -= dt;
+    if (noteCheck <= 0) {
+      noteCheck = 3;
+      if (!stork) callNote(ctx);
+    }
+  }
   if (!home || !her || !b.at || b.moving) return;
+  if (ctx.input.take('prompt:weather') && weatherAsk(ctx)) askWeather(ctx, her);
   const p = ctx.player.pos;
   if (stroll) {
     updateStroll(ctx, her, stroll, dt);
@@ -1365,7 +1569,8 @@ export function updateBabusia(ctx: Ctx, dt: number): void {
     home.root.visible = !far;
     her.model.root.visible = !far;
     if (flowers) flowers.visible = !far;
-    if (!far) beginAct(ctx, routineAt(ctx.clock.t), true);
+    showYard(!far && b.host === 'olia');
+    if (!far) beginAct(ctx, dayOf(ctx), true);
   }
   if (Math.hypot(p.x - centre.x, p.z - centre.z) > BABUSIA.strollAway) maybeStroll(ctx, her, dt);
   if (far) {
@@ -1376,6 +1581,7 @@ export function updateBabusia(ctx: Ctx, dt: number): void {
   updateHome(ctx, home, dt);
   updateSeats(ctx, home.seats, host, dt);
   updateHer(ctx, her, dt);
+  if (b.host === 'olia') updateYard(ctx, her.pos, her.act === 'feed', dt);
   talk(ctx, her, dt);
   night(ctx, dt);
 }

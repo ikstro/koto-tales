@@ -4,6 +4,7 @@ import { createFlowerField } from '../assets/babusia';
 import { holdSnack } from '../assets/food';
 import { CHAIR_FLOWERS, chairFlowerSpots } from '../content/babusia';
 import { HERO_STATS } from '../content/heroes';
+import type { LineId } from '../content/lines';
 import type { Ctx } from '../core/ctx';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
@@ -49,6 +50,8 @@ export interface Hostess {
   inChair(): boolean;
   /** She is about, out of doors and in earshot. */
   near(): boolean;
+  /** The same moment in her own voice. */
+  line(id: LineId): LineId;
   /** She sets out with a cup and calls `served` when she gets there; false: she is not in the yard. */
   bring(served: () => void): boolean;
   /** Nobody waits for the cup any more: back to her day. */
@@ -119,7 +122,7 @@ function stand(ctx: Ctx, host: Hostess): void {
 }
 
 /** She is here with the cup. */
-function serve(ctx: Ctx): void {
+function serve(ctx: Ctx, host: Hostess): void {
   const s = sat;
   if (!s) return;
   s.cocoa = 'done';
@@ -130,7 +133,7 @@ function serve(ctx: Ctx): void {
     ctx.effects.poof(tmp.copy(h.pos).setY(h.pos.y + 1), 0xee6a82, 10);
   }
   sfx.play('sticker', { pitch: 1.2 });
-  voice.say('babusia_cocoa', { priority: 7, interrupt: true });
+  voice.say(host.line('babusia_cocoa'), { priority: 7, interrupt: true });
 }
 
 function growFlower(ctx: Ctx, y: YardSeats): void {
@@ -160,7 +163,7 @@ function chair(ctx: Ctx, y: YardSeats, host: Hostess, dt: number): void {
     sfx.play('switch', { pitch: 1.5 });
     if (host.near() && chairDay !== ctx.save.day) {
       chairDay = ctx.save.day;
-      voice.say('babusia_chair', { priority: 6 });
+      voice.say(host.line('babusia_chair'), { priority: 6 });
     }
   }
   const s = sat;
@@ -177,7 +180,7 @@ function chair(ctx: Ctx, y: YardSeats, host: Hostess, dt: number): void {
     s.cocoaT -= dt;
     if (s.cocoaT <= 0) {
       s.cocoaT = 1;
-      if (host.bring(() => serve(ctx))) s.cocoa = 'coming';
+      if (host.bring(() => serve(ctx, host))) s.cocoa = 'coming';
     }
   }
   if (s.cup) {

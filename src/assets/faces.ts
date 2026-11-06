@@ -14,6 +14,8 @@ export type FaceId =
   | 'solomiia'
   | 'pupsia'
   | 'babusia'
+  | 'olia'
+  | 'rabbit'
   | 'elf'
   | 'elf_elder'
   | 'elf_queen'
@@ -263,6 +265,42 @@ export const BABUSIA_FACE: FaceSpec = {
   closed: { 2: '........', 3: '.KK..KK.' },
 };
 
+/** Оля's face: big open eyes (they stay readable from the steep camera), a soft fringe, a warm closed smile. */
+export const OLIA_FACE: FaceSpec = {
+  // skin, hair, hair shade, ear, hair light
+  swatches: ['#f6cdaa', '#6b3a24', '#4e2817', '#e8b18e', '#7d4830'],
+  pal: { H: '#6b3a24', K: '#2a1a14', W: '#ffffff', P: '#f4a08e', M: '#b5524a' },
+  open: [
+    'HHHHHHHH',
+    'HHHHH...',
+    '........',
+    '.WK..WK.',
+    '.KK..KK.',
+    'PKK..KKP',
+    '..M..M..',
+    '...MM...',
+  ],
+  closed: { 3: '........', 4: '........', 5: 'PKK..KKP' },
+};
+
+/** The toy rabbit's face: round dark eyes, a pink nose over a cream muzzle. */
+export const RABBIT_FACE: FaceSpec = {
+  // fur, deep fur, cream, inner ear
+  swatches: ['#97836f', '#7c6a58', '#f6e7c8', '#f2a9a0'],
+  pal: { K: '#2a1f1a', W: '#ffffff', N: '#ee8f96', C: '#f6e7c8' },
+  open: [
+    '........',
+    '........',
+    '.WK..WK.',
+    '.KK..KK.',
+    '.KK..KK.',
+    '...NN...',
+    '..CCCC..',
+    '.CCCCCC.',
+  ],
+  closed: { 2: '........', 3: '........', 4: '.KK..KK.' },
+};
+
 const DEFS: Record<FaceId, FaceSpec> = {
   lyosha: {
     // skin, hair, hair shade, ear, cheek
@@ -313,6 +351,8 @@ const DEFS: Record<FaceId, FaceSpec> = {
     closed: { 3: '........', 4: '.KK..KK.' },
   },
   babusia: BABUSIA_FACE,
+  olia: OLIA_FACE,
+  rabbit: RABBIT_FACE,
   ...(DEFS_FOLK as Record<
     'elf' | 'elf_elder' | 'elf_queen' | 'gnome' | 'gnome_elder' | 'gnome_kid' | 'robot' | 'robot_elder' | 'robot_kid' | 'alien' | 'alien_lilac' | 'alien_mint' | 'alien_elder' | 'alien_kid',
     FaceSpec

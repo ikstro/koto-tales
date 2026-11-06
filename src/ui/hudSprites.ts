@@ -324,6 +324,9 @@ export const SPRITES = {
   'b-candyfloss-sh': {w: 200,h: 200,oy: 1,x: 44,y: 102,cw: 156,ch: 98},
   'b-pieoven': {w: 200,h: 200,oy: 1,x: 52,y: 64,cw: 97,ch: 105},
   'b-pieoven-sh': {w: 200,h: 200,oy: 1,x: 52,y: 110,cw: 148,ch: 88},
+  'map-olia': {w: 76,h: 76,oy: 0,x: 12,y: 12,cw: 52,ch: 46},
+  'ask-weather': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
+  'item-ladybird': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
 } satisfies Record<string, SpriteMeta>;
 
 export type SpriteName = keyof typeof SPRITES;

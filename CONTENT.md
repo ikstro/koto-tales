@@ -113,12 +113,12 @@ lines `companion_<id>_hi` (joins) and `companion_<id>_yay` (does its trick). Giv
 Card `TaleCard` (`lyosha: true` puts it first); lines `tale_<id>_open`, `tale_<id>_1..n`, `tale_<id>_thanks`,
 `tale_<id>_retell`. Steps (`StepKind`): `gather` N things (`item`, `goal`, `spread` around `at`), `thief`,
 `place` a building (`needs`), `visit` (home / a village), `music` N s, `defend` a wave, `sleep`, `light` a
-lighthouse. Asker (`from`): Пупся (a dream), a race (a paper plane) or `babusia` (a stork); never the children. A step's
+lighthouse. Asker (`from`): Пупся (a dream), a race (a paper plane) or `babusia` (a stork); never the children. `host: 'olia'` or `'yulia'` on a `babusia` tale: it comes only while that hostess is at home, its lines spoken by her; `arrives: true`: it comes first of all once she is there. A step's
 `at` may be `babusia`: wherever she stands that day, and she stays put while a tale leads to her. At the end:
 `coins`, and optionally an `artifact`, a `companion` and/or `gifts` (`[{ item, n? } | { building }]`, straight
 into the box); `weather` (the weather she makes) and `after` (a word from someone else after the thanks). The `monster` of a `thief` step says who runs off (Зомбік unless said). Things to gather: `TALE_ITEMS` (`src/assets/tales.ts`). A thief of `pole` or `disc` shows it in
 its hand (`IN_HAND`, `src/systems/tales.ts`).
-Бабуся's tales: no family details, no real names, nothing bad happens to her (DESIGN.md «Бабуся»). She says
+Бабуся's tales: no family details, no surnames, nothing bad happens to either hostess (DESIGN.md «Бабуся», «Оля»). Both say
 «котики». Food is what grandmothers cook, never cakes.
 
 ## Hero (playable)

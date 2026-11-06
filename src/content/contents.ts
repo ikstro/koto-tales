@@ -420,11 +420,20 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
     {
       key: 'babusia',
       pic: { sprite: 'map-babusia' },
-      title: 'Бабуся',
+      title: 'Бабуся Юля',
       about: 'Королева квітів і погоди. Біля її дому немає монстрів, там завжди є що поїсти й можна заночувати. Вона мандрує: дім часом переїжджає, а на старому місці лишається галявина. Стрілка на карті завжди веде до неї, а натискання на її значок переносить до неї.',
       state: babusiaAt ? 'have' : 'later',
-      status: babusiaAt ? `Де вона зараз: ${wayFrom(places.home, ...centreOf(babusiaAt))}` : 'Приїде після першої казки: прилетить лелека з листом',
+      status: babusiaAt && save.babusia.host === 'olia' ? 'У мандрівці, скоро повернеться' : babusiaAt ? `Де вона зараз: ${wayFrom(places.home, ...centreOf(babusiaAt))}` : 'Приїде після першої казки: прилетить лелека з листом',
       line: 'babusia_hello_2',
+    },
+    {
+      key: 'olia',
+      pic: { sprite: 'map-olia' },
+      title: 'Бабуся Оля',
+      about: 'Учена, знає всіх комах і жучків, доглядає звірят. Вони з бабусею Юлею живуть в одному домі й міняються, коли дім переїжджає: речі, їжа й подарунки в них спільні.',
+      state: save.babusia.host === 'olia' ? 'have' : 'later',
+      status: babusiaAt && save.babusia.host === 'olia' ? `Де вона зараз: ${wayFrom(places.home, ...centreOf(babusiaAt))}` : save.tales.done.includes('olia_hi') ? 'У мандрівці, скоро повернеться' : 'Приїде, коли бабуся Юля вирушить у мандрівку',
+      line: 'olia_hello_2',
     },
   ];
 

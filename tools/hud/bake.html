@@ -947,6 +947,7 @@ function folkPrint(id, bg, yaw = 0.3, part = 0.6) {
   const still = (o) => { const glows = []; o.traverse((m) => { if (m.isMesh && m.material.blending === THREE.AdditiveBlending) glows.push(m); }); glows.forEach((m) => m.parent.remove(m)); return o; };
   // Бабуся's mark: on the map, on the tale piece, on the book's pages
   shoot('map-babusia', roundTile(0.62, C.coral, folkPrint('babusia', C.coral, 0.3, 0.45), 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
+  shoot('map-olia', roundTile(0.62, C.navy, folkPrint('olia', C.navy, 0.3, 0.45), 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
   for (const [race, [folk, col]] of Object.entries(RACE)) {
     // the little one (the «find» picture), the thing to gather, the elder (map mark and album sticker)
     shoot('kid-' + race, roundTile(1, col, folkPrint(folk + '_kid', col, 0.3, 0.6), 0.6), 130, 130, { shadow: 'tile6-sh' });
@@ -1009,6 +1010,19 @@ const printRemote = (x, s) => {
   x.restore();
 };
 shoot('remote', roundTile(1, C.mustard, printRemote, 0.6), 130, 130, { shadow: 'tile6-sh' });
+/** A wish for the weather: a warm sun peeking from behind a soft cloud, three drops under it. */
+const printWeather = (x, s) => {
+  const k = s / 512; x.save(); x.scale(k, k);
+  x.fillStyle = C.mustard; x.beginPath(); x.arc(330, 190, 92, 0, Math.PI * 2); x.fill();
+  x.strokeStyle = C.mustard; x.lineWidth = 26; x.lineCap = 'round';
+  for (let i = 0; i < 8; i++) { const a = -2.6 + i * 0.62; x.beginPath(); x.moveTo(330 + Math.cos(a) * 120, 190 + Math.sin(a) * 120); x.lineTo(330 + Math.cos(a) * 158, 190 + Math.sin(a) * 158); x.stroke(); }
+  x.fillStyle = '#fff4d8';
+  for (const [cx, cy, r] of [[150, 290, 72], [240, 250, 92], [330, 290, 76], [240, 320, 80]]) { x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); }
+  x.fillStyle = '#bfe6f2';
+  for (const dx of [160, 240, 320]) { x.beginPath(); x.ellipse(dx, 430, 20, 32, 0.25, 0, Math.PI * 2); x.fill(); }
+  x.restore();
+};
+shoot('ask-weather', roundTile(1, C.blue, printWeather, 0.6), 130, 130, { shadow: 'tile6-sh' });
 /** The transmitter pad from above: its swirl in the middle and a ring of cream studs; `off` greys it all. */
 const printPad = (off) => (x, s) => {
   if (off) x.filter = 'grayscale(1) brightness(0.85)';
@@ -1103,7 +1117,7 @@ shoot('jump', roundTile(1, C.green, printSpring, 0.6), 130, 130, { shadow: 'tile
 {
   const still = (o) => { const glows = []; o.traverse((m) => { if (m.isMesh && m.material.blending === THREE.AdditiveBlending) glows.push(m); }); glows.forEach((m) => m.parent.remove(m)); return o; };
   // the things, turned to show their best side and filling the print
-  for (const [kind, yaw, fill] of [['fish', 0.3, 0.46], ['scroll', 0.35, 0.48], ['yarn', 0.3, 0.6], ['daisy', 0.3, 0.55], ['pole', 0.3, 0.6], ['disc', 0.3, 0.55], ['shell', 0.3, 0.55], ['honey', 0.3, 0.72], ['berry', 0.3, 0.55]]) {
+  for (const [kind, yaw, fill] of [['fish', 0.3, 0.46], ['scroll', 0.35, 0.48], ['yarn', 0.3, 0.6], ['daisy', 0.3, 0.55], ['pole', 0.3, 0.6], ['disc', 0.3, 0.55], ['shell', 0.3, 0.55], ['honey', 0.3, 0.72], ['berry', 0.3, 0.55], ['ladybird', 0.3, 0.6]]) {
     const thing = createTaleThing(skin, kind); thing.update(0, 0); thing.root.children[0].rotation.y = 0;
     shoot('item-' + kind, roundTile(1, C.navy, modelPrint(still(thing.root), C.navy, yaw, fill), 0.6), 130, 130, { shadow: 'tile6-sh' });
   }

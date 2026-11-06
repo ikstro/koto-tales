@@ -5,7 +5,7 @@ import type { Difficulty } from '../content/difficulty';
 import { DJ_FIRST_SONG } from '../content/music';
 import type { TaskKind } from '../content/progress';
 import type { CastleSave } from '../content/castles';
-import { freshTales, PROLOGUE, type TalesSave } from '../content/tales';
+import { freshTales, PROLOGUE, TALES, type TalesSave } from '../content/tales';
 import type { VillageSave } from '../content/villages';
 import type { Race } from '../world/villages';
 import type { BossKind } from './bossLogic';
@@ -131,7 +131,7 @@ export const freshBoss = (): BossSave => ({ kind: 'eater', levels: { eater: 1, n
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 16;
+export const SAVE_VERSION = 17;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -242,6 +242,12 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
   },
   // v16: Бабуся. She comes with the next letter, once the prologue is done.
   15: (d) => ({ ...d, v: 16, babusia: freshBabusia(), weather: 0, planted: [], ovenDay: -1 }),
+  // v17: two hostesses. Юля stays at home until the next move; a tale of Оля's already under way brings her at once.
+  16: (d) => {
+    const cur = (d.tales as { cur?: string | null } | undefined)?.cur;
+    const host = TALES.find((t) => t.id === cur)?.host ?? 'yulia';
+    return { ...d, v: 17, babusia: { ...(d.babusia as object), host, noted: true, told: true } };
+  },
 };
 
 export function migrate(raw: Raw): SaveData {

@@ -785,3 +785,97 @@ export function createStork(skin: Skin): PlaneModel {
     },
   };
 }
+
+export interface YardLife {
+  root: THREE.Group;
+  update(t: number): void;
+}
+
+const BUTTERFLIES: { at: [number, number]; r: number; wing: string }[] = [
+  { at: [2, 10.5], r: 1.1, wing: '#eab02b' },
+  { at: [5, 12.5], r: 1.4, wing: '#e0583f' },
+  { at: [9.5, 10.5], r: 1.2, wing: '#ee6a82' },
+  { at: [12, 12.5], r: 1.3, wing: '#8fcbe8' },
+  { at: [3, 15], r: 1.5, wing: '#ffe3a3' },
+  { at: [10, 15.5], r: 1.2, wing: '#eab02b' },
+  { at: [15, 8], r: 1.3, wing: '#ee6a82' },
+  { at: [-2, 8], r: 1.2, wing: '#e0583f' },
+];
+const LADYBIRDS: [number, number][] = [[1.5, 12], [4.5, 14.5], [8, 15.5], [11.5, 11], [13.5, 14], [-1.5, 12], [15, 11]];
+const BEETLES: [number, number][] = [[3, 11.5], [10, 13], [14, 9.5], [-2, 14]];
+const SHELL = '#e0343a';
+const INK_BUG = '#2b2422';
+const BEETLE = '#2f6a78';
+
+/**
+ * Оля's insects: butterflies round the flowers, ladybirds and beetles crawling on the grass, all one
+ * draw (unit boxes placed and coloured by instance). Relative to the house corner, on its floor.
+ */
+export function createYardLife(skin: Skin): YardLife {
+  const root = new THREE.Group();
+  root.name = 'yard-life';
+  const n = BUTTERFLIES.length * 3 + LADYBIRDS.length * 4 + BEETLES.length * 2;
+  // its own material: the shader gate then prepares the instanced program before anything is shown
+  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), skin.partMaterial(0xffffff).clone(), n);
+  mesh.name = 'yard-bugs';
+  mesh.frustumCulled = false;
+  root.add(mesh);
+  const c = new THREE.Color();
+  let k = 0;
+  const paint = (hex: string) => mesh.setColorAt(k++, c.set(hex));
+  for (const b of BUTTERFLIES) [INK_BUG, b.wing, b.wing].forEach(paint);
+  for (let i = 0; i < LADYBIRDS.length; i++) [SHELL, INK_BUG, INK_BUG, INK_BUG].forEach(paint);
+  for (let i = 0; i < BEETLES.length; i++) [BEETLE, INK_BUG].forEach(paint);
+
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const e = new THREE.Euler(0, 0, 0, 'YXZ');
+  const p = new THREE.Vector3();
+  const size = new THREE.Vector3();
+  const off = new THREE.Vector3();
+  let i = 0;
+  /** A box of this size, turned by (yaw, roll), its middle `dx, dy, dz` from (x, y, z) in the bug's own turn. */
+  const put = (x: number, y: number, z: number, yaw: number, sx: number, sy: number, sz: number, dx = 0, dy = 0, dz = 0, roll = 0) => {
+    off.set(dx, dy, dz).applyAxisAngle(THREE.Object3D.DEFAULT_UP, yaw);
+    p.set(x + off.x, y + off.y, z + off.z);
+    q.setFromEuler(e.set(0, yaw, roll));
+    mesh.setMatrixAt(i++, m.compose(p, q, size.set(sx, sy, sz)));
+  };
+  const update = (t: number) => {
+    i = 0;
+    BUTTERFLIES.forEach((b, n) => {
+      const a = t * (0.5 + n * 0.05) + n * 1.7;
+      const x = b.at[0] + Math.sin(a) * b.r;
+      const z = b.at[1] + Math.cos(a * 0.8) * b.r;
+      const y = 0.9 + Math.sin(a * 1.9) * 0.28;
+      const yaw = a + Math.PI / 2;
+      const flap = 0.2 + Math.abs(Math.sin(t * 9 + n)) * 0.95;
+      const w = 0.17;
+      put(x, y, z, yaw, 0.035, 0.035, 0.15);
+      put(x, y, z, yaw, w, 0.012, 0.15, (w / 2) * Math.cos(flap), (w / 2) * Math.sin(flap), 0, flap);
+      put(x, y, z, yaw, w, 0.012, 0.15, -(w / 2) * Math.cos(flap), (w / 2) * Math.sin(flap), 0, -flap);
+    });
+    LADYBIRDS.forEach(([cx, cz], n) => {
+      const a = t * 0.16 + n * 2.1;
+      const x = cx + Math.sin(a) * 0.8;
+      const z = cz + Math.cos(a) * 0.8;
+      const yaw = a + Math.PI / 2;
+      put(x, 0.06, z, yaw, 0.17, 0.1, 0.2);
+      put(x, 0.06, z, yaw, 0.11, 0.07, 0.06, 0, 0, 0.12);
+      put(x, 0.06, z, yaw, 0.045, 0.02, 0.045, 0.045, 0.05, 0.02);
+      put(x, 0.06, z, yaw, 0.045, 0.02, 0.045, -0.045, 0.05, -0.03);
+    });
+    BEETLES.forEach(([cx, cz], n) => {
+      const a = t * 0.1 + n * 1.3;
+      const go = Math.sin(t * 0.5 + n) > 0 ? 1 : 0.3;
+      const x = cx + Math.sin(a * go) * 1.1;
+      const z = cz + Math.cos(a * go) * 0.7;
+      const yaw = a * go + Math.PI / 2;
+      put(x, 0.05, z, yaw, 0.15, 0.08, 0.24);
+      put(x, 0.05, z, yaw, 0.09, 0.06, 0.06, 0, 0, 0.14);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  };
+  update(0);
+  return { root, update };
+}

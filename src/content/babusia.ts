@@ -4,8 +4,9 @@ import type { TaleGift } from './tales';
 import { B } from '../world/blocks';
 
 /**
- * Бабуся (DESIGN.md «Бабуся»): the queen of flowers and weather, the hostess of a house that
- * travels. Here is what needs no world: her house's plan, her day, when she moves on, what she
+ * Бабуся (DESIGN.md «Бабуся»): two hostesses of one house that travels. Юля is the queen of flowers
+ * and weather, Оля knows every insect and looks after the animals; they swap when the house moves.
+ * Here is what needs no world: her house's plan, her day, when she moves on, what she
  * cooks, and how a site is judged. systems/babusia.ts runs it; models are assets/babusia.ts and
  * assets/parts/babusia.ts.
  *
@@ -99,6 +100,13 @@ export const WALK_LOOP: [number, number][] = [
   [-2, SZ + 1],
 ];
 
+/** Where Оля stops with the animals' breakfast. */
+export const FEED: [number, number][] = [
+  [1, SZ + 4.5],
+  [5, SZ + 7],
+  [SX - 1, SZ + 6.5],
+];
+
 /** Where she potters about in the afternoon. */
 export const GARDEN: [number, number][] = [
   [0, SZ + 1.2],
@@ -173,20 +181,28 @@ export const FRONT_WINDOWS: { dx: number; dz: number }[] = [
 
 // ─── her day ─────────────────────────────────────────────────────────────────
 
-export type Act = 'walk' | 'swim' | 'tv' | 'garden' | 'coffee';
+export type Act = 'walk' | 'swim' | 'tv' | 'garden' | 'coffee' | 'feed' | 'bugs' | 'notes';
 
 /**
- * What she does at this time of day (`t`, 0 = sunrise): a walk in the morning in any weather, a
- * swim, a little television, then enough of that and out to the flowers, and coffee in the
- * wicker chair from the evening till dawn.
+ * What she does at this time of day (`t`, 0 = sunrise). Юля: a walk in the morning in any weather,
+ * a swim, a little television, then enough of that and out to the flowers, and coffee in the wicker
+ * chair from the evening till dawn. Оля: the animals' breakfast, then bugs under her glass in the
+ * garden, and from the evening her notes in the same chair.
  */
-export function routineAt(t: number): Act {
+export function routineAt(t: number, host: Host = 'yulia'): Act {
+  if (host === 'olia') {
+    if (t >= 0.93 || t < 0.3) return 'feed';
+    return t < 0.6 ? 'bugs' : 'notes';
+  }
   if (t >= 0.93 || t < 0.24) return 'walk';
   if (t < 0.4) return 'swim';
   if (t < 0.46) return 'tv';
   if (t < 0.6) return 'garden';
   return 'coffee';
 }
+
+/** From the evening the wicker chair is taken. */
+export const chairAct = (a: Act | null): boolean => a === 'coffee' || a === 'notes';
 
 // ─── her poles ───────────────────────────────────────────────────────────────
 
@@ -227,6 +243,46 @@ export type Dish = (typeof DISHES)[number];
 
 export const dishOfDay = (day: number): Dish => DISHES[((day % DISHES.length) + DISHES.length) % DISHES.length];
 
+// ─── the two hostesses ───────────────────────────────────────────────────────
+
+export type Host = 'yulia' | 'olia';
+
+export const otherHost = (h: Host): Host => (h === 'yulia' ? 'olia' : 'yulia');
+
+/** What differs between them: her model, her mark, the colour of her puff, how many flowers stand round the house. */
+export const HOSTS: Record<Host, { part: 'babusia' | 'olia'; mark: string; puff: number; flowers: number }> = {
+  yulia: { part: 'babusia', mark: 'map-babusia', puff: 0xffc9d6, flowers: 90 },
+  olia: { part: 'olia', mark: 'map-olia', puff: 0xffd98a, flowers: 30 },
+};
+
+/** Who lands with the house: they swap on every move, once the first one has said hello. */
+export const hostAfterMove = (host: Host, done: readonly string[]): Host => (done.includes('babusia_hi') ? otherHost(host) : host);
+
+/** Lines both have: called by Юля's id, Оля's is the same with `olia_`. */
+export const SHARED_LINES = [
+  ...[1, 2, 3, 4, 5].map((n) => `babusia_hello_${n}`),
+  ...[1, 2, 3].map((n) => `babusia_story_${n}`),
+  ...[1, 2, 3, 4].map((n) => `babusia_present_${n}`),
+  ...[1, 2, 3, 4].map((n) => `babusia_stroll_${n}`),
+  'babusia_stroll_bye',
+  'babusia_gift_pie',
+  'babusia_gift_coins',
+  'babusia_dish_pie',
+  'babusia_dish_cutlet',
+  'babusia_dish_pancake',
+  'babusia_dish_varenyk',
+  'babusia_night',
+  'babusia_morning',
+  'babusia_cocoa',
+  'babusia_chair',
+];
+
+/** The same moment in the voice of whoever is at home. */
+export const hostLine = <T extends string>(id: T, host: Host): T => (host === 'olia' && SHARED_LINES.includes(id) ? (id.replace('babusia_', 'olia_') as T) : id);
+
+/** The one away sends a greeting by stork, once a trip, from the day after they swapped. */
+export const noteDue = (b: Pick<BabusiaSave, 'noted' | 'movedDay'>, day: number): boolean => !b.noted && day > b.movedDay;
+
 // ─── the save ────────────────────────────────────────────────────────────────
 
 /** A house corner and its floor's y. */
@@ -244,7 +300,7 @@ export interface BabusiaSave {
   /** The party has met her. */
   met: boolean;
   /** A move under way: a save made in the middle of it finishes it on load. */
-  moving: { from: Site | null; to: Site } | null;
+  moving: { from: Site | null; to: Site; host?: Host } | null;
   /** How many flowers have come up round her chair here; they stay until she moves. */
   flowers: number;
   /** How far down `PRESENTS` she has given. */
@@ -253,9 +309,15 @@ export interface BabusiaSave {
   brought: boolean;
   /** The day she last met the party out on a walk, far from home. */
   strollDay: number;
+  /** Who is at home. */
+  host: Host;
+  /** The one away has sent her greeting this trip. */
+  noted: boolean;
+  /** The one at home has said where the other went. */
+  told: boolean;
 }
 
-export const freshBabusia = (): BabusiaSave => ({ at: null, movedDay: 0, glades: [], giftDay: -1, met: false, moving: null, flowers: 0, presents: 0, brought: false, strollDay: -1 });
+export const freshBabusia = (): BabusiaSave => ({ at: null, movedDay: 0, glades: [], giftDay: -1, met: false, moving: null, flowers: 0, presents: 0, brought: false, strollDay: -1, host: 'yulia', noted: true, told: true });
 
 /**
  * What she brings from her trips, in order (DESIGN.md «Her gifts»): one after each move, at the next
