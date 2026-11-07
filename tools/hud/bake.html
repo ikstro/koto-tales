@@ -1186,7 +1186,7 @@ shoot('jump', roundTile(1, C.green, printSpring, 0.6), 130, 130, { shadow: 'tile
   }
   shoot('face-chess-king', roundTile(0.62, C.navy, folkPrint('chess_king', C.navy, 0.3, 0.55), 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
   for (const kind of ['rook', 'bishop', 'queen', 'king', 'knight', 'pawn'])
-    shoot('piece-' + kind, roundTile(1, C.navy, modelPrint(piece(kind), C.navy, -0.5, 0.7), 0.6), 130, 130, { shadow: 'tile6-sh' });
+    shoot('piece-' + kind, roundTile(1, C.navy, modelPrint(piece(kind), C.navy, -0.5, kind === 'king' ? 0.6 : 0.7), 0.6), 130, 130, { shadow: 'tile6-sh' });
   {
     // the queen takes: the white queen, an arm up, over a black pawn
     const g = new THREE.Group();

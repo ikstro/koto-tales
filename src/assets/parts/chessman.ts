@@ -1,10 +1,12 @@
 /**
  * Living toy chess pieces (DESIGN.md «Chess kingdom»): the folk of the chess kingdom and the knight of
- * «Великі шахи». The body is the piece's own shape — king (a crown with a ball on top, no cross),
- * queen (a coronet), rook (a little tower with a door and battlements), bishop (a mitre-cap with a
- * slit), knight (a horse head with a mane), pawn (a round head) — with a friendly 8×8 face, little
- * arms and a round base instead of legs. White: cream with mustard trims; black: chocolate with cream
- * trims. Heights ≈ pawn 1.05, rook 1.2, knight 1.3, bishop 1.33, queen 1.4, king 1.5 blocks.
+ * «Великі шахи». The body is the piece's own shape — king (the tallest: a closed crown of arches over a
+ * coral cap with a big round orb on top, no cross), queen (an open coronet of little points each with a
+ * ball, a slim waist over a wide skirt-like base), rook (a little tower with a door and battlements),
+ * bishop (a mitre-cap with a slit), knight (a horse head with a mane), pawn (a round head) — with a
+ * friendly 8×8 face, little arms and a round base instead of legs. White: cream with mustard trims;
+ * black: chocolate with cream trims. Heights ≈ pawn 1.0, rook 1.2, queen 1.3, knight 1.3, bishop 1.4,
+ * king 1.7 blocks: the king and the queen are told apart at a glance, also at HUD size.
  *
  * The rig is a 'biped' so the shared animator (assets/animate.ts) drives it: `legL`/`legR` are empty
  * pivots (there are no legs) and the base belongs to the rig root, so the whole piece hops.
@@ -56,21 +58,28 @@ interface Dims {
   head: V3;
   round: number;
   base: number;
+  /** A slim waist over a skirt (the queen): the waist's height (0…1) and radius. */
+  waist?: [number, number];
 }
 
 const BASE_H = 0.16;
 const COLLAR = 0.05;
 const DIMS: Record<PieceKind, Dims> = {
-  king: { body: 0.56, r0: 0.26, r1: 0.16, head: [0.4, 0.36, 0.36], round: 0.08, base: 0.34 },
-  queen: { body: 0.52, r0: 0.27, r1: 0.15, head: [0.38, 0.34, 0.34], round: 0.09, base: 0.34 },
+  king: { body: 0.7, r0: 0.28, r1: 0.17, head: [0.4, 0.36, 0.36], round: 0.08, base: 0.35 },
+  queen: { body: 0.5, r0: 0.34, r1: 0.15, head: [0.38, 0.34, 0.34], round: 0.09, base: 0.39, waist: [0.68, 0.1] },
   bishop: { body: 0.5, r0: 0.25, r1: 0.15, head: [0.36, 0.33, 0.34], round: 0.1, base: 0.32 },
   rook: { body: 0.5, r0: 0.27, r1: 0.23, head: [0.46, 0.34, 0.42], round: 0.05, base: 0.34 },
   knight: { body: 0.48, r0: 0.26, r1: 0.17, head: [0.32, 0.34, 0.3], round: 0.07, base: 0.33 },
   pawn: { body: 0.34, r0: 0.25, r1: 0.12, head: [0.4, 0.38, 0.38], round: 0.15, base: 0.31 },
 };
 
-/** The body's radius at height t (0 bottom … 1 top): a soft concave chess-piece taper. */
-const rAt = (d: Dims, t: number) => d.r1 + (d.r0 - d.r1) * Math.pow(1 - t, 1.7);
+/** The body's radius at height t (0 bottom … 1 top): a soft concave chess-piece taper, or (with a
+ *  waist) a skirt flaring out below a slim waist and a little bodice above it. */
+const rAt = (d: Dims, t: number): number => {
+  if (!d.waist) return d.r1 + (d.r0 - d.r1) * Math.pow(1 - t, 1.7);
+  const [wt, wr] = d.waist;
+  return t < wt ? wr + (d.r0 - wr) * Math.pow(1 - t / wt, 2.2) : wr + (d.r1 - wr) * Math.pow((t - wt) / (1 - wt), 1.4);
+};
 
 // ─── faces ──────────────────────────────────────────────────────────────────
 
@@ -246,6 +255,45 @@ function crown(b: Bits, top: number, r: number, points: number, colour: string, 
   }
 }
 
+/** The king's closed crown on a head whose top is at y = top: a band, two arches crossing over a
+ *  coral cap, and a big round orb on a short stem (no cross). */
+function closedCrown(b: Bits, top: number, r: number, colour: string, jewel: string): void {
+  const archH = 0.22;
+  b.cyl(r + 0.01, r, 0.1, [0, top, 0], colour, 16);
+  b.ball(r * 0.9, [0, top + 0.03, 0], jewel, [1, (archH - 0.02) / (r * 0.9), 1]);
+  for (const a of [0, Math.PI / 2]) {
+    const arch = new THREE.TorusGeometry(r * 0.93, 0.032, 6, 14, Math.PI).scale(1, archH / (r * 0.93), 1).rotateY(a);
+    b.add(arch, [0, top + 0.04, 0], colour);
+  }
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    b.ball(0.03, [Math.sin(a) * r, top + 0.06, Math.cos(a) * r], colour);
+  }
+  b.box([0.07, 0.07, 0.03], [0, top + 0.005, r + 0.012], jewel, [0, 0, Math.PI / 4]);
+  // the orb: a big ball with a band round its middle
+  b.cyl(0.035, 0.045, 0.06, [0, top + archH + 0.06, 0], colour, 10);
+  b.ball(0.1, [0, top + archH + 0.17, 0], colour);
+  b.add(new THREE.TorusGeometry(0.1, 0.018, 6, 18), [0, top + archH + 0.17, 0], jewel, [Math.PI / 2, 0, 0]);
+}
+
+/** The queen's open coronet: a flaring band and little points leaning out, each ending in a ball. */
+function coronet(b: Bits, top: number, r: number, colour: string, jewel: string): void {
+  const n = 7;
+  const tall = 0.14;
+  const lean = 0.28;
+  b.cyl(r + 0.03, r, 0.08, [0, top, 0], colour, 18);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    // tipped out about its foot's tangent: lean towards +Z, then turned round to its place
+    const rr = r + 0.012 + (Math.sin(lean) * tall) / 2;
+    const point = new THREE.BoxGeometry(0.045, tall, 0.035).rotateX(lean).rotateY(a);
+    b.add(point, [Math.sin(a) * rr, top + 0.03 + (Math.cos(lean) * tall) / 2, Math.cos(a) * rr], colour);
+    const tip = r + 0.012 + Math.sin(lean) * tall;
+    b.ball(0.036, [Math.sin(a) * tip, top + 0.04 + Math.cos(lean) * tall, Math.cos(a) * tip], colour);
+  }
+  b.box([0.06, 0.06, 0.03], [0, top, r + 0.03], jewel, [0, 0, Math.PI / 4]);
+}
+
 export interface ChessmanOptions {
   /** A little gold crown on the head (the pawn that reached the far row, for its picture). */
   crown?: boolean;
@@ -277,7 +325,8 @@ export function buildChessman(skin: Skin, kind: PieceKind, side: PieceSide, opts
   // the body: a turned (lathe) shape tapering up, a trim collar on top
   const body = new Bits();
   const prof: THREE.Vector2[] = [];
-  for (let i = 0; i <= 10; i++) prof.push(new THREE.Vector2(rAt(d, i / 10), (i / 10) * d.body));
+  const steps = d.waist ? 14 : 10;
+  for (let i = 0; i <= steps; i++) prof.push(new THREE.Vector2(rAt(d, i / steps), (i / steps) * d.body));
   body.add(new THREE.LatheGeometry(prof, 18), [0, 0, 0], L.body);
   body.cyl(d.r1 + 0.065, d.r1 + 0.065, COLLAR, [0, d.body + COLLAR / 2, 0], L.trim, 16);
   const ring = (t: number, hex: string, h = 0.045, out = 0.012) => {
@@ -287,11 +336,12 @@ export function buildChessman(skin: Skin, kind: PieceKind, side: PieceSide, opts
   const front = (t: number, out = 0) => rAt(d, t) + out;
   switch (kind) {
     case 'king':
-      ring(0.42, L.trim, 0.05);
-      for (const t of [0.6, 0.75]) body.ball(0.028, [0, t * d.body, front(t, -0.006)], L.trim);
+      ring(0.36, L.trim, 0.05);
+      for (const t of [0.52, 0.66, 0.8]) body.ball(0.028, [0, t * d.body, front(t, -0.006)], L.trim);
       break;
     case 'queen':
-      ring(0.06, L.trim, 0.06, 0.03);
+      ring(0.05, L.trim, 0.05, 0.02);
+      ring(d.waist![0], L.trim, 0.04, 0.012);
       for (let i = 0; i < 8; i++) {
         const a = (i / 8) * Math.PI * 2;
         body.ball(0.035, [Math.sin(a) * (d.r1 + 0.06), d.body + COLLAR, Math.cos(a) * (d.r1 + 0.06)], L.trim);
@@ -324,10 +374,10 @@ export function buildChessman(skin: Skin, kind: PieceKind, side: PieceSide, opts
   let faceAt: V3 = [0, hh / 2, 0];
   switch (kind) {
     case 'king':
-      crown(hb, hh, Math.min(hw, hd) / 2 - 0.005, 5, L.trim, L.jewel, { tall: 0.12, king: true });
+      closedCrown(hb, hh, Math.min(hw, hd) / 2 - 0.005, L.trim, L.jewel);
       break;
     case 'queen':
-      crown(hb, hh, Math.min(hw, hd) / 2 - 0.005, 8, L.trim, L.jewel, { tall: 0.11 });
+      coronet(hb, hh, Math.min(hw, hd) / 2 - 0.005, L.trim, L.jewel);
       break;
     case 'bishop':
       hb.ball(1, [0, hh + 0.03, -0.005], L.body, [0.165, 0.27, 0.16]);

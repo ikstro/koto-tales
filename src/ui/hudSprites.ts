@@ -360,7 +360,7 @@ export const SPRITES = {
   'piece-knight': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
   'piece-pawn': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
   'item-chess-take': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
-  'b-bigchess': {w: 200,h: 200,oy: 0.6,x: 32,y: 64,cw: 133,ch: 116},
+  'b-bigchess': {w: 200,h: 200,oy: 0.6,x: 32,y: 62,cw: 133,ch: 118},
   'b-bigchess-sh': {w: 200,h: 200,oy: 0.6,x: 30,y: 66,cw: 150,ch: 120},
   'new-chess-kingdom': {w: 200,h: 200,oy: 0.9,x: 36,y: 51,cw: 127,ch: 138},
   'new-chess-kingdom-sh': {w: 200,h: 200,oy: 0.9,x: 34,y: 80,cw: 166,ch: 120},
