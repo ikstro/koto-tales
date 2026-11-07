@@ -71,6 +71,7 @@ import { placeYard, showYard, updateYard } from './babusiaYard';
 import { sayAsk } from './tales';
 import { faceTo, giveCoins, musicNear, walkTo } from './tasks';
 import { travelTo } from './travel';
+import { registerTv } from './tvNews';
 import { nextWeather, veilFog } from './weather';
 
 /**
@@ -740,6 +741,8 @@ function* build(ctx: Ctx): Generator<void> {
   }
   const tv = createTv(skin);
   add(tv.root, S.tv.dx, S.tv.dz);
+  // the monster news on a tap (systems/tvNews.ts); the hostess at home comments now and then
+  registerTv(tv, { host: () => ctx.save.babusia.host, reachable: () => insideHouse(ctx, ctx.player.pos) });
   const jukebox = createJukebox(skin);
   add(jukebox.root, S.jukebox.dx, S.jukebox.dz, 0.6);
   yield;

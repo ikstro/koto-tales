@@ -514,8 +514,100 @@ const C_BOAT = new THREE.Color('#8a3b1e');
  * the steep camera sees the screen: a wooden case, a cream mask, two knobs, speaker slits, a doily
  * with a vase on top and a V of antenna. Off: dark glass. On: the picture opens from a line, a sun
  * crosses a slowly changing warm sky and a little boat rocks on the sea. Own glow materials only.
+ *
+ * The news (systems/tvNews.ts): `news(tex)` puts a picture on the screen over the program — a
+ * monster's portrait in a little studio — with a ticker band running along the bottom (no words,
+ * only printed blobs), a blinking red «live» dot, and the antenna wobbling; `news(null)` goes back.
+ * Its unlit materials are always drawn (at opacity 0 when off), so their shaders are built up
+ * front; `tvWarmUp()` builds the same programs under the title.
  */
-export function createTv(skin: Skin): { root: THREE.Group; setOn(on: boolean): void; update(dt: number): void } {
+export interface Tv {
+  root: THREE.Group;
+  /** The middle of the screen (taps, the camera). */
+  screen: THREE.Object3D;
+  setOn(on: boolean): void;
+  /** The news picture on the screen, or null to go back to the program (or dark). */
+  news(tex: THREE.Texture | null): void;
+  /** A tap: the set hops, the antenna shakes. */
+  poke(): void;
+  update(dt: number): void;
+}
+
+/** The news screen's picture size in texels: the screen's own shape (SW × SH). */
+export const TV_PICTURE = { w: 256, h: 198 } as const;
+
+/** An empty picture: the material's shader stays the same when a real one comes in. */
+let NO_PICTURE: THREE.DataTexture | null = null;
+const noPicture = (): THREE.DataTexture => {
+  if (NO_PICTURE) return NO_PICTURE;
+  NO_PICTURE = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
+  NO_PICTURE.colorSpace = THREE.SRGBColorSpace;
+  NO_PICTURE.needsUpdate = true;
+  return NO_PICTURE;
+};
+
+/** The ticker band: mustard with dark printed blobs like words and a coral dot now and then (never readable). */
+let TICKER: THREE.DataTexture | null = null;
+function tickerTexture(): THREE.DataTexture {
+  if (TICKER) return TICKER;
+  const W = 256;
+  const H = 16;
+  const px = new Uint8Array(W * H * 4);
+  const put = (x: number, y: number, c: readonly number[]) => px.set([c[0], c[1], c[2], 255], (y * W + x) * 4);
+  const BAND = [0xff, 0xd2, 0x3a];
+  const RIM = [0xea, 0xb0, 0x2b];
+  const INKC = [0x4a, 0x2c, 0x14];
+  const DOT = [0xe8, 0x46, 0x3a];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) put(x, y, y < 2 || y > H - 3 ? RIM : BAND);
+  // words of 5..22 texels with 5-texel gaps; a coral dot after every fourth one; the pattern tiles
+  const widths = [14, 8, 20, 11, 6, 17, 9, 22, 12, 7, 15, 10, 18, 6, 13, 9];
+  let x = 4;
+  let n = 0;
+  while (x < W - 8) {
+    const w = Math.min(widths[n % widths.length], W - 6 - x);
+    for (let i = 0; i < w; i++) for (let y = 6; y <= 9; y++) put(x + i, y, INKC);
+    x += w + 5;
+    if (++n % 4 === 0 && x < W - 10) {
+      for (let i = 0; i < 4; i++) for (let y = 6; y <= 9; y++) put(x + i, y, DOT);
+      x += 9;
+    }
+  }
+  TICKER = new THREE.DataTexture(px, W, H);
+  TICKER.colorSpace = THREE.SRGBColorSpace;
+  TICKER.wrapS = THREE.RepeatWrapping;
+  TICKER.magFilter = THREE.LinearFilter;
+  TICKER.minFilter = THREE.LinearFilter;
+  TICKER.generateMipmaps = false;
+  TICKER.needsUpdate = true;
+  return TICKER;
+}
+
+/** The news layer's two unlit materials (a picture, a plain colour): the same programs everywhere. */
+const newsPictureMat = (map: THREE.Texture): THREE.MeshBasicMaterial => {
+  const m = new THREE.MeshBasicMaterial({ map, transparent: true, opacity: 0, toneMapped: false, depthWrite: false });
+  m.userData.own = true;
+  return m;
+};
+const newsColourMat = (hex: string): THREE.MeshBasicMaterial => {
+  const m = new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: 0, toneMapped: false, depthWrite: false });
+  m.userData.own = true;
+  return m;
+};
+
+/**
+ * Two tiny meshes with the news layer's materials, far below the world: added to the scene at the
+ * start so the shader gate and the title's preparation build their programs before any TV is seen.
+ */
+export function tvWarmUp(): THREE.Object3D {
+  const g = new THREE.Group();
+  g.name = 'tv-warmup';
+  const geo = new THREE.PlaneGeometry(0.01, 0.01);
+  g.add(fx(new THREE.Mesh(geo, newsPictureMat(tickerTexture()))), fx(new THREE.Mesh(geo, newsColourMat('#e8463a'))));
+  g.position.set(0, -500, 0);
+  return g;
+}
+
+export function createTv(skin: Skin): Tv {
   const b = new Build(skin, 'babusia-tv-cabinet');
   const root = b.root;
   const CW = 1.5;
@@ -533,47 +625,55 @@ export function createTv(skin: Skin): { root: THREE.Group; setOn(on: boolean): v
   b.box([0.74, 0.1, 0.5], [0, TOP + 0.05, 0.02], CHARCOAL);
   b.finish();
 
-  // the set: hinged at its back foot, tipped so its face looks up a little
+  // the set: hinged at its back foot, tipped back so the steep camera sees its screen nearly face on
   const set = new Build(skin, 'babusia-tv-set');
-  const W = 1.1;
-  const H = 0.82;
+  const W = 1.2;
+  const H = 0.88;
   const D = 0.6;
-  set.root.position.set(0, TOP + 0.06, -D / 2);
-  set.root.rotation.x = -0.15;
+  set.root.position.set(0, TOP + 0.06, -D / 2 + 0.1);
+  set.root.rotation.x = -0.3;
   root.add(set.root);
   const F = D;
   set.box([W, H, D], [0, H / 2, D / 2], WOOD_D);
   set.box([W + 0.04, 0.07, D + 0.02], [0, H, D / 2], WOOD);
   set.box([W + 0.04, 0.07, D + 0.02], [0, 0.03, D / 2], WOOD);
   set.box([W - 0.06, H - 0.1, 0.02], [0, H / 2, F + 0.005], CREAM);
-  const SX = -0.13;
+  const SX = -0.12;
   const SY = H / 2;
-  const SW = 0.68;
-  const SH = 0.54;
+  const SW = 0.8;
+  const SH = 0.62;
   set.box([SW + 0.08, SH + 0.08, 0.03], [SX, SY, F + 0.015], WOOD_D);
   set.box([SW, SH, 0.02], [SX, SY, F + 0.025], '#232a2a');
-  set.box([0.05, 0.3, 0.006], [SX - 0.2, SY + 0.06, F + 0.036], '#46524f', [0, 0, -0.5]);
+  set.box([0.05, 0.3, 0.006], [SX - 0.24, SY + 0.07, F + 0.036], '#46524f', [0, 0, -0.5]);
   // knobs and speaker slits
   for (const [y, c] of [
     [SY + 0.17, CORAL],
     [SY + 0.0, MUSTARD],
   ] as const) {
-    set.cyl(0.075, 0.05, [0.39, y, F + 0.03], c, { rot: [HP, 0, 0], seg: 12 });
-    set.box([0.022, 0.09, 0.02], [0.39, y, F + 0.06], CORAL_DARK);
+    set.cyl(0.075, 0.05, [0.46, y, F + 0.03], c, { rot: [HP, 0, 0], seg: 12 });
+    set.box([0.022, 0.09, 0.02], [0.46, y, F + 0.06], CORAL_DARK);
   }
-  for (let i = 0; i < 4; i++) set.box([0.16, 0.02, 0.012], [0.39, SY - 0.13 - i * 0.04, F + 0.018], WOOD_D);
+  for (let i = 0; i < 4; i++) set.box([0.16, 0.02, 0.012], [0.46, SY - 0.13 - i * 0.04, F + 0.018], WOOD_D);
   // on top: a doily with a little vase, the antenna at the back
   set.cyl(0.25, 0.012, [-0.2, H + 0.04, 0.32], PETAL, { seg: 12 });
   set.cyl(0.08, 0.15, [-0.2, H + 0.12, 0.32], TEAL, { r1: 0.06, seg: 10 });
   set.cyl(0.015, 0.14, [-0.2, H + 0.26, 0.32], STEM, { seg: 6 });
   for (const a of [0, Math.PI / 3, -Math.PI / 3]) set.box([0.2, 0.03, 0.07], [-0.2, H + 0.33, 0.32], POPPY, [0, a, 0]);
   set.cyl(0.04, 0.03, [-0.2, H + 0.35, 0.32], POPPY_EYE, { seg: 8 });
-  set.box([0.26, 0.08, 0.2], [0.14, H + 0.07, 0.2], WOOD_D);
-  for (const s of [-1, 1]) {
-    set.beam([0.14, H + 0.1, 0.2], [0.14 + s * 0.3, H + 0.62, 0.14], 0.03, STEEL_ROD);
-    set.ball(0.04, [0.14 + s * 0.3, H + 0.63, 0.14], CORAL, { seg: 10 });
-  }
+  set.box([0.26, 0.08, 0.2], [0.17, H + 0.07, 0.38], WOOD_D);
   set.finish();
+  // the antenna on its own, so it can wobble while the news is on
+  const ant = new Build(skin, 'babusia-tv-antenna');
+  ant.root.position.set(0.17, H + 0.1, 0.38);
+  // stood up against the set's tilt, so it stands clear of the wall behind
+  set.root.add(ant.root);
+  for (const s of [-1, 1]) {
+    ant.beam([0, 0, 0], [s * 0.3, 0.52, -0.06], 0.03, STEEL_ROD);
+    ant.ball(0.04, [s * 0.3, 0.53, -0.06], CORAL, { seg: 10 });
+  }
+  ant.finish();
+  const ANT_UP = 0.3;
+  ant.root.rotation.x = ANT_UP;
 
   // the picture, in its own group so it can open from a line
   const pic = new THREE.Group();
@@ -600,25 +700,82 @@ export function createTv(skin: Skin): { root: THREE.Group; setOn(on: boolean): v
     new THREE.BoxGeometry(0.03, 0.03, 0.004).translate(0.03, 0.105, 0),
   ])!;
   const boat = flat(boatGeo, '#8a3b1e', pic, 0.015);
+
+  // the news layer: always drawn (opacity 0 when off), in front of the program
+  const newsLayer = new THREE.Group();
+  newsLayer.name = 'news';
+  newsLayer.position.set(SX, SY, F + 0.05);
+  set.root.add(newsLayer);
+  const picMat = newsPictureMat(noPicture());
+  const picture = fx(new THREE.Mesh(new THREE.PlaneGeometry(SW, SH), picMat));
+  newsLayer.add(picture);
+  const tickerTex = tickerTexture().clone();
+  tickerTex.repeat.set(0.5, 1);
+  tickerTex.needsUpdate = true;
+  const tickMat = newsPictureMat(tickerTex);
+  const TICK_H = 0.09;
+  const ticker = fx(new THREE.Mesh(new THREE.PlaneGeometry(SW, TICK_H), tickMat));
+  // drawn in this order whatever their depth: the picture, the ticker over it, the dot on top
+  picture.renderOrder = 1;
+  ticker.renderOrder = 2;
+  ticker.position.set(0, -SH / 2 + TICK_H / 2, 0.004);
+  newsLayer.add(ticker);
+  const dotMat = newsColourMat('#e8463a');
+  const dot = fx(new THREE.Mesh(new THREE.CircleGeometry(0.03, 14), dotMat));
+  dot.renderOrder = 3;
+  dot.position.set(-SW / 2 + 0.06, SH / 2 - 0.06, 0.004);
+  newsLayer.add(dot);
+  const screen = new THREE.Object3D();
+  screen.name = 'screen';
+  screen.position.set(SX, SY, F + 0.05);
+  set.root.add(screen);
   finishShadows(root);
 
   const tmp = new THREE.Color();
   let on = false;
   let lit = 0;
   let t = 0;
+  let newsOn = false;
+  let nf = 0;
+  let kick = 0;
+  const setBase = set.root.position.y;
   return {
     root,
+    screen,
     setOn(v) {
       on = v;
     },
+    news(tex) {
+      newsOn = !!tex;
+      if (tex) picMat.map = tex;
+    },
+    poke() {
+      kick = 1;
+    },
     update(dt) {
-      lit += ((on ? 1 : 0) - lit) * Math.min(1, dt * 6);
-      if (!on && lit < 0.02) lit = 0;
-      pic.visible = lit > 0;
-      if (!pic.visible) return;
       t += dt;
+      lit += ((on || newsOn ? 1 : 0) - lit) * Math.min(1, dt * 6);
+      if (!on && !newsOn && lit < 0.02) lit = 0;
+      nf += ((newsOn ? 1 : 0) - nf) * Math.min(1, dt * 8);
+      if (!newsOn && nf < 0.02) nf = 0;
+      // a poke: the set hops on its foot and settles; the antenna shakes, and wobbles while the news is on
+      kick = Math.max(0, kick - dt * 2.5);
+      const hop = Math.sin(kick * Math.PI) * kick;
+      set.root.position.y = setBase + 0.06 * hop;
+      set.root.scale.set(1 + 0.04 * hop, 1 - 0.05 * hop, 1 + 0.04 * hop);
+      ant.root.rotation.z = Math.sin(t * 7) * (0.06 * nf + 0.18 * kick);
+      ant.root.rotation.x = ANT_UP + Math.sin(t * 5.3) * 0.04 * nf;
+      const open = Math.max(0.02, Math.min(1, lit * 1.25));
+      newsLayer.scale.y = open;
+      picMat.opacity = tickMat.opacity = nf * Math.min(1, lit * 1.4);
+      dotMat.opacity = picMat.opacity * (Math.sin(t * 6) > -0.2 ? 1 : 0.15);
+      if (nf > 0) tickerTex.offset.x = (tickerTex.offset.x + dt * 0.09) % 1;
+      if (!newsOn && nf === 0 && picMat.map !== noPicture()) picMat.map = noPicture();
+      // the news covers the program at once; the program comes back as the news fades
+      pic.visible = lit > 0 && !newsOn && nf < 0.5;
+      if (!pic.visible) return;
       // an old set opens from a bright line and shuts back to one
-      pic.scale.y = Math.max(0.02, Math.min(1, lit * 1.25));
+      pic.scale.y = open;
       const k = 0.35 + 0.65 * lit;
       const c = t / 7;
       const i = Math.floor(c);

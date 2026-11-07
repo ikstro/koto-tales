@@ -17,5 +17,6 @@
   "alien_captain": { "voice": "uk-UA-OstapNeural", "rate": 1.0, "pitch": "+20%" },
   "sirko": { "voice": "uk-UA-OstapNeural", "rate": 1.02, "pitch": "+8%" },
   "babusia": { "voice": "uk-UA-PolinaNeural", "rate": 0.96, "pitch": "-5%" },
-  "olia": { "voice": "uk-UA-PolinaNeural", "rate": 0.98, "pitch": "-1%" }
+  "olia": { "voice": "uk-UA-PolinaNeural", "rate": 0.98, "pitch": "-1%" },
+  "anchor": { "voice": "uk-UA-OstapNeural", "rate": 1.08, "pitch": "+12%" }
 }

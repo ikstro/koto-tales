@@ -11,7 +11,7 @@ import { ITEMS, ITEM_ORDER, type ItemCard, type ItemId } from './items';
 import { LINES, type LineId } from './lines';
 import { MONSTERS, MONSTER_ORDER, type MonsterCard } from './monsters';
 import { REWARDS, TASKS, nextReward, taskCount, taskFor, type TaskKind } from './progress';
-import { DISHES, RECIPES, RECIPE_ORDER, type RecipeCard } from './recipes';
+import { DISHES, OWN_PAGE, RECIPES, RECIPE_ORDER, type RecipeCard } from './recipes';
 import { TALES, TALE_ITEMS, entryOf, stepGoal, talesLeft, type TaleCard, type TaleStep } from './tales';
 import { RACE_CARDS, TASK_NEEDS, VILLAGE_GOALS, isFriend, villageTask, type RaceCard, type VillageTask } from './villages';
 
@@ -335,7 +335,11 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
     const r: RecipeCard = RECIPES[id];
     const got = save.recipes.includes(id);
     const n = save.inv[r.dish as ItemId] ?? 0;
-    const needs = [...new Set(r.needs)].map((p) => (ITEMS[p] as ItemCard).name).join(' і ');
+    const names = [...new Set(r.needs)].map((p) => {
+      const k = r.needs.filter((n) => n === p).length;
+      return `${(ITEMS[p] as ItemCard).name.toLowerCase()}${k > 1 ? ` ×${k}` : ''}`;
+    });
+    const needs = names.length > 1 ? `${names.slice(0, -1).join(', ')} і ${names.at(-1)}` : names[0];
     return {
       key: `r-${id}`,
       pic: { portrait: 'item', id: r.dish },
@@ -345,6 +349,16 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
       status: got ? (n ? `Уже готували, у скриньці ${n}` : 'Уже готували') : `Ще попереду: потрібно ${needs}`,
       line: r.line,
     };
+  });
+  const own = save.kitchen?.own.length ?? 0;
+  recipes.push({
+    key: 'r-own',
+    pic: { portrait: 'item', id: OWN_PAGE.dish },
+    title: OWN_PAGE.name,
+    about: 'Будь-які один-три продукти без рецепта: юшка кольору продуктів із невеликою силою, яку дає більшість продуктів (вишні й мед — швидкий біг, картопля — монстри завмирають, морква та яйце — монстри не з’являються, гриб і яблуко — монстри танцюють).',
+    state: own ? 'have' : 'later',
+    status: own ? `Уже вигадали ${own}` : 'Ще попереду: покласти в каструлю продукти без рецепта',
+    line: OWN_PAGE.line,
   });
   const items: Row[] = ITEM_ORDER.filter((id) => !DISHES.has(id)).map((id) => {
     const c: ItemCard = ITEMS[id];

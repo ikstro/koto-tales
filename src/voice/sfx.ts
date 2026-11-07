@@ -321,6 +321,19 @@ const recipes: Record<SfxName, (k: K) => void> = {
     tone(k, 300, 0, 0.12, 0.3, 'sine', 900, 0.004);
     tone(k, 1400, 0.1, 0.06, 0.06, 'sine', 2100, 0.004);
   },
+  news(k) {
+    // the TV news jingle: a click and a soft hum of the old set, then a bright four-note fanfare
+    // (G C E G, the top one held) over a plucked fifth, like a toy newsroom
+    hiss(k, 0, 0.05, 0.1, 'bandpass', 2400, undefined, 1.2, 0.002);
+    tone(k, 100, 0.02, 0.35, 0.05, 'sine', undefined, 0.03);
+    const tune = [[-2, 0.1, 0.12], [3, 0.24, 0.12], [7, 0.38, 0.12], [10, 0.52, 0.42]] as const;
+    for (const [s, at, dur] of tune) {
+      tone(k, note(s), at, dur, 0.1, 'square', undefined, 0.006);
+      tone(k, note(s + 12), at, dur * 0.8, 0.05, 'triangle', undefined, 0.006);
+    }
+    tone(k, note(-14), 0.52, 0.5, 0.12, 'triangle', undefined, 0.01);
+    tone(k, note(-9), 0.52, 0.5, 0.08, 'triangle', undefined, 0.01);
+  },
   // ─── monster cries (MonsterCard.cry): a toy's voice, never scary-loud ───
   cry_siren(k) {
     // Сиреноголовий: his two horns wail together, a little apart, like a toy air-raid siren —

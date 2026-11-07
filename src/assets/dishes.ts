@@ -1,9 +1,10 @@
 /**
  * Бабуся's kitchen as toys: five bare ingredients (cherry, potato, carrot, jar of honey, egg in a
- * nest), twelve home-cooked dishes each on its own plate, bowl, glass or pan, and the big coral
- * cooking pot with its wooden spoon. Small props, 0.4–0.6 blocks (the pot ~0.7), origin at the
- * bottom centre, front facing +Z; round things are true round slabs, seen from above at the table.
- * Every dish has its own colour and shape so twelve read apart at sticker size.
+ * nest), sixteen home-cooked dishes each on its own plate, bowl, glass or pan, the children's own
+ * stew (one model tinted by what went in, `stewOf`), and the big coral cooking pot with its wooden
+ * spoon. Small props, 0.4–0.6 blocks (the pot ~0.7), origin at the bottom centre, front facing +Z;
+ * round things are true round slabs, seen from above at the table. Every dish has its own colour
+ * and shape so they read apart at sticker size.
  */
 import type { PartBuilder, Paint, V3 } from './parts/kit';
 
@@ -468,6 +469,128 @@ const butterfly_cookies: DishBuilder = (p) => {
   }
 };
 
+// three golden pies on a coral plate, a little brown mushroom beside them
+const mushroom_pies: DishBuilder = (p) => {
+  plate(p, 0.54, CORAL, '#f3a08c');
+  const y = 0.037;
+  for (const [x, z, r] of [
+    [-0.1, -0.08, 0.2],
+    [0.09, -0.09, -0.4],
+    [0.04, 0.09, 0.9],
+  ]) {
+    disc(p, 0.18, y, 0.07, GOLDEN, 2, x, z, r);
+    disc(p, 0.14, y + 0.06, 0.02, GOLDEN_LIGHT, 2, x, z, r);
+    // the pinched seam along the top
+    p.box([0.14, 0.02, 0.03], [x, y + 0.085, z], '#c27a22', [0, r, 0]);
+  }
+  // the mushroom: a cream stem and a brown cap
+  p.box([0.05, 0.08, 0.05], [-0.15, y + 0.04, 0.12], '#f3e2c4');
+  disc(p, 0.13, y + 0.07, 0.04, '#8a5a2b', 2, -0.15, 0.12);
+  disc(p, 0.08, y + 0.11, 0.02, '#a8743e', 2, -0.15, 0.12);
+};
+
+// a round clay jug of warm amber drink with a cherry and an apple slice on its saucer
+const uzvar: DishBuilder = (p) => {
+  disc(p, 0.46, 0, 0.024, CREAM, 3);
+  disc(p, 0.2, 0.024, 0.04, '#b5562e', 2);
+  disc(p, 0.34, 0.064, 0.14, '#c8643a', 3);
+  disc(p, 0.26, 0.204, 0.06, '#b5562e', 3);
+  disc(p, 0.2, 0.264, 0.05, '#c8643a', 3);
+  disc(p, 0.23, 0.314, 0.02, '#d97a48', 3);
+  disc(p, 0.16, 0.33, 0.006, '#a2531c', 3);
+  disc(p, 0.12, 0.333, 0.006, '#c97a2c', 3);
+  // a cream band painted round the belly
+  disc(p, 0.355, 0.12, 0.03, CREAM, 3);
+  // the handle
+  p.box([0.05, 0.03, 0.04], [0.18, 0.27, 0], '#b5562e').box([0.035, 0.17, 0.04], [0.215, 0.19, 0], '#b5562e').box([0.05, 0.03, 0.04], [0.18, 0.11, 0], '#b5562e');
+  // on the saucer: a cherry and an apple slice
+  cherryBall(p, -0.17, 0.13, 0.024, 0.09, CHERRY);
+  p.box([0.1, 0.02, 0.045], [0.13, 0.034, 0.15], APPLE_RED, [0, -0.5, 0]);
+  p.box([0.09, 0.03, 0.04], [0.13, 0.05, 0.15], APPLE_FLESH, [0, -0.5, 0]);
+};
+
+// two baked red apples on a teal plate, their tops cut off and filled with honey
+const baked_apples: DishBuilder = (p) => {
+  plate(p, 0.54, TEAL, TEAL_LIGHT);
+  const y = 0.037;
+  for (const [x, z] of [
+    [-0.1, -0.03],
+    [0.11, 0.05],
+  ]) {
+    disc(p, 0.14, y, 0.03, '#b52a26', 2, x, z);
+    disc(p, 0.2, y + 0.03, 0.1, APPLE_RED, 3, x, z);
+    disc(p, 0.16, y + 0.13, 0.025, '#c8302b', 2, x, z);
+    disc(p, 0.1, y + 0.15, 0.012, AMBER, 2, x, z);
+    p.box([0.03, 0.05, 0.03], [x, y + 0.18, z], '#6d4c2f');
+    // honey running down one side
+    p.box([0.035, 0.08, 0.02], [x + 0.03, y + 0.11, z + 0.115], AMBER);
+    p.box([0.04, 0.03, 0.012], [x - 0.05, y + 0.1, z + 0.115], '#ff9e94');
+  }
+  disc(p, 0.12, y, 0.008, AMBER, 2, 0.0, 0.16);
+};
+
+// a green bowl heaped with grated orange carrot, apple pieces and a drop of honey
+const carrot_salad: DishBuilder = (p) => {
+  bowl(p, 0.5, 0.16, GREEN, GREEN_LIGHT);
+  disc(p, 0.42, 0.15, 0.03, ORANGE_DARK, 3);
+  disc(p, 0.32, 0.18, 0.03, ORANGE, 3);
+  disc(p, 0.18, 0.21, 0.02, ORANGE, 2);
+  for (let k = 0; k < 9; k++) {
+    const t = (k / 9) * Math.PI * 2;
+    const r = 0.06 + (k % 3) * 0.045;
+    p.box([0.09, 0.015, 0.018], [Math.cos(t) * r, 0.215 + (k % 2) * 0.01, Math.sin(t) * r], k % 2 ? '#ffa94a' : ORANGE, [0, t * 1.7, 0]);
+  }
+  for (const [x, z, r] of [
+    [-0.1, 0.07, 0.3],
+    [0.12, -0.03, -0.6],
+    [0.0, -0.12, 1.2],
+  ]) {
+    p.box([0.06, 0.04, 0.05], [x, 0.225, z], APPLE_FLESH, [0, r, 0]);
+    p.box([0.06, 0.015, 0.012], [x, 0.235, z + 0.03], APPLE_RED, [0, r, 0]);
+  }
+  disc(p, 0.06, 0.235, 0.015, AMBER, 2, 0.03, 0.03);
+};
+
+/** A colour as RGB 0..255. */
+const rgbOf = (c: string | number): [number, number, number] => {
+  const n = typeof c === 'number' ? c : parseInt(c.replace('#', ''), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+const hexOf = ([r, g, b]: number[]) => `#${[r, g, b].map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('')}`;
+
+/**
+ * The children's own dish («власна страва»): a cream bowl with a teal band, the soup the colour of
+ * everything that went in (mixed, a little warm), and a chunk of each product floating on top.
+ * `tops`: the products' colours, in the order they were dropped.
+ */
+export function stewOf(tops: readonly (string | number)[]): DishBuilder {
+  const list = tops.length ? tops : ['#e8b84a'];
+  const mix = list.map(rgbOf).reduce((a, c) => [a[0] + c[0] / list.length, a[1] + c[1] / list.length, a[2] + c[2] / list.length], [0, 0, 0]);
+  // a soup, never grey: half-way to a warm broth
+  const soup = hexOf(mix.map((v, i) => v * 0.55 + [232, 168, 74][i] * 0.45));
+  const shine = hexOf(mix.map((v, i) => v * 0.35 + [255, 214, 130][i] * 0.65));
+  return (p) => {
+    bowl(p, 0.5, 0.2, CREAM, TEAL);
+    disc(p, 0.42, 0.19, 0.012, soup, 3);
+    disc(p, 0.28, 0.198, 0.006, shine, 3, -0.03, 0.02);
+    const spots: [number, number][] = [
+      [-0.1, -0.06],
+      [0.1, -0.05],
+      [0.0, 0.11],
+      [0.12, 0.08],
+      [-0.12, 0.07],
+      [0.0, -0.13],
+    ];
+    spots.forEach(([x, z], k) => {
+      const c = hexOf(rgbOf(list[k % list.length]));
+      p.box([0.075, 0.035, 0.06], [x, 0.21, z], c, [0, k * 0.9, 0]);
+    });
+    // a bit of dill and a little steam bubble
+    p.box([0.06, 0.012, 0.02], [0.03, 0.215, -0.01], DILL, [0, 0.7, 0]).box([0.05, 0.012, 0.02], [-0.04, 0.215, 0.03], DILL, [0, -0.6, 0]);
+    disc(p, 0.05, 0.2, 0.02, '#fff6e2', 2, 0.05, 0.02);
+  };
+}
+
 // a big toy cooking pot: coral enamel, cream rim, two dark side handles, open and full of warm soup
 export const buildCookPot: DishBuilder = (p) => {
   disc(p, 0.5, 0, 0.04, CORAL_DARK, 3);
@@ -528,4 +651,13 @@ export const DISH_BUILDERS = {
   apple_porridge,
   ladybird_toast,
   butterfly_cookies,
+  mushroom_pies,
+  uzvar,
+  baked_apples,
+  carrot_salad,
+  // the own dishes' stickers: each tinted by two products that give its power
+  surprise_fast: stewOf(['#b0233a', '#eab02b']),
+  surprise_freeze: stewOf(['#c9a26b', '#a8732f']),
+  surprise_light: stewOf(['#f08a24', '#fff1d6']),
+  surprise_peace: stewOf(['#8d6e63', '#e53935']),
 } satisfies Record<string, DishBuilder>;

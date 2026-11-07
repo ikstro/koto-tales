@@ -34,6 +34,7 @@ import { initMail, updateMail } from '../systems/mail';
 import { exposeEffects, initEffects, updateEffects } from '../systems/effects';
 import { exposeCompanions, initCompanions, updateCompanions } from '../systems/companions';
 import { initPets, updatePets } from '../systems/pets';
+import { initTvNews, updateTvNews } from '../systems/tvNews';
 import { applyDebugParams } from '../debug/give';
 import { pushBubble } from '../systems/tasks';
 import { updateVillages } from '../systems/villages';
@@ -106,6 +107,7 @@ export class Game {
     initWeather(ctx, quality);
     // there from the start, empty, so its shader is built under the title and never mid-play
     ctx.clouds = createCloudSea(ctx.scene);
+    initTvNews(ctx);
     events.on('attack:bolt', ({ hero }) => {
       if (hero === ctx.player?.id) this.cam.shake(0.3);
     });
@@ -373,6 +375,7 @@ export class Game {
       updatePrizes(ctx, dt);
       updateCompanions(ctx, dt);
       updatePets(ctx, dt);
+      updateTvNews(ctx, dt);
       updateEffects(ctx, dt);
       updateSignal(ctx, dt);
       updateFood(ctx, dt);

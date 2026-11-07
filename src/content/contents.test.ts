@@ -105,7 +105,7 @@ describe('contents: the book of recipes', () => {
   it('lists every dish once, and never among the things', () => {
     const list = contentsOf(freshSave(), PLACES);
     const recipes = list.find((s) => s.id === 'recipes')!;
-    expect(recipes.rows.length).toBe(12);
+    expect(recipes.rows.length).toBe(17);
     expect(recipes.rows.every((r) => r.state === 'later' && r.line)).toBe(true);
     expect(list.find((s) => s.id === 'items')!.rows.some((r) => r.key === 'i-borscht')).toBe(false);
   });

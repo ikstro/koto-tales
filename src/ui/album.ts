@@ -1,7 +1,7 @@
 import { ARTIFACTS, ARTIFACT_ORDER } from '../content/artifacts';
 import { ITEMS, ITEM_ORDER, type ItemCard } from '../content/items';
 import { MONSTERS, MONSTER_ORDER } from '../content/monsters';
-import { DISHES, RECIPES, RECIPE_ORDER, type RecipeCard } from '../content/recipes';
+import { DISHES, OWN_PAGE, RECIPES, RECIPE_ORDER, type RecipeCard } from '../content/recipes';
 import { CASTLE_CARDS } from '../content/castles';
 import { TALES } from '../content/tales';
 import { RACE_CARDS } from '../content/villages';
@@ -84,6 +84,9 @@ export class Album {
       const r: RecipeCard = RECIPES[id];
       entries.push({ img: this.portraits.items[r.dish as keyof typeof ITEMS], got: found.has(`r:${id}`), line: r.line, count: 0 });
     }
+    // and one page for every own dish the children mixed (×N different ones)
+    const own = save.kitchen?.own.length ?? 0;
+    entries.push({ img: this.portraits.items[OWN_PAGE.dish], got: own > 0, line: OWN_PAGE.line, count: own });
 
     // the treasures: the artifacts, from a row of their own, always with the gold rim
     const treasures = entries.length;

@@ -27,6 +27,8 @@ export interface ItemCard {
   use?: Effect | 'auto';
   /** Льоша made it up: its album sticker has the gold rim. */
   lyosha?: true;
+  /** A kitchen product: the power it brings to an own dish («власна страва», content/recipes.ts surpriseOf). */
+  gives?: 'fast' | 'freeze' | 'light' | 'peace';
 }
 
 export const ITEMS = {
@@ -36,9 +38,9 @@ export const ITEMS = {
   crystal_green: { id: 'crystal_green', name: 'Зелений кристал', about: 'Блискучий кристал для колекції в альбомі.', line: 'item_crystal_green', biomes: ['forest', 'hills'], weight: 2, color: 0x66bb6a },
   crystal_purple: { id: 'crystal_purple', name: 'Фіолетовий кристал', about: 'Рідкісний кристал для колекції в альбомі.', line: 'item_crystal_purple', biomes: ['hills', 'snow'], weight: 1, color: 0xab47bc },
   crystal_yellow: { id: 'crystal_yellow', name: 'Жовтий кристал', about: 'Рідкісний кристал для колекції в альбомі.', line: 'item_crystal_yellow', biomes: ['beach', 'meadow', 'hills'], weight: 1, color: 0xffee58 },
-  apple: { id: 'apple', name: 'Яблуко', about: 'Червоне яблучко: для колекції й для кухні бабусь.', line: 'item_apple', biomes: ['meadow', 'forest'], weight: 4, color: 0xe53935 },
+  apple: { id: 'apple', name: 'Яблуко', about: 'Червоне яблучко: для колекції й для кухні бабусь.', line: 'item_apple', biomes: ['meadow', 'forest'], weight: 4, color: 0xe53935, gives: 'peace' },
   mushroom_red: { id: 'mushroom_red', name: 'Червоний гриб', about: 'Гриб для колекції — його не їдять.', line: 'item_mushroom_red', biomes: ['forest'], weight: 4, color: 0xe53935 },
-  mushroom_brown: { id: 'mushroom_brown', name: 'Коричневий гриб', about: 'Гриб для колекції й для кухні бабусь.', line: 'item_mushroom_brown', biomes: ['forest', 'meadow'], weight: 3, color: 0x8d6e63 },
+  mushroom_brown: { id: 'mushroom_brown', name: 'Коричневий гриб', about: 'Гриб для колекції й для кухні бабусь.', line: 'item_mushroom_brown', biomes: ['forest', 'meadow'], weight: 3, color: 0x8d6e63, gives: 'peace' },
   feather: { id: 'feather', name: 'Пір’їнка', about: 'Легка пір’їнка для колекції.', line: 'item_feather', biomes: ['meadow', 'beach'], weight: 3, color: 0xe3f2fd },
   earth_seed: { id: 'earth_seed', name: 'Насіння землі', about: 'Рідкісне насіння, трапляється будь-де.', line: 'item_earth_seed', biomes: 'any', weight: 0.6, color: 0x76ff03 },
   key_gold: { id: 'key_gold', name: 'Золотий ключ', about: 'Дуже рідкісний золотий ключ.', line: 'item_key_gold', biomes: 'any', weight: 0.25, color: 0xffca28, use: 'auto' },
@@ -69,11 +71,11 @@ export const ITEMS = {
   disc_purr: { id: 'disc_purr', name: 'Диск «Мур-мур-біт»', about: 'Нова пісня для музичного автомата і діджейського пульта.', line: 'item_disc_purr', biomes: 'any', weight: 0, color: 0xee6a82 },
   disc_carol: { id: 'disc_carol', name: 'Диск «Колядка»', about: 'Нова пісня для музичного автомата і діджейського пульта.', line: 'item_disc_carol', biomes: 'any', weight: 0, color: 0xffe3a3 },
   disc_granny: { id: 'disc_granny', name: 'Диск «Бабусина пісня»', about: 'Нова пісня для музичного автомата і діджейського пульта.', line: 'item_disc_granny', biomes: 'any', weight: 0, color: 0xffd23a },
-  cherry: { id: 'cherry', name: 'Вишні', about: 'Продукт для кухні бабусь: лежать на луках і в лісі.', line: 'item_cherry', biomes: ['meadow', 'forest'], weight: 3, color: 0xb0233a },
-  potato: { id: 'potato', name: 'Картопля', about: 'Продукт для кухні бабусь: лежить на луках і пагорбах.', line: 'item_potato', biomes: ['meadow', 'hills'], weight: 3, color: 0xc9a26b },
-  carrot: { id: 'carrot', name: 'Морква', about: 'Продукт для кухні бабусь: лежить на луках і пагорбах.', line: 'item_carrot', biomes: ['meadow', 'hills'], weight: 3, color: 0xf08a24 },
-  honey: { id: 'honey', name: 'Мед', about: 'Продукт для кухні бабусь: лежить у лісі.', line: 'item_honey', biomes: ['forest'], weight: 2, color: 0xeab02b },
-  egg: { id: 'egg', name: 'Яйце', about: 'Продукт для кухні бабусь: гніздечка ховаються в траві й у лісі.', line: 'item_egg', biomes: ['meadow', 'forest'], weight: 2, color: 0xfff1d6 },
+  cherry: { id: 'cherry', name: 'Вишні', about: 'Продукт для кухні бабусь: лежать на луках і в лісі.', line: 'item_cherry', biomes: ['meadow', 'forest'], weight: 3, color: 0xb0233a, gives: 'fast' },
+  potato: { id: 'potato', name: 'Картопля', about: 'Продукт для кухні бабусь: лежить на луках і пагорбах.', line: 'item_potato', biomes: ['meadow', 'hills'], weight: 3, color: 0xc9a26b, gives: 'freeze' },
+  carrot: { id: 'carrot', name: 'Морква', about: 'Продукт для кухні бабусь: лежить на луках і пагорбах.', line: 'item_carrot', biomes: ['meadow', 'hills'], weight: 3, color: 0xf08a24, gives: 'light' },
+  honey: { id: 'honey', name: 'Мед', about: 'Продукт для кухні бабусь: лежить у лісі.', line: 'item_honey', biomes: ['forest'], weight: 2, color: 0xeab02b, gives: 'fast' },
+  egg: { id: 'egg', name: 'Яйце', about: 'Продукт для кухні бабусь: гніздечка ховаються в траві й у лісі.', line: 'item_egg', biomes: ['meadow', 'forest'], weight: 2, color: 0xfff1d6, gives: 'light' },
   varenyky: { id: 'varenyky', name: 'Вареники з вишнями', about: 'Швидкий біг на 40 секунд.', line: 'item_varenyky', biomes: 'any', weight: 0, color: 0xb0233a, use: { kind: 'fast', for: 40 } },
   deruny: { id: 'deruny', name: 'Деруни', about: 'Монстри поруч завмирають на 6 секунд.', line: 'item_deruny', biomes: 'any', weight: 0, color: 0xc98f4c, use: { kind: 'freeze', for: 6, reach: 12 } },
   borscht: { id: 'borscht', name: 'Борщ', about: 'Дві хвилини поруч із героями не з’являються монстри.', line: 'item_borscht', biomes: 'any', weight: 0, color: 0xb3263a, use: { kind: 'light', for: 120, reach: 14 } },
@@ -86,6 +88,15 @@ export const ITEMS = {
   apple_porridge: { id: 'apple_porridge', name: 'Каша з яблуками', about: 'Півтори хвилини поруч із героями не з’являються монстри.', line: 'item_apple_porridge', biomes: 'any', weight: 0, color: 0xf3ead6, use: { kind: 'light', for: 90, reach: 12 } },
   ladybird_toast: { id: 'ladybird_toast', name: 'Бутерброд-сонечко', about: 'Монстри поруч танцюють 15 секунд.', line: 'item_ladybird_toast', biomes: 'any', weight: 0, color: 0xe0583f, use: { kind: 'peace', for: 15, reach: 12 } },
   butterfly_cookies: { id: 'butterfly_cookies', name: 'Печиво-метелики', about: 'Монстри поруч завмирають на 8 секунд.', line: 'item_butterfly_cookies', biomes: 'any', weight: 0, color: 0xeab02b, use: { kind: 'freeze', for: 8, reach: 10 } },
+  mushroom_pies: { id: 'mushroom_pies', name: 'Пиріжки з грибами', about: 'Півтори хвилини поруч із героями не з’являються монстри.', line: 'item_mushroom_pies', biomes: 'any', weight: 0, color: 0xd9962c, use: { kind: 'light', for: 90, reach: 12 } },
+  uzvar: { id: 'uzvar', name: 'Узвар', about: 'Монстри поруч танцюють 12 секунд.', line: 'item_uzvar', biomes: 'any', weight: 0, color: 0xc8643a, use: { kind: 'peace', for: 12, reach: 10 } },
+  baked_apples: { id: 'baked_apples', name: 'Печені яблука', about: 'Швидкий біг на 30 секунд.', line: 'item_baked_apples', biomes: 'any', weight: 0, color: 0xd8352f, use: { kind: 'fast', for: 30 } },
+  carrot_salad: { id: 'carrot_salad', name: 'Морквяний салат', about: 'Монстри поруч завмирають на 6 секунд.', line: 'item_carrot_salad', biomes: 'any', weight: 0, color: 0xf08a24, use: { kind: 'freeze', for: 6, reach: 10 } },
+  // the own dishes («власна страва»): what the children mix without a recipe, weaker than a book dish
+  surprise_fast: { id: 'surprise_fast', name: 'Власна страва: швидка', about: 'Страва, яку діти вигадали самі: швидкий біг на 15 секунд.', line: 'item_surprise_fast', biomes: 'any', weight: 0, color: 0xb0233a, use: { kind: 'fast', for: 15 } },
+  surprise_freeze: { id: 'surprise_freeze', name: 'Власна страва: завмирайка', about: 'Страва, яку діти вигадали самі: монстри поруч завмирають на 3 секунди.', line: 'item_surprise_freeze', biomes: 'any', weight: 0, color: 0xc9a26b, use: { kind: 'freeze', for: 3, reach: 9 } },
+  surprise_light: { id: 'surprise_light', name: 'Власна страва: світла', about: 'Страва, яку діти вигадали самі: 45 секунд поруч не з’являються монстри.', line: 'item_surprise_light', biomes: 'any', weight: 0, color: 0xf08a24, use: { kind: 'light', for: 45, reach: 9 } },
+  surprise_peace: { id: 'surprise_peace', name: 'Власна страва: танцювальна', about: 'Страва, яку діти вигадали самі: монстри поруч танцюють 6 секунд.', line: 'item_surprise_peace', biomes: 'any', weight: 0, color: 0x8d6e63, use: { kind: 'peace', for: 6, reach: 8 } },
 } satisfies Record<string, ItemCard>;
 
 export type ItemId = keyof typeof ITEMS;
@@ -145,6 +156,14 @@ export const ITEM_ORDER: ItemId[] = [
   'apple_porridge',
   'ladybird_toast',
   'butterfly_cookies',
+  'mushroom_pies',
+  'uzvar',
+  'baked_apples',
+  'carrot_salad',
+  'surprise_fast',
+  'surprise_freeze',
+  'surprise_light',
+  'surprise_peace',
 ];
 
 export const PICKUPS = {

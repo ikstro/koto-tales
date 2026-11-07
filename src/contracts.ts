@@ -282,7 +282,9 @@ export interface HouseBlueprint {
 export type Speaker =
   | 'narrator' | 'lyosha' | 'solomiia' | 'pupsia' | 'david' | 'monster'
   | 'elf' | 'elf_kid' | 'gnome' | 'robot' | 'alien' | 'alien_kid'
-  | 'elf_queen' | 'gnome_king' | 'robot_chief' | 'alien_captain' | 'sirko';
+  | 'elf_queen' | 'gnome_king' | 'robot_chief' | 'alien_captain' | 'sirko'
+  /** The news anchor on the grandmothers' TV (heard through the set's little speaker, voice/voice.ts). */
+  | 'anchor';
 
 /** Entry of src/content/lines.json — the single source for voice generation. */
 export interface Line {
@@ -328,6 +330,8 @@ export type SfxName =
   | 'sniff'
   /** A little plop into water with a bubble (fish food into the aquarium). */
   | 'plop'
+  /** The news jingle: the grandmothers' TV switching on to the monster news (systems/tvNews.ts). */
+  | 'news'
   /** Monsters' own voices (MonsterCard.cry), made in code. */
   | 'cry_siren'
   | 'cry_growl'

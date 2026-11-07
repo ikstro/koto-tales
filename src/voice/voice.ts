@@ -63,7 +63,10 @@ function out(): GainNode {
   return gain;
 }
 
-/** Robots buzz (ring modulation), aliens echo: added as their lines play (DESIGN.md «Villages»). */
+/**
+ * Robots buzz (ring modulation), aliens echo: added as their lines play (DESIGN.md «Villages»);
+ * the news anchor sounds from the TV.
+ */
 function connect(c: AudioContext, src: AudioBufferSourceNode, speaker: Speaker | undefined): void {
   if (speaker === 'robot' || speaker === 'robot_chief') {
     const ring = c.createGain();
@@ -79,6 +82,22 @@ function connect(c: AudioContext, src: AudioBufferSourceNode, speaker: Speaker |
     src.connect(ring).connect(out());
     osc.start();
     src.addEventListener('ended', () => osc.stop());
+    return;
+  }
+  if (speaker === 'anchor') {
+    // from the TV: a little set's speaker, thin and bright (no lows, a lift in the middle, no highs)
+    const hp = c.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 300;
+    const peak = c.createBiquadFilter();
+    peak.type = 'peaking';
+    peak.frequency.value = 1600;
+    peak.Q.value = 0.9;
+    peak.gain.value = 4;
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 3200;
+    src.connect(hp).connect(peak).connect(lp).connect(out());
     return;
   }
   src.connect(out());
