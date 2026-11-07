@@ -32,7 +32,8 @@ export interface GameEvents {
   'album:open': Record<string, never>;
   /** A building from the kit went up / was packed back into the box. */
   'building:placed': { id: string };
-  'building:folded': { id: string };
+  /** `x`, `z`: its footprint corner, as `save.placed` kept it (a garden bed gives back what grows). */
+  'building:folded': { id: string; x: number; z: number };
   /** The kit box gave its reward for a task done (content/progress.ts). */
   'kit:reward': { id: string };
   'lighthouse:lit': { id: string };

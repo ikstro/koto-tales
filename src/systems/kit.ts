@@ -568,7 +568,7 @@ export function packAway(ctx: Ctx, s: Standing, refund = true): void {
   sfx.play('poof');
   ctx.hud.kitBump();
   pushHud(ctx);
-  events.emit('building:folded', { id: s.card.id });
+  events.emit('building:folded', { id: s.card.id, x: s.rec.x, z: s.rec.z });
 }
 
 /** A building the world took (the lake monster's fish, snapped up off the shore): it folds away with nothing back. */

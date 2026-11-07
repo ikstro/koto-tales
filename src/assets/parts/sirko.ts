@@ -3,6 +3,7 @@
  * a white chest, muzzle and paw tips, a black nose, a dark brow patch over
  * one eye, a coral collar with a mustard tag, an up-curled white-tipped tail.
  */
+import type * as THREE from 'three';
 import type { Rig, Skin } from '../../contracts';
 import { faceAtlas, type FaceSpec } from '../faces';
 import { quadFrame } from './frames';
@@ -93,4 +94,28 @@ export function build(skin: Skin): Rig {
   kit.part('tail2', parts.tail2).box([0.09, 0.09, 0.24], [0, 0, -0.1], WHITE).done();
 
   return { type: 'quadruped', root, parts, height: 0.95, eyes: kit.eyes };
+}
+
+const joints = new WeakMap<THREE.Object3D, Record<'head' | 'tail' | 'tail2', THREE.Object3D | undefined>>();
+
+/**
+ * His own moments on top of the shared animator (systems/pets.ts calls it right after the model's
+ * update, so nothing adds up between frames): `wag` 0..1 swings the tail fast from side to side,
+ * `sniff` 0..1 puts the nose to the ground with quick little sniffs and a searching turn.
+ * Running is the animator's own gait; eating is its 'eat'.
+ */
+export function sirkoPose(root: THREE.Object3D, t: number, wag: number, sniff: number): void {
+  let j = joints.get(root);
+  if (!j) {
+    j = { head: root.getObjectByName('head'), tail: root.getObjectByName('tail'), tail2: root.getObjectByName('tail2') };
+    joints.set(root, j);
+  }
+  if (wag > 0) {
+    if (j.tail) j.tail.rotation.y += Math.sin(t * 17) * 0.7 * wag;
+    if (j.tail2) j.tail2.rotation.y += Math.sin(t * 17 - 0.9) * 0.55 * wag;
+  }
+  if (sniff > 0 && j.head) {
+    j.head.rotation.x += (0.75 + 0.07 * Math.sin(t * 22)) * sniff;
+    j.head.rotation.y += Math.sin(t * 2.6) * 0.45 * sniff;
+  }
 }

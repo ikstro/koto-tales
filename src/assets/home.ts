@@ -442,7 +442,15 @@ export interface Aquarium {
   update(dt: number): void;
   /** World point in front of the glass where a watcher sits. */
   front: THREE.Object3D;
+  /** The middle of the open top: where a tap feeds the fish (systems/pets.ts). */
+  top: THREE.Object3D;
+  /** Flakes sprinkle in from the top and the fish rush up to the surface for a while. */
+  feed(): void;
 }
+
+/** Fish food flakes per feeding, and the seconds the fish stay up at the surface. */
+const FLAKES = 14;
+const RUSH = 10;
 
 /**
  * Пупся's aquarium on a wooden stand, its long side along local Z, the glass facing +X (it stands
@@ -509,17 +517,65 @@ export function createAquarium(skin: Skin): Aquarium {
   bubbles.frustumCulled = false;
   bubbles.castShadow = false;
   root.add(bubbles);
+  // fish food: tiny warm flakes, drawn from the start (hidden at size zero) so no shader waits
+  const flakes = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), skin.partMaterial('#f2a65a'), FLAKES);
+  flakes.frustumCulled = false;
+  flakes.castShadow = false;
+  root.add(flakes);
+  const flake = Array.from({ length: FLAKES }, () => ({ x: 0, z: 0, at: 0, gone: 0 }));
+  const hideFlakes = () => {
+    scl.set(0, 0, 0);
+    for (let i = 0; i < FLAKES; i++) flakes.setMatrixAt(i, m4.compose(pos.set(0, y0, 0), q.identity(), scl));
+    flakes.instanceMatrix.needsUpdate = true;
+  };
+  hideFlakes();
   markShadows(root);
   const front = new THREE.Object3D();
   front.position.set(SW / 2 + 0.75, 0, 0);
   root.add(front);
+  const top = new THREE.Object3D();
+  top.position.set(0, y0 + TH, 0);
+  root.add(top);
 
   let t = 0;
+  /** Seconds left of a feeding (0: none). */
+  let rush = 0;
+  const SURFACE = y0 + TH - 0.1;
   return {
     root,
     front,
+    top,
+    feed() {
+      rush = RUSH;
+      flake.forEach((f, i) => {
+        f.x = -0.22 + Math.random() * 0.5;
+        f.z = -0.62 + (1.24 * (i + Math.random())) / FLAKES;
+        f.at = Math.random() * 0.5;
+        f.gone = 2 + Math.random() * 7;
+      });
+    },
     update(dt) {
       t += dt;
+      const was = rush;
+      rush = Math.max(0, rush - dt);
+      const since = RUSH - rush;
+      // how far the fish are drawn to the surface: up fast, staying, settling back at the end
+      const up = rush > 0 ? Math.min(1, since / 0.9) * Math.min(1, rush / 1.6) : 0;
+      if (rush > 0) {
+        flake.forEach((f, i) => {
+          const life = since - f.at;
+          let s = 0.055;
+          let y: number | undefined;
+          if (life < 0) s = 0;
+          else if (life < 0.45) y = y0 + TH + 0.3 - (life / 0.45) * (TH + 0.3 - (SURFACE - y0));
+          if (life > f.gone) s = Math.max(0, s * (1 - (life - f.gone) / 0.3));
+          y ??= SURFACE - Math.min(0.25, (life - 0.45) * 0.04);
+          pos.set(f.x + Math.sin(t * 1.7 + i) * 0.02, y, f.z + Math.cos(t * 1.3 + i * 2) * 0.02);
+          scl.set(s, s * 0.4, s);
+          flakes.setMatrixAt(i, m4.compose(pos, q.identity(), scl));
+        });
+        flakes.instanceMatrix.needsUpdate = true;
+      } else if (was > 0) hideFlakes();
       fish.forEach((f, i) => {
         // each fish swims its own oval, turning to where it goes
         const sp = 0.45 + i * 0.12;
@@ -532,6 +588,15 @@ export function createAquarium(skin: Skin): Aquarium {
         f.position.set(x, y0 + 0.3 + i * 0.12 + 0.03 * Math.sin(t * 1.3 + i), z);
         f.rotation.y = Math.atan2(-Math.sin(a * dir) * rx * 0.8 * dir, Math.cos(a * dir) * rz * dir);
         f.rotation.z = 0.08 * Math.sin(t * 6 + i);
+        if (up > 0) {
+          // fed: each darts up under its own patch of flakes and nibbles there, wiggling fast
+          const fz = -0.48 + i * 0.32 + Math.sin(t * 3.1 + i * 1.7) * 0.07;
+          const fx = 0.05 + Math.sin(t * 2.3 + i) * 0.1;
+          const fy = SURFACE - 0.1 + 0.03 * Math.sin(t * 9 + i * 2);
+          f.position.set(f.position.x + (fx - f.position.x) * up, f.position.y + (fy - f.position.y) * up, f.position.z + (fz - f.position.z) * up);
+          f.rotation.y += (Math.sin(t * 2 + i) * 1.2 + (i % 2 ? Math.PI : 0) - f.rotation.y) * up;
+          f.rotation.z += 0.2 * Math.sin(t * 18 + i) * up;
+        }
       });
       for (let i = 0; i < BUBBLES; i++) {
         const life = (t * 0.5 + i / BUBBLES) % 1;

@@ -3,6 +3,7 @@ import type { HeroId } from '../contracts';
 import type { Hero } from '../actors/entities';
 import { createAquarium, createBunk, createCabinet, createKitchen, createTable, TABLE_H, type Aquarium, type Cabinet, type Kitchen } from '../assets/home';
 import { createBed, createCampfire, createChest, createCushion, createDoor, type Bed } from '../assets/props';
+import { createCampfireLog, type CampfireLog } from '../assets/campfireLogs';
 import { ARTIFACT_ORDER } from '../content/artifacts';
 import { HERO_ORDER } from '../content/heroes';
 import { HOME, HOUSE, HOUSE_VERSION, rehousedOrigin } from '../content/house';
@@ -119,6 +120,12 @@ export function buildHouse(ctx: Ctx): HouseState {
   add(cabinet.root, HOME.shelf.dx, HOME.shelf.dz);
   aquarium = createAquarium(skin);
   add(aquarium.root, HOME.aquarium.dx, HOME.aquarium.dz);
+  // the logs by the campfire (systems/guests.ts seats the party and the evening's guest on them)
+  fireLogs = HOME.fireLogs.map((l) => {
+    const log = createCampfireLog(skin);
+    add(log.root, l.dx, l.dz, l.yaw);
+    return log;
+  });
   const fill = () => {
     const ids = ARTIFACT_ORDER();
     cabinet!.fill(
@@ -223,7 +230,12 @@ let chestOpen = false;
 let kitchen: Kitchen | null = null;
 let cabinet: Cabinet | null = null;
 let aquarium: Aquarium | null = null;
+/** Пупся's aquarium in the house (systems/pets.ts feeds the fish). */
+export const homeAquarium = (): Aquarium | null => aquarium;
 let kitchenPlace: FoodPlace | null = null;
+let fireLogs: CampfireLog[] = [];
+/** The logs by the home campfire, as `HOME.fireLogs` (empty before the house is built). */
+export const campfireLogs = (): readonly CampfireLog[] => fireLogs;
 /** Seconds of fast running after a meal at home (like the ice cream). */
 const KITCHEN_FAST = 20;
 /** The chair the player sits on at the kitchen table, if any. */

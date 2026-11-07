@@ -25,9 +25,30 @@ interface Walker extends Follower {
   /** Seconds since its trick last worked (heal) and since it last said «yay». */
   trickT: number;
   yayT: number;
+  /** Lent to another system (systems/pets.ts: Сірко at his bowl and on his errand), which moves it. */
+  lent?: boolean;
 }
 
 const walkers: Walker[] = [];
+
+/** A friend another system drives for a while: it stops following, guarding and doing its trick. */
+export function lendCompanion(id: string): Follower & { model: CharacterModel } | null {
+  const w = walkers.find((x) => x.id === id);
+  if (!w) return null;
+  w.lent = true;
+  return w;
+}
+
+/** The friend goes back to walking with the party or guarding its building. */
+export function returnCompanion(id: string): void {
+  const w = walkers.find((x) => x.id === id);
+  if (w) w.lent = false;
+}
+
+/** Where a friend is now (null: not with the party). */
+export function companionPos(id: string): THREE.Vector3 | null {
+  return walkers.find((x) => x.id === id)?.body.pos ?? null;
+}
 const tmp = new THREE.Vector3();
 const tmp2 = new THREE.Vector3();
 /** «Yay» at most this often (s): the trick is often, the line is a treat. */
@@ -157,6 +178,7 @@ export function updateCompanions(ctx: Ctx, dt: number): void {
   walkers.forEach((w, i) => {
     w.trickT += dt;
     w.yayT += dt;
+    if (w.lent) return;
     const guarding = guardPost(ctx, w, tmp2);
     const speed = guarding
       ? stepGuard(ctx, w, tmp2, dt)

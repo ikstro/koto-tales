@@ -1,6 +1,7 @@
 import { BUILDINGS } from '../content/buildings';
 import { giveCompanion } from './companions';
 import { TASKS, nextReward, taskCount, taskFor, type Reward, type TaskKind } from '../content/progress';
+import { inParcels, isParcelReward, upgradesInParcels } from '../content/post';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
 import { sfx } from '../voice/sfx';
@@ -21,11 +22,12 @@ let told = -1;
 
 const counter = (ctx: Ctx, kind: TaskKind): number => taskCount(ctx.save, kind);
 
+// what still waits in parcels at home counts too, so the box keeps its caps (content/post.ts)
 const next = (ctx: Ctx): Reward =>
   nextReward(
     ctx.save.progress.got,
-    (b) => owned(ctx, b),
-    (b) => ctx.save.upgrades[b] ?? 0,
+    (b) => owned(ctx, b) + inParcels(ctx.save.home.post.box, b),
+    (b) => (ctx.save.upgrades[b] ?? 0) + upgradesInParcels(ctx.save.home.post.box, b),
   );
 
 /** What the kit plate shows in its last cell: the next reward (dark) and the task's picture. */
@@ -75,11 +77,8 @@ function begin(ctx: Ctx): void {
   pushNext(ctx);
 }
 
-function give(ctx: Ctx, r: Reward): void {
-  const p = ctx.save.progress;
-  p.got.push(r.id);
-  p.level++;
-  p.start = null;
+/** What a reward puts into the kit (at once, or when its parcel is opened at home: systems/mail.ts). */
+export function grantReward(ctx: Ctx, r: Reward): void {
   for (const [id, n] of r.items ?? []) addToKit(ctx, id, n);
   if (r.upgrade) raiseLevel(ctx, r.upgrade);
   if (r.companion) giveCompanion(ctx, r.companion);
@@ -87,13 +86,26 @@ function give(ctx: Ctx, r: Reward): void {
     ctx.save.coins += r.coins;
     events.emit('coins:changed', { coins: ctx.save.coins });
   }
+}
+
+function give(ctx: Ctx, r: Reward): void {
+  const p = ctx.save.progress;
+  p.got.push(r.id);
+  p.level++;
+  p.start = null;
+  // the endless rewards come home as a parcel in the postbox; its line is said when it is opened
+  const parcel = isParcelReward(r);
+  if (parcel) ctx.save.home.post.box.push({ kind: 'parcel', reward: r, day: ctx.save.day });
+  else {
+    grantReward(ctx, r);
+    ctx.hud.kitBump();
+  }
   sfx.play('sticker');
-  ctx.hud.kitBump();
   ctx.effects.ring(ctx.player.pos, 0xffd23a, 2.4);
   ctx.effects.poof(ctx.player.pos.clone().setY(ctx.player.pos.y + 1.2), 0xffd23a, 22);
   ctx.player.model.play('cheer');
-  voice.say('level_up', { priority: 8, interrupt: true });
-  setTimeout(() => voice.say(r.line, { priority: 8, interrupt: true }), 2600);
+  voice.say(parcel ? 'post_parcel' : 'level_up', { priority: 8, interrupt: true });
+  if (!parcel) setTimeout(() => voice.say(r.line, { priority: 8, interrupt: true }), 2600);
   // then Пупся names the next task
   setTimeout(() => tellTask(ctx, false), 7500);
   events.emit('kit:reward', { id: r.id });

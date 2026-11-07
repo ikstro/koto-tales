@@ -287,6 +287,40 @@ const recipes: Record<SfxName, (k: K) => void> = {
     hiss(k, 0.5, 2.4, 0.12, 'lowpass', 700, 300, 0.8, 0.9);
     hiss(k, 0.8, 1.9, 0.05, 'bandpass', 900, 1500, 2.5, 0.8);
   },
+  splash(k) {
+    // a watering can: a soft bright shower, a few drops plipping onto the soil
+    hiss(k, 0, 0.7, 0.16, 'bandpass', 2600, 1800, 0.9, 0.08);
+    hiss(k, 0.05, 0.5, 0.08, 'highpass', 3800, undefined, 0.6, 0.05);
+    for (let i = 0; i < 4; i++) tone(k, 620 + i * 110, 0.08 + i * 0.13, 0.07, 0.07, 'sine', 1300 + i * 140, 0.004);
+  },
+  // ─── Сірко and the fish (systems/pets.ts) ───
+  bark(k) {
+    // a toy dog's «гав»: a short reedy yelp that drops, a softer second one after it
+    for (const [at, f0, vol] of [[0, 520, 0.16], [0.2, 470, 0.11]] as const) {
+      tone(k, f0, at, 0.13, vol, 'sawtooth', f0 * 0.55, 0.006);
+      tone(k, f0 * 0.5, at, 0.12, vol * 0.8, 'triangle', f0 * 0.3, 0.006);
+      hiss(k, at, 0.06, vol * 0.5, 'bandpass', 1400, 700, 1.4, 0.004);
+    }
+  },
+  whine(k) {
+    // a soft hopeful whimper: a thin tone rising and bending down, twice
+    tone(k, 820, 0, 0.42, 0.06, 'sine', 1150, 0.08);
+    tone(k, 1100, 0.45, 0.5, 0.05, 'sine', 760, 0.08);
+  },
+  chomp(k) {
+    // munch: a muffled bite, a crunch of noise
+    tone(k, 150, 0, 0.07, 0.22, 'triangle', 90, 0.004);
+    hiss(k, 0.01, 0.07, 0.12, 'bandpass', 1100 + Math.random() * 500, undefined, 1.5, 0.004);
+  },
+  sniff(k) {
+    // three quick breaths in through the nose
+    for (let i = 0; i < 3; i++) hiss(k, i * 0.11, 0.07, 0.08, 'bandpass', 2600, 3400, 2, 0.015);
+  },
+  plop(k) {
+    // a drop into water: a round tone sliding up fast, then a tiny bubble
+    tone(k, 300, 0, 0.12, 0.3, 'sine', 900, 0.004);
+    tone(k, 1400, 0.1, 0.06, 0.06, 'sine', 2100, 0.004);
+  },
   // ─── monster cries (MonsterCard.cry): a toy's voice, never scary-loud ───
   cry_siren(k) {
     // Сиреноголовий: his two horns wail together, a little apart, like a toy air-raid siren —

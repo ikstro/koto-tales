@@ -127,6 +127,8 @@ export interface BuildingTick {
   weather?: number;
   /** The cinema: the url of the picture on its screen (null: dark). */
   film?: string | null;
+  /** A garden bed: what grows and what just happened to it (assets/garden.ts). */
+  garden?: import('./garden').GardenLook;
 }
 
 export { SHOW_LENGTH } from './buildingParts';

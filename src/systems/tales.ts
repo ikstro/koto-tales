@@ -81,7 +81,25 @@ interface Plane {
   pos: THREE.Vector3;
   landed: boolean;
   wait: number;
+  /** Flies to this point instead of the hero (the postbox's slot), then `drop` instead of opening. */
+  to?: THREE.Vector3;
+  drop?: () => void;
 }
+
+/**
+ * Where a letter flies (systems/mail.ts, the postbox): `from` where it starts (default: 30 blocks
+ * out, from the sender's side), `to` + `drop` into the postbox instead of to the hero, `quick` opens
+ * a moment after landing (it came out of the postbox right by the hero).
+ */
+export interface LetterFlight {
+  from?: THREE.Vector3;
+  to?: THREE.Vector3;
+  drop?: () => void;
+  quick?: boolean;
+}
+
+/** The postbox may take a letter that is due (true: taken, the tales send nothing themselves). */
+let router: ((t: TaleCard) => boolean) | null = null;
 
 let run: Run | null = null;
 let plane: Plane | null = null;
@@ -460,18 +478,43 @@ function calm(ctx: Ctx): boolean {
 
 const STAMP: Record<string, string> = { elves: '#3fa142', gnomes: '#e0583f', robots: '#2f7fd6', aliens: '#9b5fd0' };
 
-/** A friend's letter flies in from the way of their village and lands in front of the hero. */
-function launch(ctx: Ctx, t: TaleCard): void {
-  const p = ctx.player.pos;
+/** A friend's letter flies in from the way of their village and lands in front of the hero (or into the postbox). */
+function launch(ctx: Ctx, t: TaleCard, way: LetterFlight = {}): void {
+  const p = way.to ?? ctx.player.pos;
   const v = t.from === 'pupsia' ? null : t.from === 'babusia' ? babusiaCentre(ctx) : villageOf(ctx, t.from);
   const a = v ? Math.atan2(v.x - p.x, v.z - p.z) : Math.random() * Math.PI * 2;
   // Бабуся's letters come with a stork
   const model = t.from === 'babusia' ? createStork(ctx.skin) : createPlane(ctx.skin, STAMP[t.from] ?? '#e0583f');
-  const pos = new THREE.Vector3(p.x + Math.sin(a) * 30, p.y + 14, p.z + Math.cos(a) * 30);
+  const pos = way.from?.clone() ?? new THREE.Vector3(p.x + Math.sin(a) * 30, p.y + 14, p.z + Math.cos(a) * 30);
   model.root.position.copy(pos);
   ctx.scene.add(model.root);
-  plane = { model, tale: t, pos, landed: false, wait: LETTER_WAIT };
+  plane = { model, tale: t, pos, landed: false, wait: way.quick ? 0.6 : LETTER_WAIT, to: way.to, drop: way.drop };
   sfx.play('pickup', { pitch: 1.5 });
+}
+
+/** The postbox decides where due letters go (systems/mail.ts). */
+export function routeLetters(fn: (t: TaleCard) => boolean): void {
+  router = fn;
+}
+
+/** A letter is in the air. */
+export const letterBusy = (): boolean => !!plane;
+
+/** That tale's letter could begin now (no tale under way, not done, nothing in the air). */
+export function letterOpenable(ctx: Ctx, id: string): boolean {
+  const s = ctx.save.tales;
+  return !plane && !s.cur && !s.done.includes(id) && !!taleById(id);
+}
+
+/** All is calm enough for a letter to come (see `calm`). */
+export const lettersCalm = (ctx: Ctx): boolean => calm(ctx);
+
+/** Sends that tale's letter (systems/mail.ts): false when it cannot fly now. */
+export function sendLetter(ctx: Ctx, id: string, way: LetterFlight = {}): boolean {
+  const t = taleById(id);
+  if (!t || !letterOpenable(ctx, id)) return false;
+  launch(ctx, t, way);
+  return true;
 }
 
 function updatePlane(ctx: Ctx, dt: number): void {
@@ -479,9 +522,9 @@ function updatePlane(ctx: Ctx, dt: number): void {
   const p = ctx.player.pos;
   const night = 1 - ctx.clock.daylight;
   if (!pl.landed) {
-    // aims a little ahead of the hero, wherever the hero has got to
-    const to = tmp.set(p.x + Math.sin(ctx.player.yaw) * 2.2, 0, p.z + Math.cos(ctx.player.yaw) * 2.2);
-    to.y = ctx.world.groundHeight(Math.floor(to.x), Math.floor(to.z));
+    // aims a little ahead of the hero, wherever the hero has got to (or at the postbox's slot)
+    const to = pl.to ? tmp.copy(pl.to) : tmp.set(p.x + Math.sin(ctx.player.yaw) * 2.2, 0, p.z + Math.cos(ctx.player.yaw) * 2.2);
+    if (!pl.to) to.y = ctx.world.groundHeight(Math.floor(to.x), Math.floor(to.z));
     const d = pl.pos.distanceTo(to);
     const step = Math.min(d, Math.max(8, d * 0.9) * dt);
     if (d > 0.01) {
@@ -493,6 +536,13 @@ function updatePlane(ctx: Ctx, dt: number): void {
       pl.landed = true;
       ctx.effects.poof(pl.pos.clone().setY(pl.pos.y + 0.3), 0xfff4d8, 10);
       sfx.play('click');
+      // into the postbox: it waits there
+      if (pl.drop) {
+        ctx.scene.remove(pl.model.root);
+        plane = null;
+        pl.drop();
+        return;
+      }
     }
   } else pl.wait -= dt;
   pl.model.root.position.copy(pl.pos);
@@ -621,7 +671,7 @@ export function updateTales(ctx: Ctx, dt: number): void {
     const how = entryOf(next);
     // the prologue's things are out at once; its lines wait their turn after the first tips
     if (how === 'wake' && ctx.clock.elapsed > PROLOGUE_AT) begin(ctx, next, 'wake');
-    else if (how === 'letter' && calm(ctx) && (next.from !== 'babusia' || babusiaReady(ctx))) launch(ctx, next);
+    else if (how === 'letter' && calm(ctx) && (next.from !== 'babusia' || babusiaReady(ctx)) && !router?.(next)) launch(ctx, next);
     return;
   }
 

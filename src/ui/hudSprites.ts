@@ -217,8 +217,8 @@ export const SPRITES = {
   'fire-david': {w: 160,h: 160,oy: 0,x: 26,y: 23,cw: 108,ch: 101},
   'mark-david': {w: 76,h: 76,oy: 0,x: 12,y: 12,cw: 52,ch: 46},
   'contents': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
-  'b-doghouse': {w: 200,h: 200,oy: 1,x: 36,y: 56,cw: 128,ch: 131},
-  'b-doghouse-sh': {w: 200,h: 200,oy: 1,x: 44,y: 92,cw: 156,ch: 108},
+  'b-doghouse': {w: 200,h: 200,oy: 1,x: 43,y: 57,cw: 114,ch: 136},
+  'b-doghouse-sh': {w: 200,h: 200,oy: 1,x: 48,y: 90,cw: 152,ch: 110},
   'nessie': {w: 96,h: 96,oy: 0,x: 16,y: 14,cw: 64,ch: 60},
   'nessie-sh': {w: 96,h: 96,oy: 0,x: 18,y: 20,cw: 78,ch: 66},
   'nessie-face': {w: 110,h: 110,oy: 0,x: 14,y: 14,cw: 82,ch: 74},
@@ -329,6 +329,8 @@ export const SPRITES = {
   'item-ladybird': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
   'ask-pot': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
   'cook-spoon': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
+  'b-garden': {w: 200,h: 200,oy: 1,x: 36,y: 83,cw: 128,ch: 101},
+  'b-garden-sh': {w: 200,h: 200,oy: 1,x: 34,y: 92,cw: 156,ch: 108},
 } satisfies Record<string, SpriteMeta>;
 
 export type SpriteName = keyof typeof SPRITES;

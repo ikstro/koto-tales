@@ -319,6 +319,15 @@ export type SfxName =
   | 'lift'
   /** A gust of wind that swells and fades (the flying house), not a loop. */
   | 'wind'
+  /** Water poured from a watering can: a soft shower with a few plips (the garden bed). */
+  | 'splash'
+  /** Сірко (systems/pets.ts): a happy bark, a soft whine, munching, quick sniffs. */
+  | 'bark'
+  | 'whine'
+  | 'chomp'
+  | 'sniff'
+  /** A little plop into water with a bubble (fish food into the aquarium). */
+  | 'plop'
   /** Monsters' own voices (MonsterCard.cry), made in code. */
   | 'cry_siren'
   | 'cry_growl'

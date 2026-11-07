@@ -1194,8 +1194,8 @@ const CARDS = {
   },
   garden: {
     id: 'garden',
-    name: 'TODO',
-    about: 'TODO',
+    name: 'Грядка',
+    about: 'Посади картоплю, моркву, вишні чи яблуко, полий — і за день-два збереш утричі більше.',
     size: [3, 2],
     solid: [],
     count: 1,

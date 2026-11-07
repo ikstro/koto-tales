@@ -66,6 +66,18 @@ export const HOME = {
   aquarium: { dx: 1.45, dz: 5.55 },
   /** The house lamp (the one real light). */
   lamp: { dx: 6.5, dy: 2.9, dz: 3.6 },
+  /** The postbox in the yard, right of the door against the front wall, off the path to the campfire (systems/mail.ts). */
+  postbox: { dx: 9.4, dz: 9.75 },
+  /**
+   * The two logs to sit on by the campfire (dx 6.5, dz 11.5): one to its right, one in front of it,
+   * each facing the fire (yaw turns the log's +Z front to it); the arch stands on its left, the door
+   * path stays free. Guests at the fire come from `guestGate`, the yard's edge (systems/guests.ts).
+   */
+  fireLogs: [
+    { dx: 8.6, dz: 11.9, yaw: -Math.PI / 2 },
+    { dx: 6.6, dz: 13.6, yaw: Math.PI },
+  ],
+  guestGate: { dx: 12.6, dz: 14.4 },
 } as const;
 
 function blocks(): StructureBlock[] {
