@@ -19,6 +19,8 @@ import { buildAlien1, buildAlien2, buildAlien3, buildAlienCaptain, buildAlienEld
 import { buildElf1, buildElf2, buildElf3, buildElfElder, buildElfKid, buildElfQueen } from './parts/elf';
 import { buildGnome1, buildGnome2, buildGnome3, buildGnomeElder, buildGnomeKid, buildGnomeKing } from './parts/gnome';
 import { buildRobot1, buildRobot2, buildRobot3, buildRobotChief, buildRobotElder, buildRobotKid } from './parts/robot';
+import { buildChessman } from './parts/chessman';
+import type { PieceKind, PieceSide } from '../content/chess';
 
 /**
  * Every part file that exports `build` registers itself under its file name
@@ -58,6 +60,13 @@ export const PART_BUILDERS: Record<string, (skin: Skin) => Rig> = {
   robot_chief: buildRobotChief,
   alien_captain: buildAlienCaptain,
   babusia: buildBabusia,
+  // the chess kingdom's folk: the White King (the asker, his face is baked for the HUD) and every piece
+  chess_king: (skin: Skin) => buildChessman(skin, 'king', 'white'),
+  ...Object.fromEntries(
+    (['white', 'black'] as PieceSide[]).flatMap((side) =>
+      (['king', 'queen', 'rook', 'bishop', 'knight', 'pawn'] as PieceKind[]).map((kind) => [`chess_${side}_${kind}`, (skin: Skin) => buildChessman(skin, kind, side)]),
+    ),
+  ),
 };
 
 const RIG_PARTS: Record<RigType, string[]> = {

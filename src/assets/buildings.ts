@@ -143,6 +143,11 @@ export interface BuildingModel {
   tip?: THREE.Vector3;
   /** Seats: riders (a carousel, swings) or eaters (a picnic, a kiosk) are put at their world positions every frame. */
   seats?: THREE.Object3D[];
+  /** «Великі шахи»: its board (glows and marks; run by the model's own update). */
+  board?: import('./chess').BoardModel;
+  /** «Великі шахи»: its five living white pieces (rook, bishop, queen, king, knight), all built up front;
+   *  only the knight shows at first. Each is a CharacterModel's root in the model's frame (`userData.character`). */
+  pieces?: Partial<Record<import('../content/chess').PieceKind, THREE.Object3D>>;
 }
 
 /**

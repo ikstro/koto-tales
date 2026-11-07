@@ -350,6 +350,20 @@ export const SPRITES = {
   'new-easel': {w: 200,h: 200,oy: 1.2,x: 52,y: 63,cw: 88,ch: 120},
   'new-easel-sh': {w: 200,h: 200,oy: 1.2,x: 50,y: 118,cw: 150,ch: 82},
   'new-sirko': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
+  'cmap-chess': {w: 76,h: 76,oy: 0,x: 12,y: 12,cw: 52,ch: 46},
+  'castle-chess': {w: 110,h: 110,oy: 0,x: 14,y: 14,cw: 82,ch: 74},
+  'face-chess-king': {w: 76,h: 76,oy: 0,x: 12,y: 12,cw: 52,ch: 46},
+  'piece-rook': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
+  'piece-bishop': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
+  'piece-queen': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
+  'piece-king': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
+  'piece-knight': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
+  'piece-pawn': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
+  'item-chess-take': {w: 130,h: 130,oy: 0,x: 25,y: 20,cw: 80,ch: 77},
+  'b-bigchess': {w: 200,h: 200,oy: 0.6,x: 32,y: 64,cw: 133,ch: 116},
+  'b-bigchess-sh': {w: 200,h: 200,oy: 0.6,x: 30,y: 66,cw: 150,ch: 120},
+  'new-chess-kingdom': {w: 200,h: 200,oy: 0.9,x: 36,y: 51,cw: 127,ch: 138},
+  'new-chess-kingdom-sh': {w: 200,h: 200,oy: 0.9,x: 34,y: 80,cw: 166,ch: 120},
 } satisfies Record<string, SpriteMeta>;
 
 export type SpriteName = keyof typeof SPRITES;

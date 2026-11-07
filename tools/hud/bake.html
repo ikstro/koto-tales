@@ -30,6 +30,7 @@ import { createPostbox } from '/src/assets/postbox.ts';
 import { createCampfire } from '/src/assets/props.ts';
 import { createCampfireLog } from '/src/assets/campfireLogs.ts';
 import { createBallPit, createChessCorner, createEasel, createSlideTower } from '/src/assets/playroom.ts';
+import { createChessKingdom } from '/src/assets/chess.ts';
 
 const U = 40, DPR = 2, LO = 1.5, TILT = THREE.MathUtils.degToRad(34);
 const canvas = document.getElementById('c');
@@ -1157,6 +1158,53 @@ shoot('jump', roundTile(1, C.green, printSpring, 0.6), 130, 130, { shadow: 'tile
   const PW = { linked: true, on: true, low: false, charge: 0.5, sunYaw: 0.55, sunUp: 0.85 };
   const lamp = createBuilding(skin, 'lamp'); lamp.update(1, { beat: 0, playing: false, night: 0.8, power: PW });
   shoot('tale-lamp', roundTile(1, C.navy, modelPrint(still(lamp.root), C.navy, -0.4, 0.5), 0.6), 130, 130, { shadow: 'tile6-sh' });
+}
+
+// --- the chess kingdom (systems/chess.ts): its map mark and album sticker, the king's face, the lesson
+// pieces (the king's bubble and the album row «Фігури»), «take», «Великі шахи», the «Що нового» picture
+{
+  const still = (o) => { const glows = []; o.traverse((m) => { if (m.isMesh && m.material.blending === THREE.AdditiveBlending) glows.push(m); }); glows.forEach((m) => m.parent.remove(m)); return o; };
+  const awake = () => { const k = createChessKingdom(skin); for (let i = 0; i < 40; i++) k.update(1 / 15, { night: 0, alive: 1, open: 1, beat: 0 }); return k; };
+  /** A print aimed at a given spot (the tower with a strip of the board in front), from `elev` above. */
+  const aimPrint = (obj, bg, yaw, centre, r, elev) => {
+    const holder = new THREE.Group(); obj.rotation.y = yaw; holder.add(obj); scene.add(holder); holder.updateMatrixWorld(true);
+    const pc = new THREE.PerspectiveCamera(22, 1, 0.1, 400);
+    const d = r / Math.tan(THREE.MathUtils.degToRad(11));
+    pc.position.set(centre.x, centre.y + Math.sin(elev) * d, centre.z + Math.cos(elev) * d); pc.lookAt(centre);
+    renderer.setSize(512, 512); renderer.clear(); renderer.render(scene, pc); scene.remove(holder);
+    const cv = document.createElement('canvas'); cv.width = cv.height = 512; const x = cv.getContext('2d');
+    x.fillStyle = bg; x.fillRect(0, 0, 512, 512);
+    x.fillStyle = 'rgba(255,240,200,0.18)'; for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) { x.beginPath(); x.arc(42 + i * 86, 42 + j * 86, 16, 0, Math.PI * 2); x.fill(); }
+    x.drawImage(canvas, 0, 0, 512, 512);
+    return (ctx, sz) => ctx.drawImage(cv, 0, 0, sz, sz);
+  };
+  const piece = (kind, side = 'white') => { const m = models.character({ kind: 'parts', id: `chess_${side}_${kind}` }); m.update(0, 0); return m.root; };
+  {
+    const print = aimPrint(still(awake().root), C.navy, -0.45, new THREE.Vector3(1.5, 7.5, -6.5), 11.5, 0.42);
+    shoot('cmap-chess', roundTile(0.62, C.navy, print, 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
+    shoot('castle-chess', roundTile(1, C.navy, print), 110, 110, { shadow: 'tile-sh', dpr: LO });
+  }
+  shoot('face-chess-king', roundTile(0.62, C.navy, folkPrint('chess_king', C.navy, 0.3, 0.55), 0.3), 76, 76, { shadow: 'mark-sh', dpr: LO });
+  for (const kind of ['rook', 'bishop', 'queen', 'king', 'knight', 'pawn'])
+    shoot('piece-' + kind, roundTile(1, C.navy, modelPrint(piece(kind), C.navy, -0.5, 0.7), 0.6), 130, 130, { shadow: 'tile6-sh' });
+  {
+    // the queen takes: the white queen, an arm up, over a black pawn
+    const g = new THREE.Group();
+    const q = piece('queen'); q.position.set(-0.36, 0, 0.1); q.rotation.y = 0.35;
+    q.traverse((o) => { if (o.name === 'armR') o.rotation.z = -2.4; });
+    const p = piece('pawn', 'black'); p.position.set(0.5, 0, -0.25); p.rotation.y = -0.6;
+    g.add(q, p);
+    shoot('item-chess-take', roundTile(1, C.navy, modelPrint(g, C.navy, -0.15, 0.56), 0.6), 130, 130, { shadow: 'tile6-sh' });
+  }
+  {
+    const PW = { linked: true, on: true, low: false, charge: 0.5, sunYaw: 0.55, sunUp: 0.85 };
+    const b = createBuilding(skin, 'bigchess');
+    b.board.glow([{ cell: { c: 1, r: 2 }, kind: 'move' }, { cell: { c: 2, r: 1 }, kind: 'move' }, { cell: { c: 2, r: 3 }, kind: 'hint' }]);
+    b.board.marks([], { c: 2, r: 3 });
+    b.update(1.2, { beat: 0, playing: false, night: 0, power: PW });
+    shoot('b-bigchess', fittedBox(still(b.root), 3.4, 2.4, -0.45), 200, 200, { oy: 0.6 });
+  }
+  shoot('new-chess-kingdom', fittedBox(still(awake().root), 3.4, 3.0, -0.45), 200, 200, { oy: 0.9 });
 }
 
 // --- any building whose sprite has no hand-tuned shot above: lit, fed, fitted into the cell
