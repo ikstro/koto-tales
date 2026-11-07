@@ -707,8 +707,9 @@ export function createDioramaSkin(): Skin {
     tightCull: { shadowReach: 10 },
     decorate: dresser.decorate,
     disposeDecor: dresser.dispose,
-    onTier(t) {
-      uniforms.uStuds.value = t === 1 ? 1 : 0;
+    // the studs follow the quality level (core/quality.ts), not the tier: tier 0 keeps them
+    onStuds(on) {
+      uniforms.uStuds.value = on ? 1 : 0;
     },
     onUpdate(daylight) {
       uniforms.uStudShade.value = 0.12 + 0.2 * daylight;

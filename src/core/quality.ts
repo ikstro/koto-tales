@@ -6,8 +6,10 @@ import { FrameCap } from './frameCap';
  * Quality levels, best first:
  *   L2  tier 1 (shadows, dressing, studs, tilt-shift post), pixel ratio ≤ 1.5, render distance 5
  *   L1  tier 1 with pixel ratio 1 and a cheaper post pass (fewer blur taps, 2× MSAA)
- *   L0  tier 0 (no shadows, no post, no dressing / studs), pixel ratio 1, render distance 4
- *   L-1 L0 at 0.75 render scale, render distance 3
+ *   L0  tier 0 (no shadows, no post, no dressing; the studs stay), pixel ratio 1, render distance 4
+ *   L-1 L0 at 0.75 render scale with no studs, render distance 3
+ * The studs are the toy look the child knows: they go only on the last rung (the owner's
+ * report, 2026-11-07: after a busy moment the blocks turned smooth for good).
  */
 export type Level = 2 | 1 | 0 | -1;
 
@@ -17,13 +19,15 @@ export interface LevelSpec {
   maxPixelRatio: number;
   post: 'full' | 'cheap';
   renderDistance: number;
+  /** Studs on the ground bricks. */
+  studs: boolean;
 }
 
 export const LEVELS: Record<Level, LevelSpec> = {
-  2: { tier: 1, maxPixelRatio: 1.5, post: 'full', renderDistance: 5 },
-  1: { tier: 1, maxPixelRatio: 1, post: 'cheap', renderDistance: 5 },
-  0: { tier: 0, maxPixelRatio: 1, post: 'cheap', renderDistance: 4 },
-  [-1]: { tier: 0, maxPixelRatio: 0.75, post: 'cheap', renderDistance: 3 },
+  2: { tier: 1, maxPixelRatio: 1.5, post: 'full', renderDistance: 5, studs: true },
+  1: { tier: 1, maxPixelRatio: 1, post: 'cheap', renderDistance: 5, studs: true },
+  0: { tier: 0, maxPixelRatio: 1, post: 'cheap', renderDistance: 4, studs: true },
+  [-1]: { tier: 0, maxPixelRatio: 0.75, post: 'cheap', renderDistance: 3, studs: false },
 };
 
 /** One step of the ladder: a level and a frame cap. */
@@ -67,6 +71,8 @@ export interface ControllerOptions {
   settleS: number;
   /** Seconds ignored at the start of play (the world is still streaming in). */
   warmupS: number;
+  /** The slowest share of a window's frames left out of its average: hitches (a gift, a new building, a shader) say nothing about the device. */
+  trim: number;
 }
 
 export const DEFAULT_OPTIONS: ControllerOptions = {
@@ -78,13 +84,15 @@ export const DEFAULT_OPTIONS: ControllerOptions = {
   upAfterS: 20,
   settleS: 1,
   warmupS: 3,
+  trim: 0.15,
 };
 
 export type QualityEvent = 'down' | 'up' | 'ready' | 'stable' | null;
 
 /**
  * Pure decision logic (no DOM, no three): fed the time between drawn frames,
- * it steps down after one slow window (or two that judder below ~55 fps); after a
+ * it steps down after one slow window (or two that judder below ~55 fps), judged
+ * by the average of its frames without the slowest 15 %, so a few hitches never count; after a
  * long run of good ones a step up is `ready`, taken only at a quiet moment (`stepUp`:
  * paused, the big map, a dark fade), since changing the look can stall a frame.
  * A step up that fails within its first two windows makes the next try wait
@@ -94,8 +102,7 @@ export class QualityController {
   rung: number;
   private readonly o: ControllerOptions;
   private settle: number;
-  private winSum = 0;
-  private winN = 0;
+  private win: number[] = [];
   private winTime = 0;
   private goodTime = 0;
   /** Windows in a row slower than holdMs. */
@@ -128,12 +135,11 @@ export class QualityController {
       this.settle -= ms;
       return null;
     }
-    this.winSum += ms;
-    this.winN++;
+    this.win.push(ms);
     this.winTime += ms;
     if (this.winTime < this.o.windowS * 1000) return null;
 
-    const avg = this.winSum / this.winN;
+    const avg = trimmedMean(this.win, this.o.trim);
     const span = this.winTime;
     this.resetWindow();
     if (this.sinceUp !== Infinity) this.sinceUp += span;
@@ -194,16 +200,26 @@ export class QualityController {
   }
 
   private resetWindow(): void {
-    this.winSum = 0;
-    this.winN = 0;
+    this.win = [];
     this.winTime = 0;
   }
+}
+
+/** The average of `xs` without its slowest `trim` share. */
+export function trimmedMean(xs: readonly number[], trim: number): number {
+  if (!xs.length) return 0;
+  const sorted = [...xs].sort((a, b) => a - b);
+  const keep = Math.max(1, sorted.length - Math.floor(sorted.length * trim));
+  let sum = 0;
+  for (let i = 0; i < keep; i++) sum += sorted[i];
+  return sum / keep;
 }
 
 /** At most this many pixels drawn: a big monitor at a high pixel ratio would draw 8 million, with 4× MSAA and the blur. */
 const MAX_PIXELS = 3.6e6;
 
-const KEY = 'koto-tales-quality';
+// '-2': a step down remembered before hitches were left out may have come from one busy moment; every device measures afresh once
+const KEY = 'koto-tales-quality-2';
 const OLD_KEY = 'koto-tales-tier';
 
 function readStored(): number | null {
@@ -325,6 +341,7 @@ export class Quality {
       const was = this.appliedTier;
       this.appliedTier = this.spec.tier;
       this.skin.setTier(this.spec.tier);
+      this.skin.setStuds?.(this.spec.studs);
       this.skin.setPostQuality?.(this.spec.post);
       // chunks dressed while light have no dressing yet: dress them again
       if (was === 0 && this.spec.tier === 1) this.world?.setSkin(this.skin);

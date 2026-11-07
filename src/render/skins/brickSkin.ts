@@ -439,6 +439,8 @@ export interface BrickSkinStyle {
   /** Frees the decorator's shared geometry / materials. */
   disposeDecor?(): void;
   onTier?(tier: QualityTier): void;
+  /** Studs on or off (core/quality.ts LevelSpec.studs). */
+  onStuds?(on: boolean): void;
   onUpdate?(daylight: number, focus: THREE.Vector3): void;
   /**
    * Per-frame culling of chunk meshes and decorations by their bounding box
@@ -739,6 +741,10 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
       tier = t;
       applyTier();
       style.onTier?.(t);
+    },
+
+    setStuds(on) {
+      style.onStuds?.(on);
     },
 
     setPostQuality(q) {
