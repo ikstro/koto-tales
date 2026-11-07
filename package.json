@@ -15,6 +15,7 @@
     "check": "tsc --noEmit && vitest run",
     "shots": "node tools/check/shots.mjs",
     "perf": "node tools/check/perf.mjs",
+    "realstart": "node tools/check/start.mjs",
     "hud": "node tools/hud/bake.mjs",
     "new": "node tools/new/new.mjs",
     "preview": "node tools/preview/preview.mjs"
