@@ -9,6 +9,7 @@ import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { landingSpot, moveFollower, nearestStanding, packAway, relocate, selectedBuilding, spotNear, standingWhere, working, type Standing } from './kit';
 import { castleLanding } from './castles';
+import { chessLanding } from './chess';
 import { ARRIVE, travelTo } from './travel';
 import { followSlot, shootStep, stepFollower, type Follower } from './follow';
 import { tuneOf } from './tune';
@@ -314,7 +315,7 @@ function pickLanding(ctx: Ctx, s: Standing): void {
 
 async function fly(ctx: Ctx, s: Standing, x: number, z: number): Promise<void> {
   // a village or a castle: out in front of its portal, like a jump; elsewhere the nearest open ground
-  const gate = villageLanding(ctx, x, z) ?? castleLanding(ctx, x, z);
+  const gate = villageLanding(ctx, x, z) ?? castleLanding(ctx, x, z) ?? chessLanding(ctx, x, z);
   const spot = gate ? null : landingSpot(ctx.world, x, z, (cx, cz) => houseCell(ctx, cx, cz));
   const to = gate
     ? { x: gate.pos.x + Math.sin(gate.yaw) * ARRIVE, z: gate.pos.z + Math.cos(gate.yaw) * ARRIVE }

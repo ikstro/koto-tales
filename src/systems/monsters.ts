@@ -3,6 +3,7 @@ import { SEA_LEVEL } from '../contracts';
 import { type Hero, Monster, turnTowards, yawOf } from '../actors/entities';
 import { placeOnGround, stepBody } from '../actors/physics';
 import { centreOf, inSafeRing } from '../content/babusia';
+import { inChessFence } from '../content/chess';
 import { MONSTERS, MONSTER_ORDER, SPAWN, type MonsterCard, type MonsterKind } from '../content/monsters';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
@@ -160,6 +161,11 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
   const night = isNight(ctx);
   const pace = tune.monsterSpeed * (night ? tune.night : 1);
   const speakers = playingSpeakers();
+  // the chess kingdom: a toy kingdom where nothing bites
+  const kingdom = ctx.world.chess?.() ?? null;
+  const kx = kingdom ? kingdom.x + 0.5 : 0;
+  const kz = kingdom ? kingdom.z + 0.5 : 0;
+  const inKingdom = (x: number, z: number, margin = 0) => !!kingdom && inChessFence(x - kx, z - kz, margin);
   for (const m of ctx.monsters) {
     if (!m.alive) continue;
     m.hitCd -= dt;
@@ -176,7 +182,9 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
     // a red traffic light close by: it stops and waits (no chasing, no biting)
     if (m.frozen > 0) m.frozen -= dt;
     const red = !music && (redLight(m.pos.x, m.pos.z) || m.frozen > 0);
-    const seen = ctx.playing && !ctx.sleeping && !music && !red && !inFog(m.pos.x, m.pos.z) ? nearestHero(ctx, m) : null;
+    const near = ctx.playing && !ctx.sleeping && !music && !red && !inFog(m.pos.x, m.pos.z) ? nearestHero(ctx, m) : null;
+    // a hero in the chess kingdom is not chased nor thrown at
+    const seen = near && !inKingdom(near.hero.pos.x, near.hero.pos.z, 2) ? near : null;
     let tx = 0;
     let tz = 0;
     let speed = 0;
@@ -199,6 +207,12 @@ export function updateMonsters(ctx: Ctx, dt: number): void {
       m.state = 'flee';
       tx = m.pos.x - ctx.house!.centre.x;
       tz = m.pos.z - ctx.house!.centre.z;
+      speed = m.card.chaseSpeed;
+    } else if (inKingdom(m.pos.x, m.pos.z)) {
+      // nor into the chess kingdom: one already inside walks out
+      m.state = 'flee';
+      tx = m.pos.x - kx;
+      tz = m.pos.z - kz;
       speed = m.card.chaseSpeed;
     } else if (inSafeRing(ctx.save.babusia, m.pos.x, m.pos.z)) {
       // nor does any monster come near Бабуся

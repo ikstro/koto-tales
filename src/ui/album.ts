@@ -3,6 +3,7 @@ import { ITEMS, ITEM_ORDER, type ItemCard } from '../content/items';
 import { MONSTERS, MONSTER_ORDER } from '../content/monsters';
 import { DISHES, OWN_PAGE, RECIPES, RECIPE_ORDER, type RecipeCard } from '../content/recipes';
 import { CASTLE_CARDS } from '../content/castles';
+import { FIGURES, learnedPieces, pieceLine } from '../content/chess';
 import { TALES } from '../content/tales';
 import { RACE_CARDS } from '../content/villages';
 import { RACES } from '../world/villages';
@@ -71,6 +72,8 @@ export class Album {
       const card = CASTLE_CARDS[race];
       entries.push({ img: `${import.meta.env.BASE_URL}hud/${card.sticker}.png`, got: found.has(`c:${race}`), line: card.hello, count: 0 });
     }
+    // and the chess kingdom's tower, once its chest is opened
+    entries.push({ img: `${import.meta.env.BASE_URL}hud/castle-chess.png`, got: found.has('c:chess'), line: 'chess_hello', count: 0 });
 
     // the book of tales: a page per tale, from a new row
     const book = entries.length;
@@ -88,14 +91,21 @@ export class Album {
     const own = save.kitchen?.own.length ?? 0;
     entries.push({ img: this.portraits.items[OWN_PAGE.dish], got: own > 0, line: OWN_PAGE.line, count: own });
 
+    // the chess pieces («Фігури»): a piece once its lesson in the kingdom is done; a tap says how it walks
+    const figures = entries.length;
+    const learned = save.chess ? learnedPieces(save.chess) : [];
+    for (const kind of FIGURES) {
+      entries.push({ img: `${import.meta.env.BASE_URL}hud/piece-${kind}.png`, got: learned.includes(kind), line: pieceLine(kind), count: 0 });
+    }
+
     // the treasures: the artifacts, from a row of their own, always with the gold rim
     const treasures = entries.length;
     for (const id of ARTIFACT_ORDER()) {
       entries.push({ img: this.portraits.artifacts[id], got: found.has(`a:${id}`), line: ARTIFACTS[id].line, count: 0, gold: true });
     }
 
-    // each part starts a row of its own: finds, the book of tales, the recipes, the treasures
-    const parts = [0, book, recipes, treasures, entries.length].filter((v, i, a) => i === 0 || v > a[i - 1] || i === a.length - 1);
+    // each part starts a row of its own: finds, the book of tales, the recipes, the chess pieces, the treasures
+    const parts = [0, book, recipes, figures, treasures, entries.length].filter((v, i, a) => i === 0 || v > a[i - 1] || i === a.length - 1);
     const rowsOf = (cols: number) => parts.slice(1).reduce((n, end, i) => n + Math.ceil((end - parts[i]) / cols), 0);
     // as many columns as keep the stickers biggest on this screen
     const size = (cols: number) => {

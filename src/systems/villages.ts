@@ -6,6 +6,7 @@ import {
   createGuestHouse, createHeart, createVillageArch, createVillageHouse, createVillageItem, createVillageLamp, type VillagePiece, type VillageTick,
 } from '../assets/villages';
 import { HERO_ORDER } from '../content/heroes';
+import { inChess } from './chess';
 import {
   ELDER_SPOT, freshVillage, isFriend, KID_SPOT, LAYOUT, RACE_CARDS, taskPicture, VILLAGE_COINS, VILLAGE_SAFE, villageTask,
   type Piece, type RaceCard, type TaskNow, type VillageSave,
@@ -172,7 +173,7 @@ function taskNow(ctx: Ctx, race: Race): TaskNow | null {
 
 /** Whether (x, z) is in a village or at a freed castle (safe, hearts come back fast). */
 export function inVillage(ctx: Ctx, x: number, z: number): boolean {
-  return sites(ctx).some((v) => Math.hypot(v.x + 0.5 - x, v.z + 0.5 - z) < VILLAGE_SAFE) || inFreedCastle(ctx, x, z);
+  return sites(ctx).some((v) => Math.hypot(v.x + 0.5 - x, v.z + 0.5 - z) < VILLAGE_SAFE) || inFreedCastle(ctx, x, z) || inChess(ctx, x, z);
 }
 
 /** The guest house the hero stands at (for systems/sleep.ts), if any. */

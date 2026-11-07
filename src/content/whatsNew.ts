@@ -140,6 +140,19 @@ export const RELEASES: Release[] = [
       },
     ],
   },
+  {
+    id: 3,
+    things: [
+      {
+        id: 'chess_kingdom',
+        caption: 'Шахи',
+        pic: 'new-chess-kingdom',
+        line: 'new_chess_kingdom',
+        name: 'Шахове королівство',
+        about: 'Далеко від дому є королівство живих шахових фігур: Білий Король дає сім уроків, і дитина вчиться, як ходить кожна фігура.',
+      },
+    ],
+  },
 ];
 
 /** The newest release (a new game starts here, seeing nothing as new). */

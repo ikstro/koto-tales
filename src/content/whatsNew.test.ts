@@ -4,22 +4,22 @@ import { LINES } from './lines';
 import { LATEST_RELEASE, RELEASES, latestReleases, unseenThings } from './whatsNew';
 
 describe('«Що нового»', () => {
-  it('releases count up from 1, the latest is 2', () => {
-    expect(RELEASES.map((r) => r.id)).toEqual([1, 2]);
-    expect(LATEST_RELEASE).toBe(2);
+  it('releases count up from 1, the latest is 3', () => {
+    expect(RELEASES.map((r) => r.id)).toEqual([1, 2, 3]);
+    expect(LATEST_RELEASE).toBe(3);
   });
 
   it('a save sees every release after its own', () => {
-    expect(unseenThings(0).length).toBe(13);
+    expect(unseenThings(0).length).toBe(14);
     expect(unseenThings(0)[0].id).toBe('flight');
-    expect(unseenThings(1).map((t) => t.id)).toEqual(['bighouse', 'slide', 'chess', 'easel', 'hometv']);
-    expect(unseenThings(2)).toEqual([]);
+    expect(unseenThings(1).map((t) => t.id)).toEqual(['bighouse', 'slide', 'chess', 'easel', 'hometv', 'chess_kingdom']);
+    expect(unseenThings(2).map((t) => t.id)).toEqual(['chess_kingdom']);
     expect(unseenThings(LATEST_RELEASE)).toEqual([]);
   });
 
   it('the newest release comes first in «Зміст гри»', () => {
-    expect(latestReleases(2).map((r) => r.id)).toEqual([2, 1]);
-    expect(latestReleases(1).map((r) => r.id)).toEqual([2]);
+    expect(latestReleases(2).map((r) => r.id)).toEqual([3, 2]);
+    expect(latestReleases(1).map((r) => r.id)).toEqual([3]);
   });
 
   it('every thing has a picture, Пупся’s line and a sentence for the parents', () => {

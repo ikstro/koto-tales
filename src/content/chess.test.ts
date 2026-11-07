@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   BOARD,
+  CHESS,
+  CHESS_EDGE,
+  CHESS_FENCE,
   CHESS_HALF,
+  CHESS_PRIZE,
+  FIGURES,
+  LESSON_TEXT,
   LESSONS,
   LESSON_CARDS,
   PUZZLE_PIECES,
@@ -15,7 +21,20 @@ import {
   foeBoard,
   freshChess,
   goalMoves,
+  help,
+  inChessFence,
   learnedPieces,
+  lessonAsk,
+  lessonPicture,
+  noHelp,
+  pieceLine,
+  picked,
+  playBoard,
+  praiseFor,
+  promotes,
+  sayNo,
+  showFrom,
+  thanksFor,
   lessonAt,
   lessonGoals,
   localCell,
@@ -179,5 +198,100 @@ describe('the board on the square', () => {
     // row 0 is on the gate's side (+Z), row 7 by the tower
     expect(cellLocal({ c: 0, r: 0 })[1]).toBeGreaterThan(cellLocal({ c: 0, r: 7 })[1]);
     expect(localCell(20, 0)).toBeNull();
+  });
+});
+
+describe('the kingdom keeps monsters out', () => {
+  it('the square and its soft edge are inside the fence, beyond it is not', () => {
+    expect(CHESS_FENCE).toBe(CHESS_HALF + CHESS_EDGE);
+    expect(inChessFence(0, 0)).toBe(true);
+    expect(inChessFence(CHESS_HALF, CHESS_HALF)).toBe(true);
+    expect(inChessFence(CHESS_FENCE - 0.5, 0)).toBe(true);
+    expect(inChessFence(CHESS_FENCE + 0.5, 0)).toBe(false);
+    expect(inChessFence(CHESS_FENCE + 0.5, 0, 2)).toBe(true);
+  });
+});
+
+describe('playing the board', () => {
+  const at: Cell = { c: 2, r: 2 };
+  const stop = (o: Partial<Parameters<typeof picked>[1]>) => ({ cell: { c: 3, r: 3 }, at, dwell: 0, entered: false, spent: false, ...o });
+
+  it('«Разом» goes on stepping onto a cell, «Сам» only after a stop; never the piece’s own cell, a stop counts once', () => {
+    expect(picked('together', stop({ entered: true }))).toBe(true);
+    expect(picked('alone', stop({ entered: true }))).toBe(false);
+    expect(picked('alone', stop({ dwell: CHESS.choose - 0.01 }))).toBe(false);
+    expect(picked('alone', stop({ dwell: CHESS.choose }))).toBe(true);
+    expect(picked('together', stop({ dwell: CHESS.choose }))).toBe(true);
+    expect(picked('alone', stop({ dwell: 5, spent: true }))).toBe(false);
+    expect(picked('alone', stop({ dwell: 5, cell: at }))).toBe(false);
+    expect(picked('together', stop({ entered: true, cell: null }))).toBe(false);
+  });
+
+  it('help comes back while the hero stands still and stays until the piece moves', () => {
+    expect(help('together', 0, noHelp())).toEqual({ glow: true, hint: false });
+    expect(help('alone', CHESS.glowBack - 0.1, noHelp())).toEqual({ glow: false, hint: false });
+    expect(help('alone', CHESS.glowBack, noHelp())).toEqual({ glow: true, hint: false });
+    expect(help('alone', 0, { glow: true, hint: false }).glow).toBe(true);
+    expect(help('together', CHESS.hintAfter, noHelp()).hint).toBe(true);
+    expect(CHESS.hintAfter).toBeGreaterThan(CHESS.glowBack);
+  });
+
+  it('the king praises now and then, never two goals in a row, his words taking turns', () => {
+    expect(praiseFor(1, 1, 0, false)).toBe('chess_good_1');
+    expect(praiseFor(1, 1, 1, true)).toBeNull();
+    expect(praiseFor(3, 1, 1, false)).toBeNull();
+    expect(praiseFor(1, 1, 4, false)).toBe('chess_good_2');
+    expect(thanksFor(1)).toBe('chess_thanks');
+    expect(thanksFor(2)).toBe('chess_thanks_2');
+    expect(thanksFor(4)).toBe('chess_thanks');
+    expect(sayNo(0) && sayNo(CHESS.noLines - 1) && !sayNo(CHESS.noLines)).toBe(true);
+  });
+
+  it('only the black pawn under the star can be taken; the rest stand in the way', () => {
+    for (const l of LESSONS) {
+      const goals = lessonGoals(l);
+      for (let got = 0; got < goals; got++) {
+        const now = lessonAt(l, got);
+        const way = shortestPath(LESSON_CARDS[l].piece, now.at, now.goal!, playBoard(now.foes, now.goal));
+        expect(way, `${l} ${got}`).not.toBeNull();
+      }
+    }
+    const take = lessonAt('take', 0);
+    const b = playBoard(take.foes, take.goal);
+    const moves = movesOf('queen', take.at, b);
+    expect(has(moves, 3, 4)).toBe(true);
+    expect(has(moves, 1, 2)).toBe(false);
+    expect(takes({ c: 3, r: 4 }, b)).toBe(true);
+  });
+
+  it('a pawn on the far row becomes a queen', () => {
+    expect(promotes('pawn', { c: 4, r: 7 })).toBe(true);
+    expect(promotes('pawn', { c: 4, r: 6 })).toBe(false);
+    expect(promotes('queen', { c: 4, r: 7 })).toBe(false);
+    expect(promotes('pawn', { c: 1, r: 3 }, SMALL_BOARD)).toBe(true);
+  });
+
+  it('«Дивись» on a return shows moves the piece can make from where it stands', () => {
+    for (const l of LESSONS) {
+      const card = LESSON_CARDS[l];
+      expect(showFrom(l, card.start, card.foes?.from === 'together' ? card.foes.cells : [])).toEqual(card.show);
+      for (let got = 1; got < lessonGoals(l); got++) {
+        const now = lessonAt(l, got);
+        const cells = showFrom(l, now.at, now.foes);
+        expect(cells.length, `${l} ${got}`).toBeLessThanOrEqual(card.show.length);
+        for (const c of cells) expect(has(movesOf(card.piece, now.at, foeBoard(now.foes)), c.c, c.r), `${l} ${got}`).toBe(true);
+        if (card.piece !== 'pawn') for (const c of cells) expect(now.foes.some((f) => sameCell(f, c))).toBe(false);
+      }
+    }
+  });
+
+  it('pictures, lines and the album row', () => {
+    expect(lessonPicture('take')).toBe('item-chess-take');
+    expect(lessonPicture('knight')).toBe('piece-knight');
+    expect(lessonAsk('rook')).toBe('chess_ask_rook');
+    expect(pieceLine('pawn')).toBe('chess_piece_pawn');
+    expect(FIGURES).toEqual(['rook', 'bishop', 'queen', 'king', 'knight', 'pawn']);
+    expect(Object.keys(LESSON_TEXT)).toEqual([...LESSONS]);
+    expect(CHESS_PRIZE).toBe('bigchess');
   });
 });

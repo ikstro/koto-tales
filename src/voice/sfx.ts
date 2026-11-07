@@ -341,6 +341,22 @@ const recipes: Record<SfxName, (k: K) => void> = {
     tone(k, 2360, 0.24, 0.5, 0.015, 'sine', 1300, 0.02);
     hiss(k, 0, 1.0, 0.07, 'bandpass', 700, 2200, 0.9, 0.12);
   },
+  nope(k) {
+    // a soft «ні-ні»: two little hums, the second lower, like a toy shaking its head
+    tone(k, 520, 0, 0.13, 0.12, 'triangle', 470, 0.02);
+    tone(k, 1040, 0, 0.08, 0.02, 'sine', 940, 0.02);
+    tone(k, 440, 0.19, 0.2, 0.12, 'triangle', 370, 0.02);
+    tone(k, 880, 0.19, 0.12, 0.02, 'sine', 740, 0.02);
+  },
+  giggle(k) {
+    // «хі-хі-хі»: quick bright chirps bending down, a breath of air on each
+    [0, 0.11, 0.22, 0.33, 0.45].forEach((at, i) => {
+      const f = 1250 - i * 70;
+      tone(k, f, at, 0.08, 0.07, 'sine', f * 0.78, 0.006);
+      tone(k, f * 0.5, at, 0.07, 0.04, 'triangle', f * 0.4, 0.006);
+      hiss(k, at, 0.05, 0.03, 'bandpass', 3200, 2600, 1.5, 0.004);
+    });
+  },
   // ─── monster cries (MonsterCard.cry): a toy's voice, never scary-loud ───
   cry_siren(k) {
     // Сиреноголовий: his two horns wail together, a little apart, like a toy air-raid siren —

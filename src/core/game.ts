@@ -29,6 +29,7 @@ import { initGarden, updateGarden } from '../systems/garden';
 import { initGuests, updateGuests } from '../systems/guests';
 import { updateSignal } from '../systems/signal';
 import { chestNear, updateCastles } from '../systems/castles';
+import { chessChestNear, updateChess } from '../systems/chess';
 import { initTales, updateTales } from '../systems/tales';
 import { initMail, updateMail } from '../systems/mail';
 import { exposeEffects, initEffects, updateEffects } from '../systems/effects';
@@ -301,6 +302,7 @@ export class Game {
         home: ctx.house ? [ctx.house.centre.x, ctx.house.centre.z] : null,
         villages: ctx.world.villages?.() ?? [],
         castles: ctx.world.castles?.() ?? [],
+        chess: ctx.world.chess?.() ?? null,
         boss: ctx.save.boss.site,
       });
     // «Exit»: save, Пупся says goodbye in the dark, then the game closes. A page in a browser tab
@@ -388,7 +390,7 @@ export class Game {
       updateGarden(ctx);
       updateProgress(ctx);
       updateSleep(ctx);
-      ctx.hud.setPrompt(ctx.sleeping || ctx.napping || eating() ? null : chestNear(ctx) ? 'chest' : sleepPlace(ctx) ? 'moon' : canFold(ctx) ? 'fold' : null);
+      ctx.hud.setPrompt(ctx.sleeping || ctx.napping || eating() ? null : chestNear(ctx) || chessChestNear(ctx) ? 'chest' : sleepPlace(ctx) ? 'moon' : canFold(ctx) ? 'fold' : null);
       ctx.hud.setNote(!ctx.sleeping && !ctx.napping && djNear(ctx));
       ctx.hud.setAsk(weatherAsk(ctx));
       updateNarration(ctx, dt);
@@ -398,6 +400,8 @@ export class Game {
     updatePower(ctx, dt);
     updateLandmarks(ctx, dt);
     updateVillages(ctx, dt);
+    // before the castles: both chests answer the one prompt, and the castles take it whoever stands there
+    updateChess(ctx, dt);
     updateCastles(ctx, dt);
     updateBabusia(ctx, dt);
     updateTales(ctx, dt);

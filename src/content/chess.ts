@@ -8,6 +8,8 @@
  * Cells are (c, r): c 0‥7 left to right as seen from the gate, r 0‥7 from the gate side (row 0,
  * where the party walks in) to the tower (row 7). White plays up the board (r grows).
  */
+import type { BuildingId } from './buildings';
+import type { LineId } from './lines';
 
 export type PieceKind = 'king' | 'queen' | 'rook' | 'bishop' | 'knight' | 'pawn';
 export type PieceSide = 'white' | 'black';
@@ -365,3 +367,139 @@ export const learnedPieces = (s: ChessSave): PieceKind[] => LESSONS.filter((l) =
 
 /** «Великі шахи» puzzles still to play today. */
 export const bigLeft = (s: ChessSave, day: number) => (s.big.day === day ? Math.max(0, CHESS.bigADay - s.big.n) : CHESS.bigADay);
+
+// ---- what the board play decides (systems/boardPlay.ts, systems/chess.ts) ----
+
+/** The kingdom's prize, in the chest on the tower (content/buildings.ts `bigchess`). */
+export const CHESS_PRIZE = 'bigchess' satisfies BuildingId;
+
+/** A toy kingdom where nothing bites (the owner's call): monsters turn away this far from its centre, the square and its soft edge. */
+export const CHESS_FENCE = CHESS_HALF + CHESS_EDGE;
+/** (dx, dz) from the kingdom's centre is inside its fence (`margin` further out). */
+export const inChessFence = (dx: number, dz: number, margin = 0) => Math.hypot(dx, dz) < CHESS_FENCE + margin;
+
+/** The lesson's picture: on the king's bubble, in «Зміст гри». */
+export const lessonPicture = (l: Lesson) => (l === 'take' ? 'item-chess-take' : `piece-${LESSON_CARDS[l].piece}`);
+
+/** The king's ask that names the piece and shows how it moves. */
+export const lessonAsk = (l: Lesson) => `chess_ask_${l}` as LineId;
+
+/** A piece's move told again (its album sticker). */
+export const pieceLine = (k: PieceKind) => `chess_piece_${k}` as LineId;
+
+/** The pieces of the album's row «Фігури», in the lessons' order. */
+export const FIGURES: readonly PieceKind[] = LESSONS.filter((l) => l !== 'take').map((l) => LESSON_CARDS[l].piece);
+
+/** The board a lesson's piece moves on: every black pawn blocks it; only the one on the goal can be taken (one star at a time, in turn). */
+export function playBoard(foes: readonly Cell[], goal: Cell | null, n = BOARD): BoardState {
+  const on = (c: number, r: number) => foes.some((f) => f.c === c && f.r === r);
+  return { n, blocked: on, foe: (c, r) => !!goal && goal.c === c && goal.r === r && on(c, r) };
+}
+
+/** Where the hero is on the board this frame, for a choice. */
+export interface Stop {
+  /** The cell under the hero the child plays (null: off the board). */
+  cell: Cell | null;
+  /** Where the piece stands. */
+  at: Cell;
+  /** Seconds standing still on this cell. */
+  dwell: number;
+  /** Came onto this cell this frame. */
+  entered: boolean;
+  /** This stop has already counted (it counts again after a step). */
+  spent: boolean;
+}
+
+/**
+ * Whether the hero's cell counts as a choice now (never the piece's own cell): in «Разом» stepping onto
+ * it (or standing on it a moment, when the glow came up under the hero); in «Сам» stopping on it CHESS.choose.
+ * Whether the piece may go there is the caller's (a wrong one in «Сам» gets the head shake).
+ */
+export function picked(part: 'together' | 'alone', s: Stop): boolean {
+  if (!s.cell || sameCell(s.cell, s.at) || s.spent) return false;
+  if (part === 'together' && s.entered) return true;
+  return s.dwell >= CHESS.choose;
+}
+
+/** Help that has come back while the hero stood still; it stays until the piece moves. */
+export interface Help {
+  /** Every cell the piece may go to glows (always in «Разом»; in «Сам» after CHESS.glowBack). */
+  glow: boolean;
+  /** The next cell of the shortest way breathes brighter (after CHESS.hintAfter, any part). */
+  hint: boolean;
+}
+
+export const noHelp = (): Help => ({ glow: false, hint: false });
+
+/** The help now, from `idle` seconds standing still since the piece last moved and what has already come back. */
+export function help(part: 'together' | 'alone', idle: number, was: Help): Help {
+  return { glow: part === 'together' || was.glow || idle >= CHESS.glowBack, hint: was.hint || idle >= CHESS.hintAfter };
+}
+
+/** The king's praise, taking turns. */
+export const PRAISE = ['chess_good_1', 'chess_good_2', 'chess_good_3'] as const satisfies readonly LineId[];
+
+/**
+ * After a goal that is not the last of its lesson: the king praises one reached in the fewest moves
+ * (`most`, goalMoves) — but never two goals in a row, so «sometimes»; his words take turns (`k` praises so far).
+ */
+export function praiseFor(moves: number, most: number, k: number, praisedLast: boolean): (typeof PRAISE)[number] | null {
+  if (praisedLast || moves > most) return null;
+  return PRAISE[k % PRAISE.length];
+}
+
+/** The king's thanks for a lesson, taking turns (`done` lessons done, this one counted). */
+export const THANKS = ['chess_thanks', 'chess_thanks_2', 'chess_thanks_3'] as const satisfies readonly LineId[];
+export const thanksFor = (done: number) => THANKS[(Math.max(1, done) - 1) % THANKS.length];
+
+/** «Ні-ні, так вона не ходить» is said at most CHESS.noLines times a lesson (the head shake and the flash every time). */
+export const sayNo = (said: number) => said < CHESS.noLines;
+
+/** A pawn on the far row becomes a queen. */
+export const promotes = (kind: PieceKind, to: Cell, n = BOARD) => kind === 'pawn' && to.r === n - 1;
+
+/**
+ * «Дивись» on a return mid-lesson: what to show from where the piece stands now. Each of the lesson's
+ * shown moves (from its start) is made from here when the piece may, else the move nearest to it in
+ * direction; a black pawn's cell is not shown (except to a pawn, which only lights its cells).
+ */
+export function showFrom(l: Lesson, at: Cell, foes: readonly Cell[]): Cell[] {
+  const card = LESSON_CARDS[l];
+  const all = movesOf(card.piece, at, foeBoard(foes));
+  const moves = card.piece === 'pawn' ? all : all.filter((m) => !foes.some((f) => sameCell(f, m)));
+  const out: Cell[] = [];
+  for (const s of card.show) {
+    const dc = s.c - card.start.c;
+    const dr = s.r - card.start.r;
+    const want = { c: at.c + dc, r: at.r + dr };
+    let best = moves.find((m) => sameCell(m, want)) ?? null;
+    if (!best) {
+      let score = -Infinity;
+      const len = Math.hypot(dc, dr) || 1;
+      for (const m of moves) {
+        const mc = m.c - at.c;
+        const mr = m.r - at.r;
+        const ml = Math.hypot(mc, mr) || 1;
+        // the same way first, then the same length
+        const k = (mc * dc + mr * dr) / (ml * len) - Math.abs(ml - len) * 0.05;
+        if (k > score) {
+          score = k;
+          best = m;
+        }
+      }
+    }
+    if (best && !out.some((o) => sameCell(o, best!))) out.push(best);
+  }
+  return out;
+}
+
+/** The lessons as «Зміст гри» names them, and what each teaches (for the parents). */
+export const LESSON_TEXT: Record<Lesson, { name: string; about: string }> = {
+  rook: { name: 'Тура', about: 'Тура ходить тільки прямо: уперед, назад, уліво, вправо — на скільки завгодно клітинок.' },
+  bishop: { name: 'Слон', about: 'Слон ходить тільки навскоси і завжди лишається на клітинках свого кольору.' },
+  queen: { name: 'Королева', about: 'Королева — найсильніша фігура: ходить і прямо, і навскоси.' },
+  king: { name: 'Король', about: 'Король ходить лише на одну клітинку в будь-який бік; цей урок Білий Король ходить сам.' },
+  knight: { name: 'Кінь', about: 'Кінь стрибає буквою Г — дві клітинки прямо й одну вбік — і перестрибує через усіх.' },
+  pawn: { name: 'Пішак', about: 'Пішак іде тільки вперед (з першого кроку можна на дві), забирає навскоси, а на останньому ряду стає королевою.' },
+  take: { name: 'Бери!', about: 'Фігура забирає чужу, коли стає на її клітинку: королева забирає чотирьох чорних пішаків.' },
+};

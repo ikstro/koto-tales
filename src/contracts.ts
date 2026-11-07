@@ -339,6 +339,10 @@ export type SfxName =
   | 'news'
   /** «Ві-і-і»: a hero whizzing down the playroom's slide (systems/playroom.ts). */
   | 'whee'
+  /** «Ні-ні»: a living chess piece shaking its head at a cell it cannot go to (systems/boardPlay.ts). */
+  | 'nope'
+  /** «Хі-хі»: a black pawn giggling as it is taken and hops off the board. */
+  | 'giggle'
   /** Monsters' own voices (MonsterCard.cry), made in code. */
   | 'cry_siren'
   | 'cry_growl'

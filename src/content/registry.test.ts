@@ -10,6 +10,7 @@ import { SPRITES } from '../ui/hudSprites';
 import { ARTIFACTS } from './artifacts';
 import { BUILDINGS, KIT_ORDER } from './buildings';
 import { CASTLE_CARDS } from './castles';
+import { CHESS_PRIZE, FIGURES, LESSONS, PRAISE, THANKS, lessonAsk, lessonPicture, pieceLine } from './chess';
 import { COMPANIONS } from './companions';
 import { EFFECTS, type Effect } from './effects';
 import { HEROES } from './heroes';
@@ -155,6 +156,7 @@ const given = new Set<string>([
   ...ENDLESS.map((e) => e.building),
   ...Object.values(RACE_CARDS).map((r) => r.prize),
   ...Object.values(CASTLE_CARDS).map((c) => c.prize),
+  CHESS_PRIZE,
   ...TALES.flatMap((t) => (t.gifts ?? []).flatMap((g) => ('building' in g ? [g.building] : []))),
   ...PRESENTS.flatMap((g) => ('building' in g ? [g.building] : [])),
 ]);
@@ -186,6 +188,14 @@ for (const [race, r] of Object.entries(RACE_CARDS)) {
 for (const [race, k] of Object.entries(CASTLE_CARDS)) {
   const c = card(`castle ${race}`).sprite(k.sticker).sprite(k.item).sprite(k.mark);
   for (const l of [k.hello, k.thanks, k.open, k.prizeLine, k.seen, k.pointer, ...Object.values(k.ask)]) c.line(l);
+}
+
+// ─── the chess kingdom: its sprites and the king's lines ───
+{
+  const c = card('chess kingdom').sprite('castle-chess').sprite('cmap-chess').sprite('face-chess-king');
+  for (const l of LESSONS) c.sprite(lessonPicture(l)).line(lessonAsk(l));
+  for (const k of FIGURES) c.sprite(`piece-${k}`).line(pieceLine(k));
+  for (const l of ['chess_seen', 'chess_hello', 'chess_alone', 'chess_no', 'chess_hint', 'chess_pawn_take', 'chess_queen', 'chess_open', 'chess_prize', 'chess_daily', 'chess_big_done', 'chess_rumour', 'castle_chest', ...PRAISE, ...THANKS]) c.line(l);
 }
 
 function validUse(u: Effect | 'auto' | undefined): boolean {

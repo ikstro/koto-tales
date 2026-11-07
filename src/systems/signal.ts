@@ -127,13 +127,15 @@ interface Place {
   icon: string;
 }
 
-/** Villages, castles and lighthouses whose spot is still under the clouds, nearest to (x, z) first. */
+/** Villages, castles, the chess kingdom and lighthouses whose spot is still under the clouds, nearest to (x, z) first. */
 function hidden(ctx: Ctx, x: number, z: number): Place[] {
   const ex = exploredOf(ctx.save);
   const out: Place[] = [];
   const unseen = (px: number, pz: number) => !ex.has(chunkOf(px), chunkOf(pz));
   for (const v of ctx.world.villages?.() ?? []) if (!ctx.save.villages[v.race]?.met && unseen(v.x, v.z)) out.push({ x: v.x + 0.5, z: v.z + 0.5, icon: RACE_CARDS[v.race].mark });
   for (const c of ctx.world.castles?.() ?? []) if (!ctx.save.castles[c.race]?.met && unseen(c.x, c.z)) out.push({ x: c.x + 0.5, z: c.z + 0.5, icon: CASTLE_CARDS[c.race].mark });
+  const k = ctx.world.chess?.();
+  if (k && !ctx.save.chess.met && unseen(k.x, k.z)) out.push({ x: k.x + 0.5, z: k.z + 0.5, icon: 'cmap-chess' });
   for (const l of ctx.world.lighthousesNear?.(x, z, 320) ?? []) if (unseen(l.x, l.z)) out.push({ x: l.x + 0.5, z: l.z + 0.5, icon: 'map-lighthouse' });
   return out.sort((a, b) => Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z));
 }

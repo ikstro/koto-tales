@@ -19,6 +19,7 @@ import { buildHouse } from './systems/house';
 import { buildPostbox } from './systems/mail';
 import { initPlayroom } from './systems/playroom';
 import { initCastles } from './systems/castles';
+import { initChess } from './systems/chess';
 import { initKit } from './systems/kit';
 import { initCooking } from './systems/cooking';
 import { initFood } from './systems/food';
@@ -136,6 +137,7 @@ async function boot(): Promise<void> {
   // before the kit: the villages' ground is kept, buildings standing there go back to the box
   initVillages(ctx);
   initCastles(ctx);
+  initChess(ctx);
   initKit(ctx);
   initSignal(ctx);
   initFood(ctx);

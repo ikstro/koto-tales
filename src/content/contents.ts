@@ -6,6 +6,7 @@ import { ARTIFACTS, ARTIFACT_ORDER } from './artifacts';
 import { centreOf, PRESENTS } from './babusia';
 import { BUILDINGS, KIT_ORDER, type BuildingId } from './buildings';
 import { CASTLE_CARDS, CASTLE_GOALS, castleOpen, castleTask, type CastleCard } from './castles';
+import { CHESS, CHESS_PRIZE, LESSONS, LESSON_TEXT, bigLeft, freshChess, lessonAsk, lessonGoals, lessonPicture, nextLesson } from './chess';
 import { COMPANIONS } from './companions';
 import { ITEMS, ITEM_ORDER, type ItemCard, type ItemId } from './items';
 import { LINES, type LineId } from './lines';
@@ -22,7 +23,7 @@ import { latestReleases } from './whatsNew';
  * a new card shows up here by itself. Ukrainian text (its `about` lines live on the cards).
  */
 
-export type SectionId = 'new' | 'next' | 'babusia' | 'kit' | 'buildings' | 'villages' | 'castles' | 'tales' | 'recipes' | 'items' | 'monsters' | 'world' | 'treasures' | 'friends';
+export type SectionId = 'new' | 'next' | 'babusia' | 'kit' | 'buildings' | 'villages' | 'castles' | 'chess' | 'tales' | 'recipes' | 'items' | 'monsters' | 'world' | 'treasures' | 'friends';
 
 /** A HUD sprite, or a picture rendered at runtime (ui/portraits.ts). */
 export type Pic = { sprite: string } | { portrait: 'item' | 'monster' | 'artifact'; id: string };
@@ -60,6 +61,8 @@ export interface Places {
   home: [number, number] | null;
   villages: readonly { race: Race; x: number; z: number }[];
   castles: readonly { race: Race; x: number; z: number }[];
+  /** The chess kingdom's centre, when the world has one. */
+  chess?: { x: number; z: number } | null;
   boss: [number, number] | null;
 }
 
@@ -230,6 +233,7 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
     if (gift) return { state: 'later', status: `Як отримати: подарунок бабусі за казку «${gift.name}»` };
     const cr = RACES.find((r) => CASTLE_CARDS[r].prize === id);
     if (cr) return { state: 'later', status: `Як отримати: у скрині на вершині замку «${CASTLE_CARDS[cr].name}»` };
+    if (id === CHESS_PRIZE) return { state: 'later', status: 'Як отримати: у скрині на вершині вежі шахового королівства, після семи уроків короля' };
     if (PRESENTS.some((g) => 'building' in g && g.building === id)) return { state: 'later', status: 'Як отримати: бабуся привезе з подорожі' };
     return { state: 'later', status: 'Як отримати: нагорода скриньки згодом' };
   };
@@ -292,6 +296,50 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
       line: c?.met ? card.hello : card.seen,
     };
   });
+
+  // ─── the chess kingdom: the kingdom, the king's seven lessons, «Великі шахи» ───
+  const cs = save.chess ?? freshChess();
+  const lessonNow = cs.met ? (cs.cur ?? nextLesson(cs)) : null;
+  const kingdom: Row = {
+    key: 'chess-kingdom',
+    pic: { sprite: 'castle-chess' },
+    title: 'Шахове королівство',
+    about: 'Королівство живих шахових фігур на великій дошці. Білий Король дає сім уроків — кожна фігура ходить по-своєму, — а після сьомого відчиняє вежу зі скринею.',
+    state: cs.opened ? 'have' : cs.met ? 'now' : 'later',
+    status: cs.opened
+      ? `Скриню відкрито: «${BUILDINGS[CHESS_PRIZE].name}» у скриньці. Щодня король має задачку.`
+      : cs.done.length >= LESSONS.length
+        ? 'Усі уроки пройдено — піднімись сходами вежі до скрині'
+        : cs.met
+          ? `Уроків: ${cs.done.length} з ${LESSONS.length}${lessonNow ? ` · зараз: ${LESSON_TEXT[lessonNow].name}` : ''}`
+          : `Як знайти: ${places.chess ? wayFrom(places.home, places.chess.x, places.chess.z) : 'далеко від дому'}`,
+    line: cs.met ? 'chess_hello' : 'chess_seen',
+  };
+  const lessons: Row[] = LESSONS.map((l, i) => {
+    const isDone = cs.done.includes(l);
+    const now = cs.cur === l;
+    return {
+      key: `chess-${l}`,
+      pic: { sprite: lessonPicture(l) },
+      title: `Урок ${i + 1}: ${LESSON_TEXT[l].name}`,
+      about: LESSON_TEXT[l].about,
+      state: isDone ? 'have' : now ? 'now' : 'later',
+      status: isDone ? 'Пройдено' : now ? `${cs.got} з ${lessonGoals(l)}` : lessonNow === l ? 'Наступний урок: король чекає біля дошки' : 'Як пройти: урок Білого Короля, по черзі',
+      line: lessonAsk(l),
+    };
+  });
+  const bigOwned = owned(CHESS_PRIZE);
+  const bigRow: Row = {
+    key: 'chess-big',
+    pic: { sprite: BUILDINGS[CHESS_PRIZE].sprite },
+    title: BUILDINGS[CHESS_PRIZE].name,
+    about: BUILDINGS[CHESS_PRIZE].about,
+    ...(bigOwned > 0
+      ? { state: 'have' as const, status: `Є ×${bigOwned} · сьогодні задачок: ${CHESS.bigADay - bigLeft(cs, save.day)} з ${CHESS.bigADay}` }
+      : howBuilding(CHESS_PRIZE)),
+    line: BUILDINGS[CHESS_PRIZE].firstLine,
+  };
+  const chess: Row[] = [kingdom, ...lessons, bigRow];
 
   // ─── tales ───
   const left = talesLeft(save.tales.done, has);
@@ -481,6 +529,7 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
   pick(villages.find((r) => r.state === 'now') ?? villages.find((r) => r.state === 'later'), 'villages');
   const friendVillage = RACES.find((r) => village(r) && isFriend(village(r)!) && !castle(r)?.freed);
   pick(castles.find((r) => r.state === 'now') ?? (friendVillage ? castles[RACES.indexOf(friendVillage)] : undefined), 'castles');
+  pick(chess.find((r) => r.state === 'now' && r.key !== 'chess-big'), 'chess');
   if (!bossBeaten) pick(world.find((r) => r.key === `boss-${save.boss.kind}`), 'world');
 
   // ─── what came with the latest updates, newest first ───
@@ -507,6 +556,7 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
     { id: 'buildings', title: 'Будівлі', icon: 'b-windmill', rows: buildings },
     { id: 'villages', title: 'Села', icon: 'folk-elves', rows: villages },
     { id: 'castles', title: 'Замки', icon: 'castle-elves', rows: castles },
+    { id: 'chess', title: 'Шахове королівство', icon: 'castle-chess', rows: chess },
     { id: 'tales', title: 'Казки', icon: 'album', rows: tales },
     { id: 'recipes', title: 'Рецепти', icon: 'ask-pot', rows: recipes },
     { id: 'items', title: 'Речі', icon: 'apple', rows: items },
