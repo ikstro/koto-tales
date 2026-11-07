@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LADDER, QualityController, rungOf } from './quality';
+import { LADDER, LEVELS, QualityController, rungOf, trimmedMean } from './quality';
 
 /** Feeds `secs` of frames of `ms` each; returns the events that happened. */
 function feed(c: QualityController, ms: number, secs: number): string[] {
@@ -15,6 +15,33 @@ function feed(c: QualityController, ms: number, secs: number): string[] {
 const at = (c: QualityController) => `${c.current.level}@${c.current.fps}`;
 
 describe('quality controller', () => {
+  it('a busy moment with a few hitches does not step down (a gift, a new building, a shader)', () => {
+    const c = new QualityController(rungOf(1));
+    feed(c, 16.7, 3.2);
+    // three windows of good frames, each with eight 150 ms hitches: the plain average would be ~23 ms
+    const ev: string[] = [];
+    for (let w = 0; w < 3; w++) {
+      for (let i = 0; i < 112; i++) {
+        const e = c.sample(i % 14 === 0 ? 150 : 16.7);
+        if (e) ev.push(e);
+      }
+    }
+    ev.push(...feed(c, 16.7, 3));
+    expect(ev).not.toContain('down');
+    expect(at(c)).toBe('1@60');
+  });
+
+  it('the toy studs stay on every level but the last', () => {
+    expect(LEVELS[2].studs && LEVELS[1].studs && LEVELS[0].studs).toBe(true);
+    expect(LEVELS[-1].studs).toBe(false);
+  });
+
+  it('the trimmed average leaves out the slowest tenth', () => {
+    expect(trimmedMean([10, 10, 10, 10, 10, 10, 10, 10, 10, 200], 0.1)).toBe(10);
+    expect(trimmedMean([20, 20, 20], 0.1)).toBe(20);
+    expect(trimmedMean([], 0.1)).toBe(0);
+  });
+
   it('ignores the warm-up, then steps down after one slow 3 s window', () => {
     const c = new QualityController(rungOf(2));
     expect(feed(c, 30, 2.9)).toEqual([]); // still warming up

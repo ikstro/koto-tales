@@ -186,6 +186,8 @@ export interface Skin {
   /** Renders the frame (lets a skin add post effects). */
   render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera): void;
   setTier(tier: QualityTier): void;
+  /** Studs on the ground bricks, on or off apart from the tier (they stay on tier 0; only the last quality rung drops them). */
+  setStuds?(on: boolean): void;
   /** Tier 1 only: 'cheap' = a lighter post pass for weak GPUs (same look, fewer samples). */
   setPostQuality?(q: 'full' | 'cheap'): void;
   /** Builds in the background the shaders the other tier and post pass draw the scene with, so a later switch does not stall. */
