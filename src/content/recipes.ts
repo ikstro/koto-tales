@@ -26,6 +26,18 @@ export interface RecipeCard {
   line: LineId;
 }
 
+/**
+ * What the save keeps of the kitchen besides the pages (`save.recipes`): the products whose simple
+ * fact a hostess has told (`"<host>:<item>"`), and the own dishes («власна страва») cooked so far.
+ * Gains fields without a migration: the save fills in today's defaults (systems/save.ts).
+ */
+export interface KitchenSave {
+  facts: string[];
+  own: string[];
+}
+
+export const freshKitchen = (): KitchenSave => ({ facts: [], own: [] });
+
 export const RECIPES = {
   varenyky: { id: 'varenyky', name: 'Вареники з вишнями', about: 'Рецепт бабусі Юлі з двох порцій вишень. Вареники дають швидкий біг.', host: 'yulia', needs: ['cherry', 'cherry'], dish: 'varenyky', snack: 'varenyk', line: 'recipe_varenyky' },
   deruny: { id: 'deruny', name: 'Деруни', about: 'Рецепт бабусі Юлі з двох картоплин. Від дерунів монстри поруч завмирають.', host: 'yulia', needs: ['potato', 'potato'], dish: 'deruny', snack: 'pancake', line: 'recipe_deruny' },

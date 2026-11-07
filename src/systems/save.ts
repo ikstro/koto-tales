@@ -7,6 +7,8 @@ import { DJ_FIRST_SONG } from '../content/music';
 import type { TaskKind } from '../content/progress';
 import type { CastleSave } from '../content/castles';
 import { freshTales, PROLOGUE, TALES, type TalesSave } from '../content/tales';
+import { freshKitchen, type KitchenSave } from '../content/recipes';
+import { freshNews, type NewsSave } from '../content/news';
 import type { VillageSave } from '../content/villages';
 import type { Race } from '../world/villages';
 import type { BossKind } from './bossLogic';
@@ -23,6 +25,10 @@ export interface SaveData {
   v: number;
   /** The dishes cooked at least once: their pages in the book of recipes. */
   recipes: string[];
+  /** The pantry kitchen: facts told, own dishes cooked (content/recipes.ts). */
+  kitchen: KitchenSave;
+  /** The monster news on the grandmothers' TV (content/news.ts). */
+  news: NewsSave;
   /** Бабуся: where her house stands, the meadows she left, the day of her last gift (content/babusia.ts). */
   babusia: BabusiaSave;
   /** The heroes' home life: Сірко, the aquarium, the garden beds, the postbox, the guests (content/home.ts). */
@@ -136,7 +142,7 @@ export const freshBoss = (): BossSave => ({ kind: 'eater', levels: { eater: 1, n
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 20;
+export const SAVE_VERSION = 21;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -159,6 +165,8 @@ export function freshSave(): SaveData {
     inv: {},
     found: [],
     recipes: [],
+    kitchen: freshKitchen(),
+    news: freshNews(),
     picked: [],
     edits: {},
     time: 0.03,
@@ -269,6 +277,8 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
     const kit = (d.kit ?? {}) as Record<string, number>;
     return { ...d, v: 20, home: freshHome(), kit: { ...kit, garden: (kit.garden ?? 0) + 1 } };
   },
+  // v21: the pantry kitchen (free mixing, own dishes) and the monster news on her TV.
+  20: (d) => ({ ...d, v: 21, kitchen: freshKitchen(), news: freshNews() }),
 };
 
 export function migrate(raw: Raw): SaveData {
@@ -280,7 +290,8 @@ export function migrate(raw: Raw): SaveData {
     d = step(d);
     v = d.v as number;
   }
-  return { ...freshSave(), ...d, home: normHome(d.home) } as SaveData;
+  const slice = <T extends object>(fresh: T, raw: unknown): T => ({ ...fresh, ...(raw && typeof raw === 'object' ? raw : {}) });
+  return { ...freshSave(), ...d, home: normHome(d.home), kitchen: slice(freshKitchen(), d.kitchen), news: slice(freshNews(), d.news) } as SaveData;
 }
 
 /**

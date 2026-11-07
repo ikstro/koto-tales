@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { TERRAIN_VERSION } from '../contracts';
 import { freshBabusia } from '../content/babusia';
 import { freshHome } from '../content/home';
+import { freshKitchen } from '../content/recipes';
+import { freshNews } from '../content/news';
 import { SAVE_VERSION, freshSave, migrate, reconcileTerrain, restartSave } from './save';
 
 describe('save', () => {
@@ -197,6 +199,24 @@ describe('save', () => {
     expect(s.kit.garden).toBe(1);
     expect(s.kit.tent).toBe(2);
     expect(s.coins).toBe(30);
+  });
+
+  it('migrates v20 → v21: the pantry kitchen and the TV news start fresh, pages kept', () => {
+    const v20 = { ...freshSave(), v: 20, recipes: ['borscht'], coins: 12 } as unknown as Record<string, unknown>;
+    delete v20.kitchen;
+    delete v20.news;
+    const s = migrate(v20);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.kitchen).toEqual(freshKitchen());
+    expect(s.news).toEqual(freshNews());
+    expect(s.recipes).toEqual(['borscht']);
+    expect(s.coins).toBe(12);
+  });
+
+  it('fills in kitchen and news fields a save of the same version lacks', () => {
+    const s = migrate({ ...freshSave(), kitchen: { own: ['x'] }, news: {} } as unknown as Record<string, unknown>);
+    expect(s.kitchen).toEqual({ ...freshKitchen(), own: ['x'] });
+    expect(s.news).toEqual(freshNews());
   });
 
   it('fills in home fields an older save of the same version lacks', () => {
