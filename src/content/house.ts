@@ -78,6 +78,21 @@ export const HOME = {
     { dx: 6.6, dz: 13.6, yaw: Math.PI },
   ],
   guestGate: { dx: 12.6, dz: 14.4 },
+  /**
+   * The playroom (stage 4, the big house's left part): where each toy stands, relative to the
+   * origin. systems/house.ts owns the values (the layout); systems/playroom.ts builds and runs the
+   * toys at them. Footprints: the slide tower 2×2 (its floor centre; the chute runs +Z about 3
+   * into the ball pit), the ball pit 2.4×2.4, the chess table ~1.2 with a pouf left and right
+   * (±0.9 in x), the easel 1×1, the toy rug 3×2, the TV ~1.4 wide against the back wall facing +Z.
+   */
+  playroom: {
+    slide: { dx: 2, dz: 2 },
+    ballPit: { dx: 2, dz: 5.8 },
+    chess: { dx: 4.8, dz: 7.8 },
+    easel: { dx: 1.6, dz: 8.6 },
+    toyRug: { dx: 5, dz: 3.6 },
+    tv: { dx: 5, dz: 0.6 },
+  },
 } as const;
 
 function blocks(): StructureBlock[] {
