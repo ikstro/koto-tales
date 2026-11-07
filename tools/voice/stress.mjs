@@ -54,6 +54,33 @@ export function toIpa(plain, stressAt) {
   for (let i = 0; i < w.length; i++) {
     const ch = w[i];
     const prev = w[i - 1];
+    const next = w[i + 1];
+    // -ться / -шся are one long soft sound: прокидається [..jɛt͡sʲːɑ], смієшся [..ʃsʲːɑ → sʲːɑ]
+    if (ch === 'т' && w.startsWith('ься', i + 1)) {
+      out.push('t͡sʲː', '', '', 'ɑ');
+      i += 3;
+      continue;
+    }
+    if (ch === 'ш' && w.startsWith('ся', i + 1)) {
+      out.push('sʲː', '', 'ɑ');
+      i += 2;
+      continue;
+    }
+    // дж, дз inside a word are one sound: бджола [bd͡ʒɔlɑ]
+    if (ch === 'д' && (next === 'ж' || next === 'з')) {
+      out.push(next === 'ж' ? 'd͡ʒ' : 'd͡z', '');
+      i += 1;
+      continue;
+    }
+    // a doubled consonant is one long one: життя [ʒɪtʲːɑ], знання [znɑnʲːɑ]
+    if (CONS[ch] !== undefined && ch !== 'й' && next === ch) {
+      const after = w[i + 2];
+      if (after in IOTATED) out.push('', CONS[ch] + 'ʲː', IOTATED[after]);
+      else if (after === 'ь') out.push('', CONS[ch] + 'ʲː', '');
+      else out.push('', CONS[ch] + 'ː');
+      i += after in IOTATED || after === 'ь' ? 2 : 1;
+      continue;
+    }
     const afterConsonant = prev !== undefined && (CONS[prev] !== undefined || prev === 'ь') && prev !== 'й';
     if (ch in IOTATED) out.push((afterConsonant ? 'ʲ' : 'j') + IOTATED[ch]);
     else if (ch in PLAIN) out.push(PLAIN[ch]);
@@ -66,18 +93,76 @@ export function toIpa(plain, stressAt) {
   let at = stressAt;
   if (at > 0 && CONS[w[at - 1]] !== undefined) at -= 1;
   else if (at > 1 && w[at - 1] === 'ь' && CONS[w[at - 2]] !== undefined) at -= 2;
+  // the second letter of дж/дз or of a doubled consonant prints nothing: the mark goes before the sound
+  while (at > 0 && out[at] === '' && CONS[w[at - 1]] !== undefined) at -= 1;
+  // a cluster that opens the word opens the syllable whole (ˈplu, not pˈlu)
+  if ([...w.slice(0, at)].every((ch) => CONS[ch] !== undefined || ch === 'ь' || ch === "'" || ch === '’')) at = 0;
   out[at] = 'ˈ' + out[at];
   return out.join('');
 }
 
+/**
+ * A line marked by autostress.py (a combining acute after each stressed vowel) → the SSML
+ * fragment the voice gets: every marked word, and every stress.json word (it wins: names,
+ * «замок»), goes out with its stress spelled — as IPA (`method` 'ipa') or as the word with
+ * the acute kept ('acute'). Words of one syllable and unmarked words go as they are.
+ */
+export function applyAutoStress(stressed, dict, method = 'ipa') {
+  const key = (w) => w.toLowerCase().replace(/’/g, "'");
+  const byPlain = new Map(dict.map((e) => [key(e.plain), e])); // a later entry wins (a line's own words)
+  const used = [];
+  let ssml = '';
+  let last = 0;
+  let prev = ''; // the word before, when only spaces lie between
+  for (const m of stressed.matchAll(/[\p{L}́'’]+/gu)) {
+    const gap = stressed.slice(last, m.index);
+    ssml += xml(gap);
+    last = m.index + m[0].length;
+    const word = m[0];
+    const plain = word.replaceAll(ACUTE, '');
+    const e = byPlain.get(key(plain));
+    let stressAt = -1;
+    if (e) {
+      stressAt = e.stressAt;
+      if (!used.includes(e.stressed)) used.push(e.stressed);
+    } else if (word.includes(ACUTE)) stressAt = parseStressed(word).stressAt;
+    // after a preposition the stress of мене/тебе/себе moves to the first syllable: до ме́не, у те́бе
+    if (SHIFTING.has(key(plain)) && PREPOSITIONS.has(prev) && /^\s+$/.test(gap)) stressAt = 1;
+    prev = key(plain);
+    if (stressAt < 0) {
+      ssml += xml(plain);
+      continue;
+    }
+    ssml +=
+      method === 'acute'
+        ? xml(plain.slice(0, stressAt + 1) + ACUTE + plain.slice(stressAt + 1))
+        : `<phoneme alphabet="ipa" ph="${toIpa(plain, stressAt)}">${xml(plain)}</phoneme>`;
+  }
+  ssml += xml(stressed.slice(last));
+  return { ssml, used };
+}
+
+const SHIFTING = new Set(['мене', 'тебе', 'себе']);
+const PREPOSITIONS = new Set(
+  'у в до на за від про без для при біля коло із зі з по об під над через крім повз проти після поза перед між'.split(' '),
+);
+
 const xml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+
+const entry = (stressed) => {
+  const { plain, stressAt } = parseStressed(stressed);
+  return { stressed, plain, stressAt, ipa: toIpa(plain, stressAt) };
+};
 
 export function loadDictionary(file = path.join(here, 'stress.json')) {
   const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
-  return (raw.words ?? []).map((stressed) => {
-    const { plain, stressAt } = parseStressed(stressed);
-    return { stressed, plain, ipa: toIpa(plain, stressAt) };
-  });
+  return (raw.words ?? []).map(entry);
+}
+
+/** stress.json `lines`: { lineId: entries } — words that read differently in that one line (за́мок / замо́к). */
+export function loadLineDictionary(file = path.join(here, 'stress.json')) {
+  const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+  return Object.fromEntries(Object.entries(raw.lines ?? {}).map(([id, words]) => [id, words.map(entry)]));
 }
 
 /**
