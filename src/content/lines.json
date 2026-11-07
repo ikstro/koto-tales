@@ -812,5 +812,7 @@
   "tale_first_dinner_1": { "speaker": "pupsia", "text": "Ходімо до бабусі, стрілка покаже дорогу." },
   "tale_first_dinner_2": { "speaker": "pupsia", "text": "Підійди до плити, там з’явиться каструля. Натисни на неї, і будемо готувати!" },
   "tale_first_dinner_thanks": { "speaker": "pupsia", "text": "Смачно! Тепер ми вміємо готувати всі разом. Мур!" },
-  "tale_first_dinner_retell": { "speaker": "narrator", "text": "Герої разом із бабусею зварили свій перший обід, а Пупся його перевірила." }
+  "tale_first_dinner_retell": { "speaker": "narrator", "text": "Герої разом із бабусею зварили свій перший обід, а Пупся його перевірила." },
+  "first_garden": { "speaker": "narrator", "text": "TODO" },
+  "reward_garden": { "speaker": "narrator", "text": "TODO" }
 }

@@ -1,4 +1,5 @@
 import { freshBabusia, type BabusiaSave } from '../content/babusia';
+import { freshHome, normHome, type HomeSave } from '../content/home';
 import { TERRAIN_VERSION, type HeroId, type ItemId, type MonsterKind } from '../contracts';
 import { BUILDINGS, KIT_ORDER, type BuildingId } from '../content/buildings';
 import type { Difficulty } from '../content/difficulty';
@@ -24,6 +25,8 @@ export interface SaveData {
   recipes: string[];
   /** Бабуся: where her house stands, the meadows she left, the day of her last gift (content/babusia.ts). */
   babusia: BabusiaSave;
+  /** The heroes' home life: Сірко, the aquarium, the garden beds, the postbox, the guests (content/home.ts). */
+  home: HomeSave;
   /** Terrain generator version the edits were made against. */
   terrainV: number;
   seed: number;
@@ -133,7 +136,7 @@ export const freshBoss = (): BossSave => ({ kind: 'eater', levels: { eater: 1, n
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 19;
+export const SAVE_VERSION = 20;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -145,6 +148,7 @@ export function freshSave(): SaveData {
   return {
     v: SAVE_VERSION,
     babusia: freshBabusia(),
+    home: freshHome(),
     weather: 0,
     planted: [],
     ovenDay: -1,
@@ -260,6 +264,11 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
     const day = typeof d.day === 'number' ? d.day : 0;
     return { ...d, v: 19, babusia: { ...b, moving: { ...(b.moving as object), day, aboard: false } } };
   },
+  // v20: home life (Сірко's bowl, the aquarium, the garden bed, the postbox, guests); one garden bed in every kit.
+  19: (d) => {
+    const kit = (d.kit ?? {}) as Record<string, number>;
+    return { ...d, v: 20, home: freshHome(), kit: { ...kit, garden: (kit.garden ?? 0) + 1 } };
+  },
 };
 
 export function migrate(raw: Raw): SaveData {
@@ -271,7 +280,7 @@ export function migrate(raw: Raw): SaveData {
     d = step(d);
     v = d.v as number;
   }
-  return { ...freshSave(), ...d } as SaveData;
+  return { ...freshSave(), ...d, home: normHome(d.home) } as SaveData;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TERRAIN_VERSION } from '../contracts';
 import { freshBabusia } from '../content/babusia';
+import { freshHome } from '../content/home';
 import { SAVE_VERSION, freshSave, migrate, reconcileTerrain, restartSave } from './save';
 
 describe('save', () => {
@@ -179,12 +180,31 @@ describe('save', () => {
     const at: [number, number, number] = [10, 12, 20];
     const v18 = { ...freshSave(), v: 18, day: 7, babusia: { ...freshBabusia(), at, moving: { from: at, to: [200, 9, 40], host: 'olia' } } } as unknown as Record<string, unknown>;
     const s = migrate(v18);
-    expect(s.v).toBe(19);
+    expect(s.v).toBe(SAVE_VERSION);
     expect(s.babusia.moving).toEqual({ from: at, to: [200, 9, 40], host: 'olia', day: 7, aboard: false });
     expect(s.babusia.at).toEqual(at);
     const still = migrate({ ...freshSave(), v: 18, day: 7, babusia: { ...freshBabusia(), moving: null } } as unknown as Record<string, unknown>);
-    expect(still.v).toBe(19);
+    expect(still.v).toBe(SAVE_VERSION);
     expect(still.babusia.moving).toBeNull();
+  });
+
+  it('migrates v19 → v20: home life starts fresh and every kit gets a garden bed', () => {
+    const v19 = { ...freshSave(), v: 19, coins: 30, kit: { tent: 2 } } as unknown as Record<string, unknown>;
+    delete v19.home;
+    const s = migrate(v19);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.home).toEqual(freshHome());
+    expect(s.kit.garden).toBe(1);
+    expect(s.kit.tent).toBe(2);
+    expect(s.coins).toBe(30);
+  });
+
+  it('fills in home fields an older save of the same version lacks', () => {
+    const s = migrate({ ...freshSave(), home: { pets: { fedDay: 4 } } } as unknown as Record<string, unknown>);
+    expect(s.home.pets.fedDay).toBe(4);
+    expect(s.home.pets.fishDay).toBe(freshHome().pets.fishDay);
+    expect(s.home.garden).toEqual(freshHome().garden);
+    expect(s.home.post).toEqual(freshHome().post);
   });
 
   it('keeps the boss as it was left (health, baits, beaten day)', () => {

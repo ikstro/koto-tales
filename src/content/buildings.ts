@@ -1192,6 +1192,18 @@ const CARDS = {
     rewardLine: 'reward_pieoven',
     daily: { item: 'babusia_pie' },
   },
+  garden: {
+    id: 'garden',
+    name: 'TODO',
+    about: 'TODO',
+    size: [3, 2],
+    solid: [],
+    count: 1,
+    sprite: 'b-garden',
+    tab: 'home',
+    firstLine: 'first_garden',
+    rewardLine: 'reward_garden',
+  },
 } satisfies Record<string, Card>;
 
 /** Defined by the cards: a new building is one card here (and one model in assets/buildings.ts). */
