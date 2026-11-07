@@ -2,21 +2,25 @@ import { describe, expect, it } from 'vitest';
 import {
   BOARD,
   CHESS_HALF,
-  KNIGHT_ROUNDS,
-  LINE_STARS,
-  PAWN_RUN,
+  LESSONS,
+  LESSON_CARDS,
+  PUZZLE_PIECES,
   SMALL_BOARD,
-  TASK_STEPS,
   bigLeft,
   bigPuzzle,
   cellLocal,
   chessAlive,
   dailyPuzzle,
   darkCell,
+  foeBoard,
   freshChess,
+  goalMoves,
+  learnedPieces,
+  lessonAt,
+  lessonGoals,
   localCell,
   movesOf,
-  nextChessTask,
+  nextLesson,
   sameCell,
   shortestPath,
   takes,
@@ -25,10 +29,8 @@ import {
 } from './chess';
 
 const has = (cells: Cell[], c: number, r: number) => cells.some((p) => p.c === c && p.r === r);
-const pawnBoard: BoardState = {
-  blocked: (c, r) => PAWN_RUN.foes.some((f) => f.c === c && f.r === r),
-  foe: (c, r) => PAWN_RUN.foes.some((f) => f.c === c && f.r === r),
-};
+const pawnFoes = LESSON_CARDS.pawn.foes!.cells;
+const pawnBoard: BoardState = foeBoard(pawnFoes);
 
 describe('chess moves', () => {
   it('a knight jumps in an L, never off the board', () => {
@@ -69,60 +71,92 @@ describe('chess moves', () => {
   });
 
   it('the pawn reaches the far row through its one take', () => {
-    const way = shortestPath('pawn', PAWN_RUN.start, { c: 4, r: BOARD - 1 }, pawnBoard)!;
+    const start = LESSON_CARDS.pawn.start;
+    const way = shortestPath('pawn', start, { c: 4, r: BOARD - 1 }, pawnBoard)!;
     expect(way).not.toBeNull();
-    expect(way.some((p) => sameCell(p, PAWN_RUN.foes[1]))).toBe(true);
+    expect(way.some((p) => sameCell(p, pawnFoes[1]))).toBe(true);
     // straight up the file is shut
-    expect(shortestPath('pawn', PAWN_RUN.start, { c: 3, r: BOARD - 1 }, pawnBoard)).toBeNull();
+    expect(shortestPath('pawn', start, { c: 3, r: BOARD - 1 }, pawnBoard)).toBeNull();
   });
 });
 
-describe('the king’s tasks', () => {
-  it('knight rounds take 1, 2 and 3 jumps and follow on', () => {
-    KNIGHT_ROUNDS.forEach((p, i) => {
-      expect(shortestPath('knight', p.start, p.goal)).toHaveLength(i + 1);
-      if (i) expect(p.start).toEqual(KNIGHT_ROUNDS[i - 1].goal);
-    });
-  });
-
-  it('every star can be reached by its piece', () => {
-    for (const l of LINE_STARS) {
-      for (const s of l.stars) expect(shortestPath(l.kind, l.start, s)).not.toBeNull();
-      if (l.kind === 'bishop') expect(l.stars.every(darkCell) && darkCell(l.start)).toBe(true);
+describe('the king’s lessons', () => {
+  it('every goal is one move from the last (the knight’s last two), with the black pawns on the board', () => {
+    for (const l of LESSONS) {
+      const card = LESSON_CARDS[l];
+      const goals = [...card.together, ...card.alone];
+      for (let got = 0; got < goals.length; got++) {
+        const now = lessonAt(l, got);
+        expect(now.goal).toEqual(goals[got]);
+        const way = shortestPath(card.piece, now.at, now.goal!, foeBoard(now.foes));
+        expect(way, `${l} goal ${got}`).not.toBeNull();
+        const i = now.part === 'together' ? got : got - card.together.length;
+        expect(way!.length, `${l} goal ${got}`).toBeLessThanOrEqual(goalMoves(l, now.part, i));
+        expect(way!.length).toBeGreaterThan(0);
+      }
+      expect(lessonAt(l, goals.length).goal).toBeNull();
+      expect(lessonGoals(l)).toBe(goals.length);
     }
-    expect(TASK_STEPS.lines).toBe(6);
   });
 
-  it('tasks go in order and wake the kingdom', () => {
+  it('the knight’s last goal really needs two jumps', () => {
+    const now = lessonAt('knight', lessonGoals('knight') - 1);
+    expect(shortestPath('knight', now.at, now.goal!)).toHaveLength(2);
+  });
+
+  it('a shown cell is one move from the start', () => {
+    for (const l of LESSONS) for (const c of LESSON_CARDS[l].show) expect(movesOf(LESSON_CARDS[l].piece, LESSON_CARDS[l].start).some((m) => sameCell(m, c))).toBe(true);
+  });
+
+  it('the bishop stays on dark cells; the pawn’s black pawns come only in «Сам»; every black pawn of «take» is taken', () => {
+    const b = LESSON_CARDS.bishop;
+    expect([b.start, ...b.together, ...b.alone].every(darkCell)).toBe(true);
+    expect(lessonAt('pawn', 0).foes).toEqual([]);
+    expect(lessonAt('pawn', LESSON_CARDS.pawn.together.length).foes).toHaveLength(2);
+    expect(lessonAt('take', 0).foes).toHaveLength(4);
+    expect(lessonAt('take', lessonGoals('take')).foes).toHaveLength(0);
+    // the pawn's first «Сам» goal is a take
+    const at = lessonAt('pawn', LESSON_CARDS.pawn.together.length);
+    expect(takes(at.goal!, foeBoard(at.foes))).toBe(true);
+    expect(at.goal!.r).toBe(5);
+  });
+
+  it('lessons go in order, wake the kingdom and teach their pieces', () => {
     const s = freshChess();
-    expect(nextChessTask(s)).toBe('knight');
-    s.done.push('knight');
-    expect(nextChessTask(s)).toBe('lines');
-    expect(chessAlive(s)).toBeCloseTo(1 / 3);
-    s.done.push('lines', 'pawn');
-    expect(nextChessTask(s)).toBeNull();
+    expect(nextLesson(s)).toBe('rook');
+    s.done.push('rook');
+    expect(nextLesson(s)).toBe('bishop');
+    expect(chessAlive(s)).toBeCloseTo(1 / 7);
+    expect(learnedPieces(s)).toEqual(['rook']);
+    s.done.push(...LESSONS.slice(1));
+    expect(nextLesson(s)).toBeNull();
     expect(chessAlive(s)).toBe(1);
+    expect(learnedPieces(s)).toEqual(['rook', 'bishop', 'queen', 'king', 'knight', 'pawn']);
   });
 });
 
 describe('puzzles that come back', () => {
-  it('the daily puzzle is the same for a day and 3–4 jumps', () => {
+  it('the daily puzzle is the same for a day, the pieces in turn', () => {
+    const pieces = new Set<string>();
     for (let d = 0; d < 60; d++) {
       const p = dailyPuzzle(d);
       expect(dailyPuzzle(d)).toEqual(p);
-      const n = shortestPath('knight', p.start, p.goal)!.length;
-      expect(n).toBeGreaterThanOrEqual(3);
-      expect(n).toBeLessThanOrEqual(4);
+      pieces.add(p.piece);
+      const n = shortestPath(p.piece, p.start, p.goal)!.length;
+      expect(n).toBeGreaterThanOrEqual(p.piece === 'knight' ? 3 : 2);
+      expect(n).toBeLessThanOrEqual(p.piece === 'knight' ? 4 : 2);
     }
+    expect(pieces.size).toBe(PUZZLE_PIECES.length);
   });
 
-  it('«Великі шахи» gives 2–3 jumps on its small board, five a day', () => {
+  it('«Великі шахи» gives two-move puzzles on its small board, five a day, a new piece each time', () => {
     for (let d = 0; d < 20; d++)
       for (let k = 0; k < 5; k++) {
         const p = bigPuzzle(d, k);
-        const n = shortestPath('knight', p.start, p.goal, { n: SMALL_BOARD })!.length;
+        expect(p.piece).not.toBe(bigPuzzle(d, k + 1).piece);
+        const n = shortestPath(p.piece, p.start, p.goal, { n: SMALL_BOARD })!.length;
         expect(n).toBeGreaterThanOrEqual(2);
-        expect(n).toBeLessThanOrEqual(3);
+        expect(n).toBeLessThanOrEqual(p.piece === 'knight' ? 3 : 2);
       }
     const s = freshChess();
     expect(bigLeft(s, 4)).toBe(5);

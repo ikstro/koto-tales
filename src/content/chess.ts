@@ -1,8 +1,8 @@
 /**
  * The chess kingdom (DESIGN.md «Chess kingdom»): a square far from home paved as a big board,
- * the White King's tower behind it, living chess pieces for folk. The king asks three tasks that
- * teach how the pieces move, with nothing to read: the cells a piece may go to glow, the hero
- * steps onto one and the piece hops there. Pure rules here (tested); where it stands is
+ * the White King's tower behind it, living chess pieces for folk. The king gives seven lessons
+ * that teach how the pieces move, with nothing to read: the piece shows its move, then the cells
+ * it may go to glow and the hero leads it, then the glow goes out and the child guesses. Pure rules here (tested); where it stands is
  * world/chess.ts, the models assets/chess.ts, systems/chess.ts runs it.
  *
  * Cells are (c, r): c 0‥7 left to right as seen from the gate, r 0‥7 from the gate side (row 0,
@@ -144,51 +144,132 @@ export function shortestPath(kind: PieceKind, from: Cell, to: Cell, b: BoardStat
   return null;
 }
 
-// ---- the king's three tasks ----
+// ---- the king's seven lessons ----
 
-export type ChessTask = 'knight' | 'lines' | 'pawn';
-/** In this order, one at a time. */
-export const CHESS_TASKS: readonly ChessTask[] = ['knight', 'lines', 'pawn'];
+/** One piece a lesson, easiest first (the owner's call, 2026-11-07); «take» last: the queen takes black pawns. */
+export type Lesson = 'rook' | 'bishop' | 'queen' | 'king' | 'knight' | 'pawn' | 'take';
+export const LESSONS: readonly Lesson[] = ['rook', 'bishop', 'queen', 'king', 'knight', 'pawn', 'take'];
 
-export interface Puzzle {
+/** The three parts of every lesson: the scaffold fades so the child learns the rule, not the lights. */
+export type LessonPart = 'show' | 'together' | 'alone';
+
+export interface LessonCard {
+  id: Lesson;
+  piece: PieceKind;
   start: Cell;
-  goal: Cell;
+  /** «Дивись»: while the king explains, the piece shows these cells one by one (it hops there and back; a pawn only lights them, it never goes back). */
+  show: readonly Cell[];
+  /** «Разом»: goals one at a time (a star over the cell), every cell the piece may go to glowing; entering a glowing cell moves it. */
+  together: readonly Cell[];
+  /** «Сам»: goals one at a time with no glow; the child stops on a cell: the piece goes there if it can, else it shakes its head and its cells flash. */
+  alone: readonly Cell[];
+  /** Black pawns standing on the board from the part named (they can be taken; a taken one laughs and hops off). */
+  foes?: { cells: readonly Cell[]; from: 'together' | 'alone' };
 }
 
-/** «Кінь»: the knight crosses the board to the king in three rounds of 1, 2 and 3 jumps; each starts where the last ended. */
-export const KNIGHT_ROUNDS: readonly Puzzle[] = [
-  { start: { c: 1, r: 0 }, goal: { c: 2, r: 2 } },
-  { start: { c: 2, r: 2 }, goal: { c: 2, r: 4 } },
-  { start: { c: 2, r: 4 }, goal: { c: 4, r: 7 } },
-];
-
-/** «Прямо і навскоси»: the rook gathers its three stars (straight lines), then the bishop its three (diagonals, dark cells only). */
-export const LINE_STARS: readonly { kind: 'rook' | 'bishop'; start: Cell; stars: readonly Cell[] }[] = [
-  { kind: 'rook', start: { c: 0, r: 0 }, stars: [{ c: 0, r: 5 }, { c: 6, r: 5 }, { c: 6, r: 2 }] },
-  { kind: 'bishop', start: { c: 2, r: 0 }, stars: [{ c: 4, r: 2 }, { c: 1, r: 5 }, { c: 3, r: 7 }] },
-];
-
-/** «Пішак»: up the board to the far row; a black pawn blocks the way, the one beside it is taken diagonally. The pawn becomes a queen. */
-export const PAWN_RUN = {
-  start: { c: 3, r: 1 } as Cell,
-  /** Black pawns: the first stands in the way, the second is taken (it laughs and steps off the board). */
-  foes: [{ c: 3, r: 5 }, { c: 4, r: 5 }] as readonly Cell[],
+export const LESSON_CARDS: Record<Lesson, LessonCard> = {
+  rook: {
+    id: 'rook',
+    piece: 'rook',
+    start: { c: 0, r: 0 },
+    show: [{ c: 0, r: 3 }, { c: 3, r: 0 }],
+    together: [{ c: 0, r: 5 }, { c: 5, r: 5 }, { c: 5, r: 1 }],
+    alone: [{ c: 2, r: 1 }, { c: 2, r: 6 }],
+  },
+  bishop: {
+    id: 'bishop',
+    piece: 'bishop',
+    start: { c: 2, r: 0 },
+    show: [{ c: 4, r: 2 }, { c: 0, r: 2 }],
+    together: [{ c: 5, r: 3 }, { c: 2, r: 6 }, { c: 0, r: 4 }],
+    alone: [{ c: 3, r: 7 }, { c: 7, r: 3 }],
+  },
+  queen: {
+    id: 'queen',
+    piece: 'queen',
+    start: { c: 3, r: 0 },
+    show: [{ c: 3, r: 3 }, { c: 6, r: 3 }],
+    together: [{ c: 3, r: 5 }, { c: 6, r: 2 }, { c: 1, r: 2 }],
+    alone: [{ c: 5, r: 6 }, { c: 5, r: 0 }],
+  },
+  king: {
+    id: 'king',
+    piece: 'king',
+    start: { c: 4, r: 0 },
+    show: [{ c: 4, r: 1 }, { c: 5, r: 1 }],
+    together: [{ c: 4, r: 1 }, { c: 5, r: 2 }, { c: 5, r: 3 }],
+    alone: [{ c: 4, r: 4 }, { c: 4, r: 5 }],
+  },
+  knight: {
+    id: 'knight',
+    piece: 'knight',
+    start: { c: 1, r: 0 },
+    show: [{ c: 2, r: 2 }, { c: 0, r: 2 }],
+    together: [{ c: 2, r: 2 }, { c: 4, r: 3 }, { c: 5, r: 5 }],
+    // the second takes two jumps: the first time the child plans ahead
+    alone: [{ c: 3, r: 4 }, { c: 4, r: 7 }],
+  },
+  pawn: {
+    id: 'pawn',
+    piece: 'pawn',
+    start: { c: 3, r: 1 },
+    show: [{ c: 3, r: 2 }, { c: 3, r: 3 }],
+    together: [{ c: 3, r: 3 }, { c: 3, r: 4 }],
+    // the way ahead is shut: the black pawn beside is taken on a slant; on the far row the pawn becomes a queen
+    alone: [{ c: 4, r: 5 }, { c: 4, r: 6 }, { c: 4, r: 7 }],
+    foes: { cells: [{ c: 3, r: 5 }, { c: 4, r: 5 }], from: 'alone' },
+  },
+  take: {
+    id: 'take',
+    piece: 'queen',
+    start: { c: 3, r: 0 },
+    show: [],
+    together: [{ c: 3, r: 4 }, { c: 6, r: 7 }],
+    alone: [{ c: 6, r: 2 }, { c: 1, r: 2 }],
+    foes: { cells: [{ c: 3, r: 4 }, { c: 6, r: 7 }, { c: 6, r: 2 }, { c: 1, r: 2 }], from: 'together' },
+  },
 };
 
-/** Steps of a task (what `ChessSave.got` counts up to). */
-export const TASK_STEPS: Record<ChessTask, number> = {
-  knight: KNIGHT_ROUNDS.length,
-  lines: LINE_STARS.reduce((n, l) => n + l.stars.length, 0),
-  pawn: 1,
+/** The most moves one goal may take (the knight's last «Сам» goal takes two; every other goal one). */
+export const goalMoves = (l: Lesson, part: LessonPart, i: number) => (l === 'knight' && part === 'alone' && i === LESSON_CARDS.knight.alone.length - 1 ? 2 : 1);
+
+/** A piece that may hop back from where it showed a cell (a pawn never goes back). */
+export const goesBack = (kind: PieceKind) => kind !== 'pawn';
+
+/** Goals in a lesson (what `ChessSave.got` counts up to). */
+export const lessonGoals = (l: Lesson) => LESSON_CARDS[l].together.length + LESSON_CARDS[l].alone.length;
+
+/** Where a lesson stands after `got` goals: the part, the goal now, where the piece is, the black pawns still on the board. */
+export function lessonAt(l: Lesson, got: number): { part: LessonPart; goal: Cell | null; at: Cell; foes: Cell[] } {
+  const card = LESSON_CARDS[l];
+  const goals = [...card.together, ...card.alone];
+  const part: LessonPart = got < card.together.length ? 'together' : 'alone';
+  const at = got > 0 ? goals[Math.min(got, goals.length) - 1] : card.start;
+  const shown = card.foes && (card.foes.from === 'together' || part === 'alone') ? card.foes.cells : [];
+  const taken = goals.slice(0, got);
+  const foes = shown.filter((f) => !taken.some((g) => sameCell(f, g)));
+  return { part, goal: got < goals.length ? goals[got] : null, at, foes };
+}
+
+/** The board as a lesson piece sees it: the black pawns block and can be taken. */
+export const foeBoard = (foes: readonly Cell[], n = BOARD): BoardState => {
+  const on = (c: number, r: number) => foes.some((f) => f.c === c && f.r === r);
+  return { n, blocked: on, foe: on };
 };
 
 /** Numbers of the place (DESIGN.md «Chess kingdom»). */
 export const CHESS = {
-  /** Coins per task, and for the king's daily puzzle once the kingdom is a friend. */
-  coins: 15,
+  /** Coins per lesson, and for the king's daily puzzle once the kingdom is a friend. */
+  coins: 10,
   dailyCoins: 6,
-  /** Standing still this long in a task: the next cell of the shortest way breathes brighter. */
+  /** «Сам»: stopping on a cell this long chooses it. */
+  choose: 0.5,
+  /** «Сам»: standing still this long brings the glow back softly. */
+  glowBack: 8,
+  /** Standing still this long: the next cell of the shortest way breathes brighter. */
   hintAfter: 20,
+  /** «Ні-ні» said at most this many times a lesson (the head shake and the flash every time). */
+  noLines: 2,
   /** No monster appears within this of the centre (always: it is a kingdom of toys); hearts come back fast. */
   safe: 34,
   /** Пупся's first sight. */
@@ -214,32 +295,54 @@ function rng(seed: number): () => number {
   };
 }
 
-/** A knight puzzle on an n-board whose shortest way is `min`‥`max` jumps. */
-function knightPuzzle(seed: number, n: number, min: number, max: number): Puzzle {
+export interface Puzzle {
+  start: Cell;
+  goal: Cell;
+}
+
+/** The pieces a puzzle may use, in turn (a pawn only goes forward: no puzzle). */
+export const PUZZLE_PIECES: readonly PieceKind[] = ['rook', 'bishop', 'queen', 'king', 'knight'];
+
+export interface PiecePuzzle extends Puzzle {
+  piece: PieceKind;
+}
+
+/** A puzzle for `piece` on an n-board whose shortest way is `min`‥`max` moves. */
+function piecePuzzle(seed: number, piece: PieceKind, n: number, min: number, max: number): PiecePuzzle {
   const rand = rng(seed);
   for (let k = 0; k < 400; k++) {
     const start = { c: Math.floor(rand() * n), r: Math.floor(rand() * n) };
     const goal = { c: Math.floor(rand() * n), r: Math.floor(rand() * n) };
-    const way = shortestPath('knight', start, goal, { n });
-    if (way && way.length >= min && way.length <= max) return { start, goal };
+    const way = shortestPath(piece, start, goal, { n });
+    if (way && way.length >= min && way.length <= max) return { piece, start, goal };
   }
-  return { start: { c: 0, r: 0 }, goal: { c: 1, r: 2 } };
+  return { piece: 'knight', start: { c: 0, r: 0 }, goal: { c: 1, r: 2 } };
 }
 
-/** The king's daily puzzle on the kingdom's board, once it is a friend: 3‥4 jumps. */
-export const dailyPuzzle = (day: number): Puzzle => knightPuzzle(day * 7919 + 17, BOARD, 3, 4);
+/** How many moves a puzzle asks: the knight 2‥3 on the small board, 3‥4 on the big one; the others 2. */
+const range = (piece: PieceKind, n: number): [number, number] => (piece === 'knight' ? (n > SMALL_BOARD ? [3, 4] : [2, 3]) : [2, 2]);
+const turn = (k: number) => PUZZLE_PIECES[((k % PUZZLE_PIECES.length) + PUZZLE_PIECES.length) % PUZZLE_PIECES.length];
 
-/** «Великі шахи»: the n-th puzzle of a day on the 4×4 board: 2‥3 jumps, a coin on the goal. */
-export const bigPuzzle = (day: number, n: number): Puzzle => knightPuzzle(day * 131 + n * 31 + 5, SMALL_BOARD, 2, 3);
+/** The king's daily puzzle on the kingdom's board, once it is a friend: a piece a day, in turn. */
+export function dailyPuzzle(day: number): PiecePuzzle {
+  const piece = turn(day);
+  return piecePuzzle(day * 7919 + 17, piece, BOARD, ...range(piece, BOARD));
+}
+
+/** «Великі шахи»: the n-th puzzle of a day on the 4×4 board, a coin on the goal; each puzzle the next piece. */
+export function bigPuzzle(day: number, n: number): PiecePuzzle {
+  const piece = turn(day + n);
+  return piecePuzzle(day * 131 + n * 31 + 5, piece, SMALL_BOARD, ...range(piece, SMALL_BOARD));
+}
 
 // ---- the save ----
 
 export interface ChessSave {
   /** The king has said hello. */
   met: boolean;
-  done: ChessTask[];
-  cur: ChessTask | null;
-  /** Steps of the current task done (rounds, stars); a piece in the middle of a step starts the step again. */
+  done: Lesson[];
+  cur: Lesson | null;
+  /** Goals of the current lesson reached (`lessonAt` says where it stands); «Дивись» is shown again on a return. */
   got: number;
   /** The chest on the tower is opened: «Великі шахи» and the sticker are the child's, the kingdom is a friend. */
   opened: boolean;
@@ -251,11 +354,14 @@ export interface ChessSave {
 
 export const freshChess = (): ChessSave => ({ met: false, done: [], cur: null, got: 0, opened: false, daily: -1, big: { day: -1, n: 0 } });
 
-/** The next task, or null when all three are done. */
-export const nextChessTask = (s: ChessSave): ChessTask | null => CHESS_TASKS.find((t) => !s.done.includes(t)) ?? null;
+/** The next lesson, or null when all seven are done. */
+export const nextLesson = (s: ChessSave): Lesson | null => LESSONS.find((l) => !s.done.includes(l)) ?? null;
 
-/** How awake the kingdom is: 0 asleep … 1 all three done (lights, flags, the pieces cheering). */
-export const chessAlive = (s: ChessSave) => s.done.length / CHESS_TASKS.length;
+/** How awake the kingdom is: 0 asleep … 1 all seven lessons done (lights, flags, the pieces cheering). */
+export const chessAlive = (s: ChessSave) => s.done.length / LESSONS.length;
+
+/** The pieces learned so far (their album stickers, «Фігури»): a lesson done teaches its piece. */
+export const learnedPieces = (s: ChessSave): PieceKind[] => LESSONS.filter((l) => l !== 'take' && s.done.includes(l)).map((l) => LESSON_CARDS[l].piece);
 
 /** «Великі шахи» puzzles still to play today. */
 export const bigLeft = (s: ChessSave, day: number) => (s.big.day === day ? Math.max(0, CHESS.bigADay - s.big.n) : CHESS.bigADay);

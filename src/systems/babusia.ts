@@ -390,7 +390,37 @@ const treeAt = (ctx: Ctx, x: number, z: number) => {
 
 const probe = (ctx: Ctx): SiteProbe => ({ height: (x, z) => ground(ctx, x, z), wet: (x, z) => wetAt(ctx, x, z), tree: (x, z) => treeAt(ctx, x, z), biome: (x, z) => ctx.world.biomeAt(x, z) });
 
-/** Nothing else has this ground: the heroes' home, villages, castles, lighthouses, bridges, the lair, the child's buildings. */
+/** Her house keeps this far from the chess kingdom's centre (its square and slope, and the yard). */
+const CHESS_KEEP = 52;
+
+/** Whether a house's (or a meadow's) middle at (x, z) is on the chess kingdom's ground. */
+function chessNear(ctx: Ctx, x: number, z: number): boolean {
+  const k = ctx.world.chess?.();
+  return !!k && Math.hypot(k.x - x, k.z - z) < CHESS_KEEP;
+}
+
+const onChess = (ctx: Ctx, at: Site) => chessNear(ctx, ...centreOf(at));
+
+/**
+ * An old save's house on what is now the chess kingdom's ground moves on before anything is shown:
+ * quietly, the same hostess, no meadow left behind, no present for it. A move saved half-way there lands elsewhere.
+ */
+function* moveOffChess(ctx: Ctx): Generator<void> {
+  const b = ctx.save.babusia;
+  const site = yield* siteSearch(ctx, ctx.player.pos.clone());
+  if (!site) return yield* b.moving ? carryOut(ctx) : settle(ctx);
+  if (b.moving) {
+    b.moving.to = site;
+    return yield* carryOut(ctx);
+  }
+  const { glades, brought } = b;
+  b.moving = { from: b.at, to: site, host: b.host, day: b.movedDay, aboard: false };
+  yield* carryOut(ctx);
+  b.glades = glades;
+  b.brought = brought;
+}
+
+/** Nothing else has this ground: the heroes' home, villages, castles, the chess kingdom, lighthouses, bridges, the lair, the child's buildings. */
 function freeGround(ctx: Ctx, ox: number, oz: number): boolean {
   const { world: w, save } = ctx;
   const x = ox + BABUSIA_HOUSE.sizeX / 2;
@@ -402,6 +432,8 @@ function freeGround(ctx: Ctx, ox: number, oz: number): boolean {
   if (h && !off(h, BABUSIA.keepHome)) return false;
   if ((w.villages?.() ?? []).some((v) => !off(v, 46))) return false;
   if ((w.castles?.() ?? []).some((c) => !off(c, 52))) return false;
+  const chess = w.chess?.();
+  if (chess && !off(chess, CHESS_KEEP)) return false;
   if ((w.lighthousesNear?.(x, z, 28) ?? []).some((l) => !off(l, 28))) return false;
   if ((w.bridgesNear?.(x, z, 18) ?? []).length) return false;
   if (ctx.boss?.inZone(x, z, 28)) return false;
@@ -1760,8 +1792,10 @@ function hostess(ctx: Ctx): Hostess {
 export function initBabusia(ctx: Ctx): void {
   const b = ctx.save.babusia;
   host = hostess(ctx);
-  if (b.moving) job = carryOut(ctx);
-  else if (b.at) job = settle(ctx);
+  // the chess kingdom's ground came after the save: a house (or a landing) there moves on, a meadow there is gone
+  b.glades = b.glades.filter(([x, z]) => !chessNear(ctx, x, z));
+  if (b.moving) job = !b.moving.aboard && onChess(ctx, b.moving.to) ? moveOffChess(ctx) : carryOut(ctx);
+  else if (b.at) job = onChess(ctx, b.at) ? moveOffChess(ctx) : settle(ctx);
   // ?tale=babusia_… (test only): she is there at once
   else if (ctx.params.tale?.startsWith('babusia') || ctx.params.tale?.startsWith('olia')) {
     b.host = taleById(ctx.params.tale)?.host ?? b.host;

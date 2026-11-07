@@ -14,6 +14,8 @@ import { B } from './blocks';
 import { hash2, mulberry32 } from './rng';
 import { findVillages, PLAZA, squareDist, toLocal, VILLAGE_EDGE, VILLAGE_HALF, type Race, type VillageSite } from './villages';
 import { CASTLE_EDGE, CASTLE_HALF, castlePaved, findCastles, type CastleSite } from './castles';
+import { CHESS_EDGE, CHESS_HALF } from '../content/chess';
+import { chessPaved, findChess, type ChessSite } from './chess';
 
 export const BIOME_MEADOW = 0;
 export const BIOME_FOREST = 1;
@@ -40,6 +42,8 @@ const VILLAGE_PAVE: Record<Race, number> = { elves: B.PLANKS, gnomes: B.COBBLE, 
 const RIM_H = 2.2;
 /** A castle's floor (grass; the aliens' crater is sand); its plaza and path are paved like the race's village. */
 const CASTLE_FLOOR: Record<Race, number> = { elves: B.GRASS, gnomes: B.GRASS, robots: B.GRASS, aliens: B.SAND };
+/** The chess kingdom's court and path: a warm sandstone the board's plates lie on; the rest of its floor is grass. */
+const CHESS_PAVE = B.STONE;
 
 export interface ColumnSample {
   /** Float height before flooring. */
@@ -52,9 +56,9 @@ export interface ColumnSample {
   hill: number;
   forest: number;
   biome: number;
-  /** 1 on a village's or a castle's floor, falling to 0 across its slope. */
+  /** 1 on a village's, a castle's or the chess kingdom's floor, falling to 0 across its slope. */
   village: number;
-  /** A village's or castle's own top block (0: the land's). */
+  /** A village's, castle's or the chess kingdom's own top block (0: the land's). */
   vtop: number;
 }
 
@@ -93,6 +97,8 @@ export class Terrain {
   villages: VillageSite[] = [];
   /** The four castles (world/castles.ts), far beyond the villages; flattened in `sample` too. */
   castles: CastleSite[] = [];
+  /** The chess kingdom (world/chess.ts), away from both; flattened in `sample` too. */
+  chess: ChessSite | null = null;
 
   constructor(seed: number) {
     this.seed = seed | 0;
@@ -118,6 +124,15 @@ export class Terrain {
     this.villages = findVillages({ raw: (x, z) => this.sample(x, z, this.s2) });
     // castles keep 140 from every village, so the land they are found on is still raw
     this.castles = findCastles({ raw: (x, z) => this.sample(x, z, this.s2) }, this.villages);
+    // the chess square keeps 60 from villages and 120 from castles: its own ground is still raw
+    this.chess = findChess({ raw: (x, z) => this.sample(x, z, this.s2) }, this.villages, this.castles);
+  }
+
+  /** The chess kingdom, if its square (with its slope) holds (x, z). */
+  chessAt(x: number, z: number): ChessSite | null {
+    const k = this.chess;
+    const R = CHESS_HALF + CHESS_EDGE;
+    return k && Math.abs(x - k.x) <= R && Math.abs(z - k.z) <= R ? k : null;
   }
 
   /** The castle whose square (with its slope) holds (x, z), if any. */
@@ -187,6 +202,15 @@ export class Terrain {
       const [lx, lz] = toLocal(c, x, z);
       if (castlePaved(lx, lz)) vtop = VILLAGE_PAVE[c.race];
       else if (village > 0.97) vtop = CASTLE_FLOOR[c.race];
+    }
+    // the chess kingdom's square: the same, its court and path paved
+    const k = !v && !c && this.chess ? this.chessAt(x, z) : null;
+    if (k) {
+      village = 1 - smoothstep(CHESS_HALF + 0.5, CHESS_HALF + 0.5 + CHESS_EDGE, squareDist(k, x, z, CHESS_HALF));
+      hf += (k.y + 0.5 - hf) * village;
+      const [lx, lz] = toLocal(k, x, z);
+      if (chessPaved(lx, lz)) vtop = CHESS_PAVE;
+      else if (village > 0.97) vtop = B.GRASS;
     }
 
     const forest = this.nF(x / 160, z / 160) + 0.25 * this.nF(x / 40 + 9.1, z / 40 + 3.3) - homeT * 2;
@@ -334,6 +358,7 @@ export class Terrain {
     // villages keep their squares and slopes clear (crowns reach two blocks out)
     if (s.village > 0 || this.villageAt(tx + 2, tz + 2) || this.villageAt(tx - 2, tz - 2)) return null;
     if (this.castleAt(tx + 2, tz + 2) || this.castleAt(tx - 2, tz - 2)) return null;
+    if (this.chessAt(tx + 2, tz + 2) || this.chessAt(tx - 2, tz - 2)) return null;
     let p = 0;
     switch (s.biome) {
       case BIOME_FOREST:

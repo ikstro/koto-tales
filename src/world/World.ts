@@ -29,6 +29,7 @@ import { hash2, mulberry32 } from './rng';
 import { bridgesNear, lighthousesNear, type BridgeSite, type LighthouseSite } from './landmarks';
 import type { VillageSite } from './villages';
 import type { CastleSite } from './castles';
+import type { ChessSite } from './chess';
 import { Terrain } from './terrain';
 
 const CS = CHUNK_SIZE;
@@ -718,6 +719,10 @@ export class World implements IWorld {
 
   castles(): CastleSite[] {
     return this.terrain.castles;
+  }
+
+  chess(): ChessSite | null {
+    return this.terrain.chess;
   }
 
   bridgesNear(x: number, z: number, radius: number): BridgeSite[] {

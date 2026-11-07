@@ -455,7 +455,13 @@ const VILLAGE_KEEP = 64;
 function nearVillage(ctx: Ctx, [x, z]: [number, number], her = true): boolean {
   const near = (s: { x: number; z: number }) => Math.hypot(s.x - x, s.z - z) < VILLAGE_KEEP;
   const b = ctx.save.babusia.at;
-  return (ctx.world.villages?.() ?? []).some(near) || (ctx.world.castles?.() ?? []).some(near) || (her && !!b && near({ x: b[0], z: b[2] }));
+  return (ctx.world.villages?.() ?? []).some(near) || (ctx.world.castles?.() ?? []).some(near) || nearChess(ctx, [x, z]) || (her && !!b && near({ x: b[0], z: b[2] }));
+}
+
+/** The chess kingdom keeps its land even from a lair already eaten (an old save's): it moves. */
+function nearChess(ctx: Ctx, [x, z]: [number, number]): boolean {
+  const k = ctx.world.chess?.();
+  return !!k && Math.hypot(k.x - x, k.z - z) < VILLAGE_KEEP;
 }
 
 function chooseSite(ctx: Ctx, level: number): [number, number] {
@@ -705,7 +711,7 @@ export function initBoss(ctx: Ctx): void {
 function spawn(ctx: Ctx, atStart: boolean): void {
   const s = ctx.save.boss;
   // the lake monster lives in a lake: a new one, or one left on dry land, finds one; with none in reach the Eater comes
-  if (BOSS_KINDS[s.kind].water && (!s.site || waterAround(ctx, s.site[0], s.site[1], 8) < 0.25)) {
+  if (BOSS_KINDS[s.kind].water && (!s.site || waterAround(ctx, s.site[0], s.site[1], 8) < 0.25 || nearChess(ctx, s.site))) {
     const lake = chooseLake(ctx, s.levels[s.kind]);
     s.baits = [];
     if (lake) s.site = lake;
@@ -719,7 +725,7 @@ function spawn(ctx: Ctx, atStart: boolean): void {
   const level = s.levels[kind];
   const water = BOSS_KINDS[kind].water;
   // no lair yet, or the world moved under one not eaten yet (a river runs there now)
-  const badLair = !water && (!s.site || (!s.eatenAt && (siteWet(ctx, s.site) || nearVillage(ctx, s.site))));
+  const badLair = !water && (!s.site || (!s.eatenAt && (siteWet(ctx, s.site) || nearVillage(ctx, s.site))) || nearChess(ctx, s.site));
   if (badLair) s.site = chooseSite(ctx, level);
   const site = s.site!;
   const tune = tuneOf(ctx);

@@ -13,6 +13,7 @@ import type { ItemId as ContentItemId } from './content/items';
 import type { BridgeSite, LighthouseSite } from './world/landmarks';
 import type { VillageSite } from './world/villages';
 import type { CastleSite } from './world/castles';
+import type { ChessSite } from './world/chess';
 import type { MonsterKind as ContentMonsterKind } from './content/monsters';
 
 // ─── ids ────────────────────────────────────────────────────────────────────
@@ -150,6 +151,8 @@ export interface IWorld {
   villages?(): VillageSite[];
   /** The four castles, far beyond the villages (world/castles.ts). */
   castles?(): CastleSite[];
+  /** The chess kingdom's square, if the world found a place for it (world/chess.ts). */
+  chess?(): ChessSite | null;
   setBarrier?(x: number, y: number, z: number, on: boolean): void;
   /** Everything within the render distance is meshed (after a long jump: the place is ready to show). */
   isIdle?(): boolean;
