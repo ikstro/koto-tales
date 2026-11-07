@@ -22,6 +22,11 @@ a wish that does not is engine work, done only after the owner's yes.
   Льоша's own words kept where they fit. Speakers: `tools/voice/speakers.json` (`narrator`, `pupsia`,
   `lyosha`, `solomiia`, `david`, `monster`, the races and their rulers). Every line needs its mp3
   (`public/voice/<id>.mp3`); `STRICT_VOICE=1` (the deploy) fails on a missing one.
+- Stress (the owner's call, 2026-11-07): `npm run voice` marks the stress of every word by itself (`tools/voice/autostress.py`)
+  and sends each stressed word to the voice spelled out; names, homographs and words it gets wrong go into
+  `tools/voice/stress.json` by hand (`words`, or `lines` for one line), and the script lists what is still unmarked.
+  Пупся says «Мау» and «Мур» (never «Мяу» or «Мур-р-р»: the voice growls them). `tools/voice/listen.mjs` hears the
+  mp3s with Gemini and reports wrong stress (20 free requests a day; a flagged word is a lead, not a verdict).
 - `lyosha: true` on a monster, item, artifact or tale card: its album sticker gets the gold rim.
 - `about` on a monster, item, artifact, building or companion card (a tale has `name`, its title): one plain Ukrainian
   sentence for the parents — what it does or where it is met — shown in «Зміст гри» (DESIGN.md «Contents»). Not voiced.

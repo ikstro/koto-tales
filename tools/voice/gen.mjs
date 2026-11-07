@@ -4,6 +4,11 @@
  * Skips lines whose hash (provider+voice+rate+pitch+text) is unchanged (tools/voice/voice-lock.json),
  * deletes mp3s whose id is gone. Pass --force to regenerate everything.
  *
+ * Stress: `npm run voice` first runs autostress.py, which marks the stressed vowel of every
+ * word (tools/voice/auto-stress.json); each marked word, and each stress.json word, is sent with
+ * its stress spelled out (stress.json `method`: 'ipa' or 'acute'). A line not marked yet is
+ * sent with stress.json words only, as before.
+ *
  * --draft uses the same two voices through Edge Read Aloud (`uvx edge-tts`, no key).
  * That door is fine for testing at home but is not a licence to publish, so
  * the public build should be voiced through Azure. The provider is part of
@@ -20,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { synth as azureSynth } from './azure.mjs';
-import { applyStress, loadDictionary } from './stress.mjs';
+import { applyAutoStress, loadLineDictionary, applyStress, loadDictionary } from './stress.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
@@ -59,6 +64,11 @@ fs.mkdirSync(outDir, { recursive: true });
 const lock = fs.existsSync(lockPath) ? JSON.parse(fs.readFileSync(lockPath, 'utf8')) : {};
 const ids = Object.keys(lines);
 const stressDict = loadDictionary();
+const lineDict = loadLineDictionary();
+const stressMethod = JSON.parse(fs.readFileSync(path.join(here, 'stress.json'), 'utf8')).method ?? 'ipa';
+const autoPath = path.join(here, 'auto-stress.json');
+const autoStress = fs.existsSync(autoPath) ? JSON.parse(fs.readFileSync(autoPath, 'utf8')) : {};
+let unmarked = 0;
 
 // Remove clips whose line is gone.
 for (const f of fs.readdirSync(outDir)) {
@@ -81,7 +91,13 @@ for (const id of ids) {
   const file = path.join(outDir, `${id}.mp3`);
   // Words from stress.json go out as IPA with the stress marked. A line without
   // such words hashes exactly as before, so adding a word re-voices only its lines.
-  const { ssml, used } = draft ? { ssml: text, used: [] } : applyStress(text, stressDict);
+  const marked = autoStress[id]?.text === text ? autoStress[id].stressed : null;
+  if (!draft && !marked) unmarked++;
+  const { ssml, used } = draft
+    ? { ssml: text, used: [] }
+    : marked
+      ? { ...applyAutoStress(marked, [...stressDict, ...(lineDict[id] ?? [])], stressMethod), used: ['auto'] }
+      : applyStress(text, stressDict);
   const hash = hashOf(sp, used.length ? ssml : text);
   if (!force && lock[id] === hash && fs.existsSync(file)) { cached++; continue; }
 
