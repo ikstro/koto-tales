@@ -439,9 +439,10 @@ export async function showTitle(ctx: Ctx, game: Game, loader: Loader | null): Pr
     disposables.push(glowTex, paneGeo, haloGeo, paneMat, haloMat);
     /** Glass blocks of the house walls: centre of the outer face and its outward normal. */
     const WINDOWS: [THREE.Vector3, THREE.Vector3][] = houseWindows().map((w) => [at(w.dx, w.dy, w.dz), new THREE.Vector3(...w.n)]);
-    /** The two front windows the dive can go through: the outer ones, left and right of the door. */
+    /** The two front windows the dive can go through: the nearest left and right of the door (the bedroom's side). */
     const front = WINDOWS.filter(([, n]) => n.z > 0.5).sort((a, b) => a[0].x - b[0].x);
-    const DIVE_WINDOWS = [front[0], front[front.length - 1]];
+    const doorX = O.x + DOOR.dx;
+    const DIVE_WINDOWS = [front.filter(([p]) => p.x < doorX).pop() ?? front[0], front.find(([p]) => p.x > doorX) ?? front[front.length - 1]];
     const halos: THREE.Mesh[] = [];
     for (const [p, n] of WINDOWS) {
       // a warm pane just inside the glass, and a soft halo just outside it

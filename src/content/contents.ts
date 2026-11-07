@@ -14,6 +14,7 @@ import { REWARDS, TASKS, nextReward, taskCount, taskFor, type TaskKind } from '.
 import { DISHES, OWN_PAGE, RECIPES, RECIPE_ORDER, type RecipeCard } from './recipes';
 import { TALES, TALE_ITEMS, entryOf, stepGoal, talesLeft, type TaleCard, type TaleStep } from './tales';
 import { RACE_CARDS, TASK_NEEDS, VILLAGE_GOALS, isFriend, villageTask, type RaceCard, type VillageTask } from './villages';
+import { latestReleases } from './whatsNew';
 
 /**
  * «Зміст гри» (DESIGN.md «Contents»): everything the game has, for the parents, each thing marked
@@ -21,7 +22,7 @@ import { RACE_CARDS, TASK_NEEDS, VILLAGE_GOALS, isFriend, villageTask, type Race
  * a new card shows up here by itself. Ukrainian text (its `about` lines live on the cards).
  */
 
-export type SectionId = 'next' | 'babusia' | 'kit' | 'buildings' | 'villages' | 'castles' | 'tales' | 'recipes' | 'items' | 'monsters' | 'world' | 'treasures' | 'friends';
+export type SectionId = 'new' | 'next' | 'babusia' | 'kit' | 'buildings' | 'villages' | 'castles' | 'tales' | 'recipes' | 'items' | 'monsters' | 'world' | 'treasures' | 'friends';
 
 /** A HUD sprite, or a picture rendered at runtime (ui/portraits.ts). */
 export type Pic = { sprite: string } | { portrait: 'item' | 'monster' | 'artifact'; id: string };
@@ -151,6 +152,9 @@ function taleStep(s: TaleStep): string {
 }
 
 const either = (ids: readonly BuildingId[]) => ids.map((b) => `«${BUILDINGS[b].name}»`).join(' або ');
+
+/** How many of the latest releases «Що нового» lists. */
+const CONTENTS_RELEASES = 2;
 
 // ─── the page ────────────────────────────────────────────────────────────────
 
@@ -479,7 +483,24 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
   pick(castles.find((r) => r.state === 'now') ?? (friendVillage ? castles[RACES.indexOf(friendVillage)] : undefined), 'castles');
   if (!bossBeaten) pick(world.find((r) => r.key === `boss-${save.boss.kind}`), 'world');
 
+  // ─── what came with the latest updates, newest first ───
+  const fresh: Row[] = latestReleases(CONTENTS_RELEASES).flatMap((r) =>
+    r.things.map((t): Row => {
+      const unseen = r.id > (save.whatsNew ?? 0);
+      return {
+        key: `new-${t.id}`,
+        pic: { sprite: t.pic },
+        title: t.name,
+        about: t.about,
+        state: unseen ? 'now' : 'have',
+        status: `Оновлення ${r.id}${unseen ? ' · ще не дивилися: подарунок угорі' : ''}`,
+        line: t.line,
+      };
+    }),
+  );
+
   const sections: Section[] = [
+    { id: 'new', title: 'Що нового', icon: 'gift', rows: fresh },
     { id: 'next', title: 'Що чекає далі', icon: 'play', rows: next },
     { id: 'babusia', title: 'Бабуся', icon: 'map-babusia', rows: babusia },
     { id: 'kit', title: 'Скринька', icon: 'kit', rows: kit },

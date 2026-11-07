@@ -154,10 +154,16 @@ function folded(ctx: Ctx, x: number, z: number): void {
 
 export function initGarden(ctx: Ctx): void {
   looks.clear();
-  // beds the world packed away (or an older version left behind) are gone with their bed
+  // beds the world packed away (the house grew over them, a river came) went back into the box
+  // like a fold: what grew comes back too, quietly (systems/kit.ts initKit)
   const g = ctx.save.home.garden;
   const standingKeys = new Set(ctx.save.placed.filter((p) => p.id === 'garden').map((p) => bedKey(p.x, p.z)));
-  for (const key of Object.keys(g.beds)) if (!standingKeys.has(key)) delete g.beds[key];
+  for (const key of Object.keys(g.beds)) {
+    if (standingKeys.has(key)) continue;
+    const back = foldBack(bedNow(ctx, key));
+    delete g.beds[key];
+    if (back) giveItem(ctx, back.item, back.n);
+  }
   for (const s of beds()) tell(ctx, s);
   if (!wired) {
     wired = true;

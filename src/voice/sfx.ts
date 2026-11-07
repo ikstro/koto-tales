@@ -334,6 +334,13 @@ const recipes: Record<SfxName, (k: K) => void> = {
     tone(k, note(-14), 0.52, 0.5, 0.12, 'triangle', undefined, 0.01);
     tone(k, note(-9), 0.52, 0.5, 0.08, 'triangle', undefined, 0.01);
   },
+  whee(k) {
+    // down the playroom's slide: a slide whistle swooping up and gliding down, over a soft rush of air
+    tone(k, 520, 0, 0.26, 0.07, 'triangle', 1180, 0.04);
+    tone(k, 1180, 0.24, 0.8, 0.07, 'triangle', 640, 0.02);
+    tone(k, 2360, 0.24, 0.5, 0.015, 'sine', 1300, 0.02);
+    hiss(k, 0, 1.0, 0.07, 'bandpass', 700, 2200, 0.9, 0.12);
+  },
   // ─── monster cries (MonsterCard.cry): a toy's voice, never scary-loud ───
   cry_siren(k) {
     // Сиреноголовий: his two horns wail together, a little apart, like a toy air-raid siren —

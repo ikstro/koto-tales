@@ -32,7 +32,7 @@ describe('contents: everything in the game, for the parents', () => {
 
   it('a fresh story: the tent is there, the portal is next, the villages are still to find', () => {
     const s = contentsOf(freshSave(), PLACES);
-    expect(s[0].id).toBe('next');
+    expect(s.map((x) => x.id).slice(0, 2)).toEqual(['new', 'next']);
     expect(row(s, 'b-tent').state).toBe('have');
     expect(row(s, 'b-lantern').state).toBe('have');
     expect(row(s, 'reward-portal').state).toBe('now');
@@ -49,8 +49,8 @@ describe('contents: everything in the game, for the parents', () => {
     // what she brings from a trip says so
     expect(row(s, 'b-bikegen').status).toBe('Як отримати: бабуся привезе з подорожі');
     // what is waiting: the box's next reward first, each row jumping to its own part
-    expect(s[0].rows[0].jump).toBe('kit');
-    expect(s[0].rows.map((r) => r.jump)).toContain('villages');
+    expect(s[1].rows[0].jump).toBe('kit');
+    expect(s[1].rows.map((r) => r.jump)).toContain('villages');
   });
 
   it('the box moves on: the windmill had, the lamps next', () => {
@@ -98,6 +98,22 @@ describe('contents: everything in the game, for the parents', () => {
     for (const id of KIT_ORDER) expect(BUILDINGS[id].about.length).toBeGreaterThan(10);
     for (const t of TALES) expect(t.name.length).toBeGreaterThan(3);
     for (const sec of contentsOf(freshSave(), PLACES)) for (const r of sec.rows) expect(r.about, r.key).not.toMatch(/undefined|TODO/);
+  });
+});
+
+describe('contents: what is new', () => {
+  it('lists the latest updates newest first; a new game has seen them all', () => {
+    const s = contentsOf(freshSave(), PLACES)[0];
+    expect(s.id).toBe('new');
+    expect(s.rows[0].key).toBe('new-bighouse');
+    expect(s.rows.at(-1)!.key).toBe('new-news');
+    expect(s.rows.every((r) => r.state === 'have' && r.line && r.status.startsWith('Оновлення'))).toBe(true);
+  });
+  it('an old save: what it has not seen yet is under way', () => {
+    const s = contentsOf({ ...freshSave(), whatsNew: 1 }, PLACES)[0];
+    expect(row([s], 'new-slide').state).toBe('now');
+    expect(row([s], 'new-slide').status).toMatch(/^Оновлення 2 · ще не дивилися/);
+    expect(row([s], 'new-garden').state).toBe('have');
   });
 });
 

@@ -12,6 +12,8 @@ a wish that does not is engine work, done only after the owner's yes.
 5. `npm run preview -- <kind> <id>` → `design-lab/new/<id>.png` for the owner and Льоша to look at.
 6. The owner says yes to the lines → `npm run voice` (never `--draft`) → `npm run check` → play with
    `?spawn=` / `?give=` / `?tale=` → commit; push to `main` only when the owner asks (it deploys).
+7. An update that brings something the child should notice gets a release in `src/content/whatsNew.ts`
+   (each new thing: a picture, a `new_<id>` line for Пупся, a name and an `about`; DESIGN.md «What's new»).
 
 ## Rules for every card
 - What is shared and what is not (the owner's call, 2026-10-30): the logic is shared — a card only picks verbs the engine already has, so a wish writes no engine code. The model is not: each thing's toy is built by hand (the `model-builder` agent, from the nearest existing model), so every monster keeps its own look. No parts library or recipes.

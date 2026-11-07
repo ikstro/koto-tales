@@ -1,12 +1,14 @@
 /**
- * The heroes' house (DESIGN.md «Home»): 13×9 blocks, log corners, plank walls, glass windows, a
- * cobble rim and an open doorway in the middle of the front (+Z) wall. Inside, left to right:
- * the bedroom (a bunk bed for the boys, Соломія's bed, Пупся's cushion by the aquarium, a red
- * rug), the treasure cabinet with the chest in front of it on the back wall, and the kitchen
- * (counter, sink, stove with a pot, fridge, a table with four chairs) on a checked floor.
- * The roof is a separate model so the game can fade it while a hero is inside. Everything soft or
- * alive (beds, cushion, kitchen, cabinet, aquarium, door) is props built by systems/house.ts, not
- * blocks: only the shell, the floor and the lantern are written into the world.
+ * The heroes' house (DESIGN.md «Home»): 19×11 blocks, one floor (a second one would hide the first
+ * from the steep camera), log corners, plank walls, glass windows, a cobble rim and an open doorway
+ * in the middle of the front (+Z) wall. Inside, left to right: the playroom (cells x 1..6, on a
+ * blue and yellow mat: the slide tower and the ball pit, the TV, a toy rug, chess, an easel; its
+ * toys are systems/playroom.ts), the bedroom (a bunk bed for the boys, Соломія's bed, Пупся's
+ * cushion by the aquarium, a red rug), the treasure cabinet with the chest in front of it on the
+ * back wall, and the kitchen (counter, sink, stove with a pot, fridge, a table with four chairs)
+ * on a checked floor. The roof is a separate model so the game can fade it while a hero is
+ * inside. Everything soft or alive (beds, cushion, kitchen, cabinet, aquarium, door, toys) is props,
+ * not blocks: only the shell, the floor and the lantern are written into the world.
  *
  *   dy=0  floor layer (feet stand at dy=1)
  *   dy=1..3  walls; interior written as AIR so terrain never pokes in
@@ -21,28 +23,40 @@ import { BUNK_OUT } from '../assets/home';
 import { Kit } from '../assets/parts/kit';
 import { B } from '../world/blocks';
 
-/** 1: the first 9×7 house; 2: the big house with the kitchen (2026-10-30). */
-export const HOUSE_VERSION = 2;
+/** 1: the first 9×7 house; 2: the big house with the kitchen (2026-10-30); 3: 19×11 with the playroom (2026-11-07). */
+export const HOUSE_VERSION = 3;
 
-const SX = 13;
-const SZ = 9;
+const SX = 19;
+const SZ = 11;
 const WALL_TOP = 4;
-/** The doorway's cell in the front wall. */
-const DOOR_X = 6;
+/** The doorway's cell in the front wall (the middle). */
+const DOOR_X = 9;
+/** The doorway's middle (x) and the front wall's outer face (z): the yard is laid out from here. */
+const DX = DOOR_X + 0.5;
+/** How far the bedroom, the cabinet and the kitchen moved right when the playroom came (v2 → v3). */
+const ROOMS = 6;
+/** The playroom's cells (x), left of the bedroom. */
+const PLAY_X: [number, number] = [1, ROOMS];
 
 /** Glass cells of the walls (y = 2): [x, z]. */
 const WINDOWS: [number, number][] = [
-  // front: bedroom and kitchen
+  // front, mirrored around the door: playroom, bedroom, by the cabinet, kitchen
   [2, SZ - 1],
   [3, SZ - 1],
-  [9, SZ - 1],
-  [10, SZ - 1],
-  // back: over the beds and over the sink
+  [6, SZ - 1],
+  [7, SZ - 1],
+  [11, SZ - 1],
+  [12, SZ - 1],
+  [15, SZ - 1],
+  [16, SZ - 1],
+  // back: behind the slide, over the beds and over the sink
   [2, 0],
   [3, 0],
-  [9, 0],
-  // sides
-  [0, 4],
+  [2 + ROOMS, 0],
+  [3 + ROOMS, 0],
+  [9 + ROOMS, 0],
+  // sides: by the ball pit, by the fridge
+  [0, 5],
   [SX - 1, 3],
 ];
 
@@ -52,46 +66,48 @@ const WINDOWS: [number, number][] = [
  */
 export const HOME = {
   /** The boys' bunk bed: Льоша on top (head towards -Z), Давид in the bed slid out below (assets/home.ts BUNK_OUT). */
-  bunk: { dx: 1.62, dz: 2 },
+  bunk: { dx: 1.62 + ROOMS, dz: 2 },
   /** Height of the lower and the upper sheet above the floor. */
   bunkLow: 0.75,
   bunkTop: 1.85,
   /** The treasure stand against the back wall (3 wide, two steps deep). */
-  shelf: { dx: 6.5, dz: 1.44 },
-  /** The kitchen along the back wall (cells x 8..11): counter + sink, stove, fridge. */
-  kitchen: { dx: 10, dz: 1.35 },
+  shelf: { dx: 6.5 + ROOMS, dz: 1.44 },
+  /** The kitchen along the back wall (cells x 14..17): counter + sink, stove, fridge. */
+  kitchen: { dx: 10 + ROOMS, dz: 1.35 },
   /** The table and its four chairs (the last chair, with a cushion, is Пупся's). */
-  table: { dx: 9.5, dz: 4.7 },
-  /** Пупся's aquarium against the left wall, by her cushion. */
-  aquarium: { dx: 1.45, dz: 5.55 },
-  /** The house lamp (the one real light). */
-  lamp: { dx: 6.5, dy: 2.9, dz: 3.6 },
+  table: { dx: 9.5 + ROOMS, dz: 4.7 },
+  /** Пупся's aquarium by her cushion, between the playroom and the bedroom, its glass towards the beds. */
+  aquarium: { dx: 1.45 + ROOMS, dz: 5.55 },
+  /** The house lamp (the one real light), in the middle of the rooms. */
+  lamp: { dx: SX / 2, dy: 2.9, dz: 4.6 },
   /** The postbox in the yard, right of the door against the front wall, off the path to the campfire (systems/mail.ts). */
-  postbox: { dx: 9.4, dz: 9.75 },
+  postbox: { dx: DX + 2.9, dz: SZ + 0.75 },
   /**
-   * The two logs to sit on by the campfire (dx 6.5, dz 11.5): one to its right, one in front of it,
+   * The two logs to sit on by the campfire (DX, SZ + 2.5): one to its right, one in front of it,
    * each facing the fire (yaw turns the log's +Z front to it); the arch stands on its left, the door
    * path stays free. Guests at the fire come from `guestGate`, the yard's edge (systems/guests.ts).
    */
   fireLogs: [
-    { dx: 8.6, dz: 11.9, yaw: -Math.PI / 2 },
-    { dx: 6.6, dz: 13.6, yaw: Math.PI },
+    { dx: DX + 2.1, dz: SZ + 2.9, yaw: -Math.PI / 2 },
+    { dx: DX + 0.1, dz: SZ + 4.6, yaw: Math.PI },
   ],
-  guestGate: { dx: 12.6, dz: 14.4 },
+  guestGate: { dx: DX + 6.1, dz: SZ + 5.4 },
   /**
-   * The playroom (stage 4, the big house's left part): where each toy stands, relative to the
-   * origin. systems/house.ts owns the values (the layout); systems/playroom.ts builds and runs the
-   * toys at them. Footprints: the slide tower 2×2 (its floor centre; the chute runs +Z about 3
-   * into the ball pit), the ball pit 2.4×2.4, the chess table ~1.2 with a pouf left and right
-   * (±0.9 in x), the easel 1×1, the toy rug 3×2, the TV ~1.4 wide against the back wall facing +Z.
+   * The playroom (the left part, cells x 1..6, z 1..9), where each toy stands, relative to the
+   * origin. This file owns the values (the layout); systems/playroom.ts builds and runs the toys at
+   * them. Footprints: the slide tower 2×2 (its floor centre; the chute runs +Z about 3 into the
+   * ball pit), the ball pit 2.4×2.4, the chess table ~1.2 with a pouf left and right (±0.9 in x),
+   * the easel 1×1, the toy rug 3×2, the TV ~1.4 wide against the back wall facing +Z.
+   * The slide and the pit fill the back left corner, the rug lies before the TV, chess and the
+   * easel stand towards the front, a free lane (x 3.5..4.3) runs from the door's side to the slide.
    */
   playroom: {
-    slide: { dx: 2, dz: 2 },
-    ballPit: { dx: 2, dz: 5.8 },
-    chess: { dx: 4.8, dz: 7.8 },
-    easel: { dx: 1.6, dz: 8.6 },
-    toyRug: { dx: 5, dz: 3.6 },
-    tv: { dx: 5, dz: 0.6 },
+    slide: { dx: 2.2, dz: 2.1 },
+    ballPit: { dx: 2.3, dz: 5.5 },
+    chess: { dx: 5.0, dz: 7.1 },
+    easel: { dx: 1.9, dz: 8.2 },
+    toyRug: { dx: 5.0, dz: 3.4 },
+    tv: { dx: 5.0, dz: 1.35 },
   },
 } as const;
 
@@ -105,9 +121,13 @@ function blocks(): StructureBlock[] {
   for (let x = 0; x < SX; x++) {
     for (let z = 0; z < SZ; z++) {
       const rim = edgeX(x) || edgeZ(z);
-      const rug = x >= 2 && x <= 3 && z >= 4 && z <= 6;
-      const tiles = x >= 8 && x <= 11 && z >= 1 && z <= 7;
-      put(x, 0, z, rim ? B.COBBLE : rug ? B.RED : tiles ? ((x + z) % 2 ? B.WHITE : B.YELLOW) : B.PLANKS);
+      const rug = x >= 2 + ROOMS && x <= 3 + ROOMS && z >= 4 && z <= 6;
+      const tiles = x >= 8 + ROOMS && x <= 11 + ROOMS && z >= 1 && z <= SZ - 2;
+      // the playroom's mat: big blue and yellow squares, two cells each
+      const mat = x >= PLAY_X[0] && x <= PLAY_X[1] && z >= 1 && z <= SZ - 2;
+      const checked = (x + z) % 2 ? B.WHITE : B.YELLOW;
+      const square = (Math.floor((x - 1) / 2) + Math.floor((z - 1) / 2)) % 2 ? B.YELLOW : B.BLUE;
+      put(x, 0, z, rim ? B.COBBLE : mat ? square : rug ? B.RED : tiles ? checked : B.PLANKS);
       for (let y = 1; y < WALL_TOP; y++) {
         if (!rim) {
           put(x, y, z, B.AIR);
@@ -121,7 +141,7 @@ function blocks(): StructureBlock[] {
     }
   }
   // the lantern by Соломія's bed (overrides the interior AIR written above)
-  const b = out.find((o) => o.dx === 4 && o.dy === 1 && o.dz === 1);
+  const b = out.find((o) => o.dx === 4 + ROOMS && o.dy === 1 && o.dz === 1);
   if (b) b.id = B.LANTERN;
   return out;
 }
@@ -200,15 +220,16 @@ export const HOUSE: HouseBlueprint = {
   sizeZ: SZ,
   blocks: blocks(),
   createRoof,
-  wakeSpot: { dx: DOOR_X + 0.5, dy: 1, dz: 5.4 },
+  // in the bedroom by the rug, room for the helpers' little row behind (systems/heroes.ts, sleep.ts)
+  wakeSpot: { dx: DX + 1.3, dy: 1, dz: 6 },
   chestSpot: { dx: HOME.shelf.dx, dy: 1, dz: 2.55 },
-  campfireSpot: { dx: DOOR_X + 0.5, dy: 1, dz: SZ + 2.5 },
+  campfireSpot: { dx: DX, dy: 1, dz: SZ + 2.5 },
   // the boys in the bunk bed (Льоша on top, Давид in the bed slid out below), Соломія next to it, Пупся on her cushion by the fish
   sleepSpots: {
     lyosha: { dx: HOME.bunk.dx, dy: 1 + HOME.bunkTop, dz: HOME.bunk.dz, yaw: 0 },
     david: { dx: HOME.bunk.dx, dy: 1 + HOME.bunkLow, dz: HOME.bunk.dz + BUNK_OUT, yaw: 0 },
-    solomiia: { dx: 3.05, dy: 1.75, dz: 2, yaw: 0 },
-    pupsia: { dx: 2.9, dy: 1.17, dz: 5.6, yaw: -1.1 },
+    solomiia: { dx: 3.05 + ROOMS, dy: 1.75, dz: 2, yaw: 0 },
+    pupsia: { dx: 2.9 + ROOMS, dy: 1.17, dz: 5.6, yaw: -1.1 },
   },
   // in the doorway of the front wall, hinge on the left, swings out
   doorSpot: { dx: DOOR_X + 0.04, dy: 1, dz: SZ - 0.14, yaw: 0 },
@@ -216,10 +237,10 @@ export const HOUSE: HouseBlueprint = {
 };
 
 /** The doorway's middle (x) and the front wall's outer face (z), relative to the origin. */
-export const DOOR = { dx: DOOR_X + 0.5, dz: SZ };
+export const DOOR = { dx: DX, dz: SZ };
 
 /** Footprints of every house version so far ([x, z]); an old one is pulled down by its own size. */
-export const HOUSE_SIZES: Record<number, [number, number]> = { 1: [9, 7], 2: [SX, SZ] };
+export const HOUSE_SIZES: Record<number, [number, number]> = { 1: [9, 7], 2: [13, 9], 3: [SX, SZ] };
 
 /**
  * Where the current house stands when it replaces an older one: around the same centre, on the

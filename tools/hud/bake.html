@@ -23,6 +23,13 @@ import { createChest } from '/src/assets/props.ts';
 import { createPlane, createTaleThing } from '/src/assets/tales.ts';
 import { B } from '/src/world/blocks.ts';
 import { BUILDINGS } from '/src/content/buildings.ts';
+import { createBabusiaRoof, createHouseShell, createTv } from '/src/assets/babusia.ts';
+import { BABUSIA_HOUSE, BABUSIA_SPOTS } from '/src/content/babusia.ts';
+import { createAquarium } from '/src/assets/home.ts';
+import { createPostbox } from '/src/assets/postbox.ts';
+import { createCampfire } from '/src/assets/props.ts';
+import { createCampfireLog } from '/src/assets/campfireLogs.ts';
+import { createBallPit, createChessCorner, createEasel, createSlideTower } from '/src/assets/playroom.ts';
 
 const U = 40, DPR = 2, LO = 1.5, TILT = THREE.MathUtils.degToRad(34);
 const canvas = document.getElementById('c');
@@ -1163,6 +1170,63 @@ shoot('jump', roundTile(1, C.green, printSpring, 0.6), 130, 130, { shadow: 'tile
     const glows = []; b.root.traverse((o) => { if (o.isMesh && o.material.blending === THREE.AdditiveBlending) glows.push(o); }); glows.forEach((o) => o.parent.remove(o));
     shoot(card.sprite, fittedBox(b.root, 3.2, 3.6, -0.4), 200, 200, { oy: 1.0 });
   }
+}
+
+// --- «Що нового» (ui/whatsNew.ts): the gift piece by the top row, and a picture per new thing
+/** A toy gift box: a mustard box with studs on its lid, a coral ribbon round it and a coral bow on top. */
+function giftBox() {
+  const g = new THREE.Group();
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
+  const box = M(C.mustard), rib = M(C.coral);
+  add(new RoundedBoxGeometry(1.6, 1.05, 1.6, 4, 0.1), box, 0, 0.525, 0);
+  add(new RoundedBoxGeometry(1.76, 0.36, 1.76, 4, 0.1), box, 0, 1.18, 0);
+  for (const sx of [-0.52, 0.52]) for (const sz of [-0.52, 0.52]) g.add(stud(box, sx, 1.35, sz));
+  // the ribbon: a band down every side and across the lid
+  add(new RoundedBoxGeometry(0.34, 1.42, 1.66, 2, 0.05), rib, 0, 0.73, 0);
+  add(new RoundedBoxGeometry(1.66, 1.42, 0.34, 2, 0.05), rib, 0, 0.73, 0);
+  add(new RoundedBoxGeometry(0.36, 0.4, 1.82, 2, 0.06), rib, 0, 1.18, 0);
+  add(new RoundedBoxGeometry(1.82, 0.4, 0.36, 2, 0.06), rib, 0, 1.18, 0);
+  // the bow: two loops and a knot
+  for (const s of [-1, 1]) {
+    const loop = add(new THREE.TorusGeometry(0.3, 0.1, 12, 32), rib, s * 0.3, 1.62, 0);
+    loop.rotation.set(0, 0, s * 0.5);
+  }
+  add(new THREE.SphereGeometry(0.17, 20, 14), rib, 0, 1.52, 0);
+  return g;
+}
+shoot('gift', giftBox(), 150, 150, { oy: 0.55 });
+{
+  const still = (o) => { const glows = []; o.traverse((m) => { if (m.isMesh && m.material.blending === THREE.AdditiveBlending) glows.push(m); }); glows.forEach((m) => m.parent.remove(m)); return o; };
+  const pic = (name, obj, maxW, maxH, yaw = -0.4, oy = 1.0) => shoot(name, fittedBox(still(obj), maxW, maxH, yaw), 200, 200, { oy });
+  const group = (...objs) => { const g = new THREE.Group(); for (const [o, x, z, ry = 0] of objs) { o.position.set(x, 0, z); o.rotation.y = ry; g.add(o); } return g; };
+  // the grandmothers' house as it flies: the shell and its flowering roof
+  {
+    const H = BABUSIA_HOUSE;
+    const roof = createBabusiaRoof(skin, H.sizeX, H.sizeZ, H.wallTop, BABUSIA_SPOTS.kitchen.dx + 0.5);
+    const shell = createHouseShell(skin);
+    const g = new THREE.Group(); g.add(shell.root, roof);
+    pic('new-bhouse', g, 3.4, 3.0, -0.45, 0.9);
+  }
+  const aq = createAquarium(skin); aq.update(0.5);
+  pic('new-aquarium', aq.root, 2.8, 3.0, -0.35, 0.9);
+  const pb = createPostbox(skin); pb.setFull(true); for (let i = 0; i < 30; i++) pb.update(0.05);
+  pic('new-postbox', pb.root, 2.0, 3.4, -0.4, 1.1);
+  {
+    const fire = createCampfire(skin); fire.update(0.3);
+    fire.root.traverse((o) => { if (o.isLight) o.visible = false; });
+    const a = createCampfireLog(skin), b = createCampfireLog(skin, true);
+    pic('new-campfire', group([fire.root, 0, 0.1], [a.root, 0, -1.05], [b.root, -1.25, 0.35, Math.PI / 2]), 3.0, 2.4, -0.3, 0.6);
+  }
+  const tv = createTv(skin); tv.setOn(true); tv.update(0.5);
+  pic('new-tv', tv.root, 2.6, 3.0, -0.35, 0.9);
+  {
+    const slide = createSlideTower(skin, 2.2, -1); const pit = createBallPit(skin); pit.update(0.5);
+    pic('new-slide', group([slide.root, 0, -1.2], [pit.root, 0, 2.2]), 3.4, 3.4, -0.7, 1.0);
+  }
+  pic('new-chess', createChessCorner(skin).root, 3.2, 2.6, -0.35, 0.75);
+  const easel = createEasel(skin); easel.update(0.5);
+  pic('new-easel', easel.root, 2.4, 3.6, -0.35, 1.2);
+  shoot('new-sirko', roundTile(1, C.mustard, folkPrint('sirko', C.mustard, 0.5, 1), 0.6), 130, 130, { shadow: 'tile6-sh' });
 }
 
 document.getElementById('out').textContent = JSON.stringify({ sprites: out, nine });

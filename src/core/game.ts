@@ -35,6 +35,8 @@ import { exposeEffects, initEffects, updateEffects } from '../systems/effects';
 import { exposeCompanions, initCompanions, updateCompanions } from '../systems/companions';
 import { initPets, updatePets } from '../systems/pets';
 import { initTvNews, updateTvNews } from '../systems/tvNews';
+import { updatePlayroom } from '../systems/playroom';
+import { initWhatsNew, updateWhatsNew } from '../systems/whatsNew';
 import { applyDebugParams } from '../debug/give';
 import { pushBubble } from '../systems/tasks';
 import { updateVillages } from '../systems/villages';
@@ -153,6 +155,7 @@ export class Game {
           playing: ctx.playing,
           hero: ctx.player?.id ?? null,
           pos: ctx.player ? ctx.player.pos.toArray().map((v) => +v.toFixed(2)) : null,
+          party: [...ctx.heroes.values()].map((h) => ({ id: h.id, pos: h.pos.toArray().map((v) => +v.toFixed(2)) })),
           hearts: ctx.player?.hearts ?? null,
           coins: ctx.save.coins,
           monsters: ctx.monsters.length,
@@ -245,6 +248,7 @@ export class Game {
     initGadgets(ctx);
     initGarden(ctx);
     initGuests(ctx);
+    initWhatsNew(ctx);
     exposeMonsters(ctx);
     exposeDefense();
     exposeEffects(ctx);
@@ -388,6 +392,7 @@ export class Game {
       ctx.hud.setNote(!ctx.sleeping && !ctx.napping && djNear(ctx));
       ctx.hud.setAsk(weatherAsk(ctx));
       updateNarration(ctx, dt);
+      updateWhatsNew(ctx, dt);
     }
     updatePortals(ctx, dt);
     updatePower(ctx, dt);
@@ -400,6 +405,7 @@ export class Game {
     pushBubble(ctx);
     updatePickups(ctx, dt);
     updateHouse(ctx, dt);
+    updatePlayroom(ctx, dt);
     updateGuests(ctx, dt);
     updateDayNight(ctx, dt);
     updateLanterns(ctx, dt);

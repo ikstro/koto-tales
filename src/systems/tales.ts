@@ -35,7 +35,7 @@ import { giveCoins, musicNear, offerBubble, runWave, spotAround, type Wave, type
  */
 
 /** Where a place step counts (blocks from the place). */
-const NEAR: Record<'home' | 'village' | 'lighthouse' | 'babusia', number> = { home: 8, village: 26, lighthouse: 10, babusia: 14 };
+const NEAR: Record<'home' | 'village' | 'lighthouse' | 'babusia', number> = { home: 10, village: 26, lighthouse: 10, babusia: 14 };
 /** One already standing this close to the place counts (one put up during the step counts anywhere). */
 const PLACE_AT = 30;
 const MUSIC_AT = 15;

@@ -362,6 +362,8 @@ export class Hud {
   onTaleTap: (() => void) | null = null;
   /** «Зміст гри» was opened: what it lists now (content/contents.ts). */
   onContents: (() => Section[]) | null = null;
+  /** A tap on the gift piece (systems/whatsNew.ts opens «Що нового»). */
+  onGiftTap: (() => void) | null = null;
 
   private gHearts: Group;
   private gMap: Group;
@@ -389,6 +391,12 @@ export class Hud {
   private tale: { face: string; picture: string; lit: number } | null = null;
   private taleShown = false;
   private taleLitN = -1;
+  /** «Що нового»: the gift box by the top row with how many new things on a number tile (0: hidden). */
+  private gGift: Group;
+  private giftPiece: Piece;
+  private giftCount: Counter;
+  private giftN = 0;
+  private giftShown = false;
 
   private hearts: { tile: Piece; lost: boolean; anim: Animation | null }[] = [];
   private coinPiece: Piece;
@@ -553,6 +561,19 @@ export class Hud {
     this.talePic = this.gTale.add('item-fish', 0, -TOP, 'tile6-sh');
     this.taleFace = this.gTale.add('mark-pupsia', -66, -TOP - 48, 'mark-sh');
     this.gTale.seal();
+
+    // «Що нового»: a gift box breathing by the top row after an update, its count on a number tile.
+    this.gGift = new Group(r, 'g-gift hidden');
+    this.giftPiece = this.gGift.add('gift', 0, 0);
+    this.giftPiece.el.classList.add('prompt');
+    this.gGift.seal();
+    // the count: a small number tile at the box's lower right (outside the measured box, like a kit cell's)
+    const giftNum = div('kc gift-num', this.gGift.inner);
+    giftNum.style.cssText = 'left:36px;top:12px';
+    const numPiece = new Piece(giftNum, 'numtile', 0, 0, null);
+    this.gGift.pieces.push(numPiece);
+    this.giftCount = new Counter(numPiece);
+    this.press(this.giftPiece, this.giftPiece.target(110, 120, 22), () => this.onGiftTap?.(), { ui: true, also: [numPiece] });
     this.press(this.taleRing, this.taleRing.target(150, 140, TOP), () => this.onTaleTap?.(), { ui: true, also: [this.talePic, this.taleFace] });
 
     // The boss bar (top centre, only near «Пожирач земель»): its face, a row of stone studs that
@@ -791,6 +812,7 @@ export class Hud {
     const GTl = this.gTale;
     const tsT = ts * 1.05;
     GTl.place(GM.x - gap * 0.5 - GTl.w * tsT, GM.y + (GM.h * ms - GTl.h * tsT) / 2, tsT);
+    this.placeGift();
     this.placeBoss(g, gap, ts, topBottom);
 
     // a plate with tabs fits its cells to the screen; the plain one only moves
@@ -1696,10 +1718,100 @@ export class Hud {
 
   private syncTale(): void {
     const on = !!this.tale && !this.bossShown;
-    if (on === this.taleShown) return;
-    this.taleShown = on;
-    this.gTale.el.classList.toggle('hidden', !on);
-    if (on) this.gTale.pieces.forEach((p, i) => p.drop(i * 60, 50));
+    if (on !== this.taleShown) {
+      this.taleShown = on;
+      this.gTale.el.classList.toggle('hidden', !on);
+      if (on) this.gTale.pieces.forEach((p, i) => p.drop(i * 60, 50));
+      this.placeGift();
+    }
+    this.syncGift();
+  }
+
+  /**
+   * «Що нового»: the gift piece with `n` new things on its number tile; 0 sends it off with a
+   * little hop. It steps aside while the boss bar is up, like the tale piece.
+   */
+  setGift(n: number): void {
+    if (n === this.giftN) return;
+    const was = this.giftN;
+    this.giftN = n;
+    if (n > 0) this.giftCount.set(n, was > 0);
+    if (n === 0 && this.giftShown) {
+      this.giftShown = false;
+      const el = this.gGift.el;
+      const a = this.giftPiece.lf.animate(
+        [{ transform: 'none', opacity: 1 }, { transform: 'translateY(-26px) scale(1.15) rotate(-8deg)', opacity: 1, offset: 0.45 }, { transform: 'translateY(-60px) scale(0.4)', opacity: 0 }],
+        { duration: 520, easing: 'ease-in' },
+      );
+      a.onfinish = () => {
+        if (!this.giftShown) el.classList.add('hidden');
+      };
+      return;
+    }
+    this.syncGift();
+  }
+
+  /** The gift piece hops (Пупся reminds the child it is there). */
+  giftHop(): void {
+    if (this.giftShown) this.giftPiece.bump();
+  }
+
+  private syncGift(): void {
+    const on = this.giftN > 0 && !this.bossShown;
+    if (on === this.giftShown) return;
+    this.giftShown = on;
+    this.gGift.el.classList.toggle('hidden', !on);
+    if (on) {
+      this.placeGift();
+      this.gGift.pieces.forEach((p, i) => p.drop(i * 90, 60));
+    }
+  }
+
+  /**
+   * Left of the top row, level with it; past the minimap and the tale piece too when they share
+   * that row (short landscape). On a portrait screen the top row is full: under it, left of the
+   * tale piece (or of the minimap).
+   */
+  private placeGift(): void {
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const { gTop: GT, gMap: GM, gTale: GTl, gGift: GG } = this;
+    if (!GG || !GT.w) return;
+    const g = this.gHearts.y;
+    const s = this.ts * 1.2;
+    const gap = 10 + 20 * s;
+    if (W >= H) {
+      let left = GT.x;
+      if (GM.y < GT.bottom) left = Math.min(left, GM.x);
+      if (this.taleShown && GTl.y < GT.bottom) left = Math.min(left, GTl.x);
+      GG.place(left - gap - GG.w * s, Math.max(g * 0.5, GT.y + (GT.h * this.ts - GG.h * s) / 2), s);
+      return;
+    }
+    const left = this.taleShown ? GTl.x : GM.x;
+    const x = left - gap - GG.w * s;
+    const y = GM.y + (GM.h * GM.s - GG.h * s) / 2;
+    // the counters may have wrapped into that row: then under the minimap, at the right edge
+    const { gCoins: GC, gKills: GK } = this;
+    const hit = Math.max(GC.right, GK.right) + gap > x && Math.min(GC.y, GK.y) < y + GG.h * s && Math.max(GC.bottom, GK.bottom) > y;
+    if (hit) GG.place(W - g - (GG.w + 24) * s, GM.bottom + 6, s);
+    else GG.place(x, y, s);
+  }
+
+  /** Pauses the game under a plate of its own (no menu); the returned function lets it go on. */
+  holdPause(): () => void {
+    const self = !this.paused;
+    if (self) {
+      this.paused = true;
+      this.toggleFan(false);
+      this.toggleKit(false);
+      this.input.fireHeld = false;
+      this.onPause?.(true);
+    }
+    return () => {
+      if (!self || !this.paused) return;
+      this.paused = false;
+      this.onPause?.(false);
+    };
   }
 
   /** Stars over the dark fade (the night passing while the heroes sleep). */

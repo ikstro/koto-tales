@@ -10,7 +10,7 @@ import { HOME, HOUSE, HOUSE_VERSION, rehousedOrigin } from '../content/house';
 import type { Ctx, HouseState } from '../core/ctx';
 import { events } from '../core/events';
 import { sfx } from '../voice/sfx';
-import { B } from '../world/blocks';
+import { voice } from '../voice/voice';
 import { addFoodPlace, eating, eatingAt, sitOn, type FoodPlace } from './food';
 
 const BLANKET: Partial<Record<HeroId, string>> = { lyosha: '#6fb2d6', solomiia: '#ee6a82', david: '#3fa142' };
@@ -38,9 +38,11 @@ export function buildHouse(ctx: Ctx): HouseState {
   } else if (save.house) {
     // an older, smaller house: the flattening clears it away (its walls, floor and lantern) and
     // the new one goes up around the same centre; kit buildings in the way go back into the box
-    // (systems/kit.ts)
+    // (systems/kit.ts; a garden bed gives back what grew, systems/garden.ts). Пупся notices the
+    // first time she is inside (`GREW`).
     const [x0, y0, z0] = rehousedOrigin(save.house, save.houseV || 1);
     origin = putUp(x0, z0, y0 + 1);
+    if (!save.said.includes(GREW)) save.said.push(GREW_DUE);
   } else {
     const spawn = world.findSpawn(0, 0);
     origin = putUp(Math.floor(spawn.x) - Math.floor(HOUSE.sizeX / 2), Math.floor(spawn.z) - Math.floor(HOUSE.sizeZ / 2), Math.round(spawn.y));
@@ -190,8 +192,8 @@ export function buildHouse(ctx: Ctx): HouseState {
   door.setOpen(1);
   scene.add(door.root);
 
-  // The house's warm lamp, under the ceiling in the middle of the room.
-  const lamp = new THREE.PointLight(0xffa64a, LAMP_DAY, 14, 1.3);
+  // The house's warm lamp, under the ceiling in the middle of the rooms (it reaches both ends).
+  const lamp = new THREE.PointLight(0xffa64a, LAMP_DAY, 16, 1.3);
   lamp.position.copy(at(HOME.lamp));
   scene.add(lamp);
 
@@ -225,6 +227,9 @@ export function isHouseShell(h: HouseState, x: number, y: number, z: number): bo
   return x >= f.x0 && x < f.x1 && z >= f.z0 && z < f.z1 && y >= f.y0 && y <= f.y0 + 4;
 }
 
+/** Пупся's line the first time inside a house that grew (an old save), and its mark in `save.said` until then. */
+const GREW = 'house_grew';
+const GREW_DUE = 'house_grew_due';
 let wasInside = false;
 let chestOpen = false;
 let kitchen: Kitchen | null = null;
@@ -289,6 +294,14 @@ export function updateHouse(ctx: Ctx, dt: number): void {
   if (inside !== wasInside) {
     wasInside = inside;
     events.emit('hero:home', { inside });
+    // an old save's house grew: Пупся's «Ого!» the first time inside
+    const said = ctx.save.said;
+    const due = said.indexOf(GREW_DUE);
+    if (inside && due >= 0) {
+      said.splice(due, 1);
+      said.push(GREW);
+      voice.say(GREW, { priority: 7 });
+    }
   }
   const target = inside ? 0 : 1;
   h.roofFade += (target - h.roofFade) * (1 - Math.exp(-dt * 8));

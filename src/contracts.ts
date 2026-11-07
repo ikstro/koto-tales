@@ -332,6 +332,8 @@ export type SfxName =
   | 'plop'
   /** The news jingle: the grandmothers' TV switching on to the monster news (systems/tvNews.ts). */
   | 'news'
+  /** «Ві-і-і»: a hero whizzing down the playroom's slide (systems/playroom.ts). */
+  | 'whee'
   /** Monsters' own voices (MonsterCard.cry), made in code. */
   | 'cry_siren'
   | 'cry_growl'

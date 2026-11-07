@@ -17,6 +17,7 @@ import { createSkin } from './render/skins';
 import { bossStartSpot, initBoss } from './systems/boss';
 import { buildHouse } from './systems/house';
 import { buildPostbox } from './systems/mail';
+import { initPlayroom } from './systems/playroom';
 import { initCastles } from './systems/castles';
 import { initKit } from './systems/kit';
 import { initCooking } from './systems/cooking';
@@ -129,6 +130,8 @@ async function boot(): Promise<void> {
   initPickups(ctx);
   ctx.house = buildHouse(ctx);
   buildPostbox(ctx);
+  // the playroom's toys, under the title, so their shaders are ready before play
+  initPlayroom(ctx);
   initPower(ctx);
   // before the kit: the villages' ground is kept, buildings standing there go back to the box
   initVillages(ctx);

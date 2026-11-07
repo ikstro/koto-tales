@@ -178,6 +178,11 @@ body {
   transform: scale(0.5);
 }
 
+/* «Що нового»: how many new things, a number tile at the gift box's lower right */
+.kc.gift-num {
+  transform: scale(0.56);
+}
+
 /* the next reward is a dark silhouette until its task is done; the task's picture sits on it */
 .pc.locked .sp:not(.sh) {
   filter: brightness(0.22) saturate(0) opacity(0.8);

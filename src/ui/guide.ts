@@ -35,7 +35,7 @@ const PIC_TOP = 12;
 const PIC_BOTTOM = 42;
 
 /** Pieces placed (and scaled) in a card's picture; tracks the union of what is drawn. */
-class Art {
+export class Art {
   readonly el = document.createElement('div');
   readonly box = [Infinity, Infinity, -Infinity, -Infinity];
   readonly pieces: Piece[] = [];

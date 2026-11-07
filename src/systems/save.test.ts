@@ -4,6 +4,7 @@ import { freshBabusia } from '../content/babusia';
 import { freshHome } from '../content/home';
 import { freshKitchen } from '../content/recipes';
 import { freshNews } from '../content/news';
+import { LATEST_RELEASE } from '../content/whatsNew';
 import { SAVE_VERSION, freshSave, migrate, reconcileTerrain, restartSave } from './save';
 
 describe('save', () => {
@@ -211,6 +212,13 @@ describe('save', () => {
     expect(s.news).toEqual(freshNews());
     expect(s.recipes).toEqual(['borscht']);
     expect(s.coins).toBe(12);
+  });
+
+  it('migrates v21 → v22: an older save has seen no «Що нового» yet; a new game has seen them all', () => {
+    const s = migrate({ ...freshSave(), v: 21 } as unknown as Record<string, unknown>);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.whatsNew).toBe(0);
+    expect(freshSave().whatsNew).toBe(LATEST_RELEASE);
   });
 
   it('fills in kitchen and news fields a save of the same version lacks', () => {

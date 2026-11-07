@@ -185,16 +185,31 @@ export function updateHeroes(ctx: Ctx, dt: number): void {
     const side = i === 0 ? 1 : i === 1 ? -1 : 0;
     // Behind the player, one on each side (character's left is +X when facing +Z), the third
     // straight behind a little further. When that spot is inside a wall (on the doorstep,
-    // facing out), try beside, then in front.
+    // facing out) or on the far side of one (a hero by a wall inside a house), try beside, then
+    // in front; none free: right by the player.
     const leftX = Math.cos(player.yaw);
     const leftZ = -Math.sin(player.yaw);
     const fy = Math.floor(player.pos.y + 0.01);
+    const open = (x: number, z: number) => !world.isSolid(Math.floor(x), fy, Math.floor(z)) && !world.isSolid(Math.floor(x), fy + 1, Math.floor(z));
+    const reachable = (x: number, z: number) => {
+      const n = Math.ceil(Math.hypot(x - player.pos.x, z - player.pos.z) / 0.35);
+      for (let k = 1; k <= n; k++) if (!open(player.pos.x + ((x - player.pos.x) * k) / n, player.pos.z + ((z - player.pos.z) * k) / n)) return false;
+      return true;
+    };
     let tx = player.pos.x;
     let tz = player.pos.z;
+    let found = false;
     for (const back of side ? [1.5, 0, -1.5] : [2.6, 1.3, -1.5]) {
       tx = player.pos.x - fwdX * back + leftX * 1.5 * side;
       tz = player.pos.z - fwdZ * back + leftZ * 1.5 * side;
-      if (!world.isSolid(Math.floor(tx), fy, Math.floor(tz)) && !world.isSolid(Math.floor(tx), fy + 1, Math.floor(tz))) break;
+      if (reachable(tx, tz)) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      tx = player.pos.x;
+      tz = player.pos.z;
     }
     const dx = tx - bot.pos.x;
     const dz = tz - bot.pos.z;

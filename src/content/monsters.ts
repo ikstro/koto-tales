@@ -156,5 +156,5 @@ export const SPAWN = {
   maxDist: 26,
   despawnDist: 42,
   /** Monsters never enter this radius around the house — home is safe. */
-  houseSafeRadius: 12,
+  houseSafeRadius: 15,
 };
