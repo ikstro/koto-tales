@@ -11,7 +11,7 @@ import { isInside } from './house';
 import { TREEHOUSE_FLOOR } from '../assets/castlePrizes';
 import { tentNear } from './kit';
 import { guestNear } from './villages';
-import { babusiaBeds } from './babusia';
+import { babusiaBeds, flightDue, flyHouse, herBeds } from './babusia';
 
 /**
  * Sleep (DESIGN.md «Sleep»): from evening till dawn, inside the house or next to one of
@@ -107,10 +107,19 @@ async function sleep(ctx: Ctx, place: NonNullable<ReturnType<typeof sleepPlace>>
   }
   voice.say('sleep_night', { priority: 9, interrupt: true });
   events.emit('hero:sleep', { hero: ctx.player.id });
+  // asleep in Бабуся's beds the house flies them to a new place (DESIGN.md «The flight»);
+  // anywhere else the night passes under a dark sky of stars
+  const flight = place.where === 'babusia' && flightDue(ctx) ? flyHouse(ctx) : null;
   await wait(2400);
-  ctx.hud.stars(true);
-  await ctx.hud.fade(true);
-  await wait(1400);
+  const flew = flight ? await flight : false;
+  if (!flew) {
+    ctx.hud.stars(true);
+    await ctx.hud.fade(true);
+    await wait(1400);
+  } else if (place.where === 'babusia') {
+    // they wake where the house landed
+    Object.assign(place, herBeds(ctx));
+  }
 
   // the night passes
   ctx.clock.t = MORNING;
@@ -121,9 +130,11 @@ async function sleep(ctx: Ctx, place: NonNullable<ReturnType<typeof sleepPlace>>
   }
   const centre = home ? house.centre : place.where !== 'home' ? place.centre : ctx.player.pos;
   for (const m of ctx.monsters) if (Math.hypot(m.pos.x - centre.x, m.pos.z - centre.z) < 18) m.alive = false;
-  await wait(300);
-  ctx.hud.stars(false);
-  await ctx.hud.fade(false);
+  if (!flew) {
+    await wait(300);
+    ctx.hud.stars(false);
+    await ctx.hud.fade(false);
+  }
 
   // morning: stretch and get up
   for (const h of ctx.heroes.values()) h.model.play('wake');

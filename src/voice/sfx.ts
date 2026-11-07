@@ -275,6 +275,18 @@ const recipes: Record<SfxName, (k: K) => void> = {
     hiss(k, 0, 0.75, 0.2, 'bandpass', 320, 1500, 0.9, 0.28);
     hiss(k, 0.3, 0.7, 0.1, 'bandpass', 1300, 380, 0.9, 0.2);
   },
+  lift(k) {
+    // the house lifts off: a soft sine rising under a breath of air, a fifth above it a moment later
+    tone(k, 150, 0, 1.2, 0.26, 'sine', 420, 0.35);
+    tone(k, 225, 0.15, 1.0, 0.1, 'sine', 630, 0.3);
+    hiss(k, 0, 1.2, 0.12, 'bandpass', 260, 900, 0.7, 0.45);
+  },
+  wind(k) {
+    // a gust: low air swelling and falling away over three seconds, a thinner whistle riding on it
+    hiss(k, 0, 3, 0.3, 'lowpass', 280, 900, 0.6, 1.3);
+    hiss(k, 0.5, 2.4, 0.12, 'lowpass', 700, 300, 0.8, 0.9);
+    hiss(k, 0.8, 1.9, 0.05, 'bandpass', 900, 1500, 2.5, 0.8);
+  },
   // ─── monster cries (MonsterCard.cry): a toy's voice, never scary-loud ───
   cry_siren(k) {
     // Сиреноголовий: his two horns wail together, a little apart, like a toy air-raid siren —

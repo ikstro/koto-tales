@@ -121,6 +121,9 @@ async function boot(): Promise<void> {
     napping: false,
     fast: 0,
     mountSpeed: 1,
+    focus: null,
+    zoom: 1,
+    clouds: null,
   };
   initPickups(ctx);
   ctx.house = buildHouse(ctx);

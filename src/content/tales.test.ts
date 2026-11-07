@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SPRITES } from '../ui/hudSprites';
 import { BUILDINGS, type BuildingId } from './buildings';
 import { LINES } from './lines';
-import { entryOf, freshTales, nextTale, PROLOGUE, TALE_ITEMS, TALES, talesLeft, type TalesSave } from './tales';
+import { entryOf, freshTales, nextTale, PROLOGUE, TALE_ITEMS, TALES, talesLeft, thanksOf, type TalesSave } from './tales';
 
 const none = () => false;
 const all = () => true;
@@ -124,5 +124,21 @@ describe('the first dinner', () => {
     expect(t.from).toBe('pupsia');
     expect(t.lyosha).toBe(true);
     expect(t.steps.at(-1)!.kind).toBe('cook');
+  });
+});
+
+describe('thanksOf', () => {
+  const t = (from: 'babusia' | 'pupsia', host?: 'yulia' | 'olia', after?: 'tale_fish_thanks') =>
+    ({ from, host, thanks: 'tale_yarn_thanks', after }) as const;
+  it('her own tale: just the thanks, then the word after', () => {
+    expect(thanksOf(t('babusia'), 'yulia')).toEqual(['tale_yarn_thanks']);
+    expect(thanksOf(t('babusia', 'olia', 'tale_fish_thanks'), 'olia')).toEqual(['tale_yarn_thanks', 'tale_fish_thanks']);
+  });
+  it('a tale of the one away: the one at home relays first, in her own voice', () => {
+    expect(thanksOf(t('babusia', 'olia'), 'yulia')).toEqual(['babusia_relay', 'tale_yarn_thanks']);
+    expect(thanksOf(t('babusia', undefined, 'tale_fish_thanks'), 'olia')).toEqual(['olia_relay', 'tale_yarn_thanks', 'tale_fish_thanks']);
+  });
+  it('a tale not of hers is never relayed', () => {
+    expect(thanksOf(t('pupsia', 'olia'), 'yulia')).toEqual(['tale_yarn_thanks']);
   });
 });

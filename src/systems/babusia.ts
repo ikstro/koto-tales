@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { CharacterModel, HeroId } from '../contracts';
-import { createBabusiaRoof, createBench, createCoffeeTable, createFlowerBox, createFlowerField, createStork, createTv, createWickerChair } from '../assets/babusia';
+import { createBabusiaRoof, createBench, createCoffeeTable, createFlowerBox, createFlowerField, createHouseShell, createHouseSwirl, createStork, createTv, createWickerChair, type HouseSwirl } from '../assets/babusia';
+import { cloudsAt, dawnAt, FLIGHT, liftAt, phaseAt, seenAt, squashAt, swayAt, swirlAt, lagAt, zoomAt, type FlightPhase } from '../content/flight';
+import { placeOnGround } from '../actors/physics';
 import { createKitchen, createTable, TABLE_H, type Kitchen } from '../assets/home';
 import { pantryGift } from './cooking';
 import type { BuildingModel } from '../assets/buildings';
@@ -27,7 +29,6 @@ import {
   inSafeRing,
   judgeSite,
   LANTERN_CELL,
-  movesTomorrow,
   nextJoke,
   noteDue,
   otherHost,
@@ -61,7 +62,7 @@ import { music } from '../voice/music';
 import { sfx } from '../voice/sfx';
 import { voice } from '../voice/voice';
 import { B } from '../world/blocks';
-import { chairRock, plantChairFlowers, seatsState, sittingInChair, updateSeats, type Hostess, type YardSeats } from './babusiaSeats';
+import { chairRock, leaveSeats, plantChairFlowers, seatsState, sittingInChair, updateSeats, type Hostess, type YardSeats } from './babusiaSeats';
 import { pushCarried } from './effects';
 import { chunkKey, chunkOf, exploredOf, squareAround } from './explore';
 import { addFoodPlace, eating, eatingAt, sitDown, type FoodPlace } from './food';
@@ -70,7 +71,7 @@ import { placeYard, showYard, updateYard } from './babusiaYard';
 import { sayAsk } from './tales';
 import { faceTo, giveCoins, musicNear, walkTo } from './tasks';
 import { travelTo } from './travel';
-import { nextWeather } from './weather';
+import { nextWeather, veilFog } from './weather';
 
 /**
  * Бабуся (DESIGN.md «Бабуся», the rules in content/babusia.ts): two hostesses of a house that
@@ -121,6 +122,12 @@ const SLIPS: Record<Host, LineId[]> = { yulia: ['babusia_slip_1', 'babusia_slip_
 const OTHER: Record<Host, LineId[]> = { yulia: ['babusia_other_1', 'babusia_other_2', 'babusia_other_3'], olia: ['olia_other_1', 'olia_other_2', 'olia_other_3'] };
 const NOTES: Record<Host, LineId[]> = { yulia: ['babusia_note_1', 'babusia_note_2', 'babusia_note_3'], olia: ['olia_note_1', 'olia_note_2', 'olia_note_3'] };
 const CAME: Record<Host, LineId> = { yulia: 'host_yulia_came', olia: 'host_olia_came' };
+/** Her word at the door when the house leaves before the party's eyes. */
+const OFF: Record<Host, LineId[]> = { yulia: ['babusia_off_1', 'babusia_off_2'], olia: ['olia_off_1', 'olia_off_2'] };
+/** After landing the hostess is found at the stove this long (seconds of play). */
+const AT_STOVE = 40;
+/** The site for the next landing keeps this far from the party. */
+const LAND_OFF_PARTY = 40;
 const WEATHER_LINE: LineId[] = ['babusia_weather_sun', 'babusia_weather_rain', 'babusia_weather_snow', 'babusia_weather_rainbow'];
 /** Юля hears a wish for the weather from this near. */
 const ASK_NEAR = 5;
@@ -154,9 +161,12 @@ interface Swim {
   surface: number;
 }
 
-/** Her furniture, one group at the house corner. */
+/** Her furniture, one group at the house corner; the shell is the house itself as a toy, for the flight. */
 interface Home {
   root: THREE.Group;
+  shell: { root: THREE.Group; mats: THREE.Material[] };
+  /** Petals or fireflies round the house in flight. */
+  swirl: HouseSwirl;
   roofMats: THREE.Material[];
   roof: THREE.Group;
   roofFade: number;
@@ -254,8 +264,10 @@ const line = (ctx: Ctx, id: LineId): LineId => hostLine(id, ctx.save.babusia.hos
 
 /** The party is cooking: she leaves what she was doing and comes to the stove. */
 let atStove = false;
+/** Just landed: the new hostess is at the stove until this moment of play. */
+let stoveUntil = -1;
 
-const dayOf = (ctx: Ctx): Act => (atStove ? 'cook' : routineAt(ctx.clock.t, ctx.save.babusia.host));
+const dayOf = (ctx: Ctx): Act => (atStove || ctx.clock.elapsed < stoveUntil ? 'cook' : routineAt(ctx.clock.t, ctx.save.babusia.host));
 
 export function setHerCooking(on: boolean): void {
   atStove = on;
@@ -271,19 +283,27 @@ export function insideHouse(ctx: Ctx, p: THREE.Vector3): boolean {
   return p.x >= at[0] + i.x0 && p.x < at[0] + i.x1 && p.z >= at[2] + i.z0 && p.z < at[2] + i.z1 && p.y >= at[1] && p.y < at[1] + 5;
 }
 
-/** A tale of hers, or one that leads to her, keeps her where she is. */
+/** The hostess at home has a tale under way: a tap on her repeats its ask, and no small gift meanwhile. */
 function held(ctx: Ctx): boolean {
   const t = taleById(ctx.save.tales.cur);
-  return !!t && (t.from === 'babusia' || t.steps.some((s) => s.at === 'babusia'));
+  return !!t && t.from === 'babusia' && (t.host ?? 'yulia') === ctx.save.babusia.host;
 }
 
 /** Her beds, from evening till dawn (systems/sleep.ts asks): in the house or by her fire. */
-export function babusiaBeds(ctx: Ctx): { centre: THREE.Vector3; spots: Record<string, { pos: THREE.Vector3; yaw: number }>; wake: THREE.Vector3 } | null {
+export function babusiaBeds(ctx: Ctx): Beds | null {
   const at = ctx.save.babusia.at;
   if (!home || !at) return null;
   const p = ctx.player.pos;
   const [fx, fz] = world(at, BABUSIA_SPOTS.fire.dx, BABUSIA_SPOTS.fire.dz);
   if (!insideHouse(ctx, p) && Math.hypot(p.x - fx, p.z - fz) > 4.5) return null;
+  return herBeds(ctx);
+}
+
+type Beds = { centre: THREE.Vector3; spots: Record<string, { pos: THREE.Vector3; yaw: number }>; wake: THREE.Vector3 };
+
+/** Her beds wherever the house stands now (after a flight: where it landed). */
+export function herBeds(ctx: Ctx): Beds {
+  const at = ctx.save.babusia.at!;
   const spots = Object.fromEntries(
     HERO_ORDER.map((id) => {
       const s = BABUSIA_BEDS[id];
@@ -367,7 +387,7 @@ const treeAt = (ctx: Ctx, x: number, z: number) => {
   return t === B.LEAVES || t === B.LOG;
 };
 
-const probe = (ctx: Ctx): SiteProbe => ({ height: (x, z) => ground(ctx, x, z), wet: (x, z) => wetAt(ctx, x, z), tree: (x, z) => treeAt(ctx, x, z) });
+const probe = (ctx: Ctx): SiteProbe => ({ height: (x, z) => ground(ctx, x, z), wet: (x, z) => wetAt(ctx, x, z), tree: (x, z) => treeAt(ctx, x, z), biome: (x, z) => ctx.world.biomeAt(x, z) });
 
 /** Nothing else has this ground: the heroes' home, villages, castles, lighthouses, bridges, the lair, the child's buildings. */
 function freeGround(ctx: Ctx, ox: number, oz: number): boolean {
@@ -388,8 +408,11 @@ function freeGround(ctx: Ctx, ox: number, oz: number): boolean {
   return !save.portal || off(save.portal, 16);
 }
 
-/** One candidate a step: the best of what is around `party`, at her distance. */
-function* findSite(ctx: Ctx, party: THREE.Vector3): Generator<void, Site | null> {
+/**
+ * One candidate a step: the best of what is around `origin` (the house as it stands; the party
+ * for her first landing), at her distance, never on the party, another kind of land preferred.
+ */
+function* findSite(ctx: Ctx, origin: THREE.Vector3, party: THREE.Vector3, avoidBiome?: string): Generator<void, Site | null> {
   const [r0, r1] = BABUSIA.land;
   const a0 = Math.random() * Math.PI * 2;
   const land = probe(ctx);
@@ -400,14 +423,21 @@ function* findSite(ctx: Ctx, party: THREE.Vector3): Generator<void, Site | null>
     const far = i >= 40 ? 50 : 0;
     const a = a0 + i * 2.39996;
     const r = r0 + (((i * 37) % 41) / 40) * (r1 - r0) + far;
-    const ox = Math.floor(party.x + Math.sin(a) * r - BABUSIA_HOUSE.sizeX / 2);
-    const oz = Math.floor(party.z + Math.cos(a) * r - BABUSIA_HOUSE.sizeZ / 2);
+    const ox = Math.floor(origin.x + Math.sin(a) * r - BABUSIA_HOUSE.sizeX / 2);
+    const oz = Math.floor(origin.z + Math.cos(a) * r - BABUSIA_HOUSE.sizeZ / 2);
+    if (Math.hypot(ox + BABUSIA_HOUSE.sizeX / 2 - party.x, oz + BABUSIA_HOUSE.sizeZ / 2 - party.z) < LAND_OFF_PARTY) continue;
     if (!freeGround(ctx, ox, oz)) continue;
-    const j = judgeSite(land, ox, oz);
+    const j = judgeSite(land, ox, oz, avoidBiome);
     if (j && (!best || j.score < best.score)) best = { site: [ox, j.y - 1, oz], score: j.score };
     if (best && i >= 14) break;
   }
   return best?.site ?? null;
+}
+
+/** Where the next landing is looked for from, and what land to prefer leaving. */
+function siteSearch(ctx: Ctx, party: THREE.Vector3): Generator<void, Site | null> {
+  const here = babusiaCentre(ctx);
+  return findSite(ctx, here ?? party, party, here ? ctx.world.biomeAt(Math.floor(here.x), Math.floor(here.z)) : undefined);
 }
 
 // ─── moving ──────────────────────────────────────────────────────────────────
@@ -451,57 +481,68 @@ function* clearYard(ctx: Ctx, at: Site): Generator<void> {
   groundChanged(at);
 }
 
-/** Levels the yard a row at a time and writes the shell. */
-function* putUp(ctx: Ctx, at: Site): Generator<void> {
+/** Levels the yard a row at a time and writes the shell; `walls` holds the walls back (a flying house sets them down itself). */
+function* putUp(ctx: Ctx, at: Site, walls?: () => boolean): Generator<void> {
   const feet = at[1] + 1;
   for (let z = at[2] + YARD.z0; z <= at[2] + YARD.z1; z++) {
     ctx.world.flattenArea(at[0] + YARD.x0, z, at[0] + YARD.x1, z, feet, CLEAR_HEIGHT);
     yield;
   }
+  while (walls && !walls()) yield;
   ctx.world.placeStructure(at[0], at[1], at[2], BABUSIA_BLOCKS);
   const l = LANTERN_CELL;
   events.emit('block:placed', { x: at[0] + l.dx, y: at[1] + l.dy, z: at[2] + l.dz, id: B.LANTERN });
   groundChanged(at);
 }
 
-/** The move saved in `moving`, from wherever it was left: everything in it can be done twice. */
-function* carryOut(ctx: Ctx): Generator<void> {
+/**
+ * The move saved in `moving`, from wherever it was left: everything in it can be done twice.
+ * `ready` holds the landing back (a flight puts the house up only once the world has moved under it),
+ * `walls` its walls (the flying house touches down first, then they stand in it).
+ */
+function* carryOut(ctx: Ctx, ready?: () => boolean, walls?: () => boolean): Generator<void> {
   const b = ctx.save.babusia;
-  const { from, to, host: arriving = b.host } = b.moving!;
+  const { from, to, host: arriving = b.host, day = ctx.save.day } = b.moving!;
+  const was = b.host;
   if (from) {
-    if (home) home.root.visible = false;
-    if (her) her.model.root.visible = false;
-    showYard(false);
+    // in a flight the house itself is in the air: only the ground goes back
+    if (!flight) {
+      if (home) home.root.visible = false;
+      if (her) her.model.root.visible = false;
+      showYard(false);
+    }
     yield* clearYard(ctx, from);
     const [x, z] = centreOf(from);
     // the meadow is Юля's: only she leaves one
     if (b.host === 'yulia' && !b.glades.some((g) => g[0] === x && g[1] === z)) b.glades = addGlade(b.glades, x, z);
     b.flowers = 0;
   }
-  yield* putUp(ctx, to);
+  while (ready && !ready()) yield;
+  yield* putUp(ctx, to, walls);
   b.at = to;
   if (arriving !== b.host) {
     b.host = arriving;
     b.noted = false;
     b.told = false;
   }
-  // back from a trip with something (not the first landing): the next meeting gives it
-  if (b.at) b.brought = true;
-  b.movedDay = ctx.save.day;
+  // back from a trip with something: the next meeting gives it
+  b.brought = true;
+  b.movedDay = day;
   b.moving = null;
   yield* settle(ctx);
+  if (from) events.emit('babusia:moved', { from: centreOf(from), to: centreOf(to), host: b.host });
+  return was;
 }
 
+/** Her coming, or a move the party does not see: the news with a little wind of petals. */
 function* moveJob(ctx: Ctx, party: THREE.Vector3): Generator<void> {
-  const site = yield* findSite(ctx, party);
+  const site = yield* siteSearch(ctx, party);
   if (!site) return;
   const b = ctx.save.babusia;
   const moved = !!b.at;
-  const was = b.host;
-  b.moving = { from: b.at, to: site, host: moved ? hostAfterMove(b.host, ctx.save.tales.done) : b.host };
-  yield* carryOut(ctx);
+  b.moving = { from: b.at, to: site, host: moved ? hostAfterMove(b.host, ctx.save.tales.done) : b.host, day: ctx.save.day, aboard: false };
+  const was = yield* carryOut(ctx);
   if (!moved) return;
-  // the news comes with a little wind of petals
   ctx.effects.poof(tmp.copy(ctx.player.pos).setY(ctx.player.pos.y + 1.4), puff(ctx), 22);
   sfx.play('sticker', { pitch: 1.4 });
   voice.say(b.host === was ? 'babusia_moved' : CAME[b.host], { priority: 6 });
@@ -562,8 +603,11 @@ function* settle(ctx: Ctx): Generator<void> {
   const at = ctx.save.babusia.at!;
   if (!home) yield* build(ctx);
   const h = home!;
-  h.root.position.set(at[0], at[1], at[2]);
-  h.root.visible = true;
+  // in the air the flight holds the house; it is set down when it lands
+  if (!flight) {
+    h.root.position.set(at[0], at[1], at[2]);
+    h.root.visible = true;
+  }
   h.root.updateMatrixWorld(true);
   const [cx, cz] = centreOf(at);
   centre.set(cx, at[1] + 1, cz);
@@ -670,6 +714,12 @@ function* build(ctx: Ctx): Generator<void> {
   });
   root.add(roof);
   yield;
+  // the house as a toy, hidden inside its own walls until the night it flies (its panes glow through the glass)
+  const shell = createHouseShell(skin);
+  root.add(shell.root);
+  const swirlFx = createHouseSwirl();
+  root.add(swirlFx.root);
+  yield;
   const kitchen = createKitchen(skin);
   add(kitchen.root, S.kitchen.dx, S.kitchen.dz);
   const table = createTable(skin);
@@ -762,7 +812,7 @@ function* build(ctx: Ctx): Generator<void> {
     onDone: () => fireTalk(ctx),
   };
   const seats: YardSeats = { rocker: chair.root, yaw: CHAIR_YAW, seat: chair.seat, patch, toast };
-  home = { root, roof, roofMats, roofFade: 1, tv, jukebox, fire, kitchen, chair: chair.seat, beds, table: tablePlace, yard: yardPlace, seats };
+  home = { root, shell, swirl: swirlFx, roof, roofMats, roofFade: 1, tv, jukebox, fire, kitchen, chair: chair.seat, beds, table: tablePlace, yard: yardPlace, seats };
 }
 
 /** Her jukebox: a tap turns it on and off; the note steps through the songs, as at the DJ console. */
@@ -794,7 +844,8 @@ function updateHome(ctx: Ctx, h: Home, dt: number): void {
   h.tv.update(dt);
   const night = 1 - ctx.clock.daylight;
   h.kitchen.update(dt, eatingAt(h.table), night);
-  const target = asleepHere || insideHouse(ctx, ctx.player.pos) ? 0 : 1;
+  // for the flight the roof comes back on: the house leaves whole
+  const target = !flight && (asleepHere || insideHouse(ctx, ctx.player.pos)) ? 0 : 1;
   h.roofFade += (target - h.roofFade) * (1 - Math.exp(-dt * 8));
   h.roof.visible = h.roofFade > 0.02;
   for (const m of h.roofMats) {
@@ -1330,6 +1381,336 @@ function flyStork(ctx: Ctx, s: Stork, dt: number): void {
   voice.say('babusia_stork', { priority: 7, interrupt: true });
 }
 
+// ─── the flight ──────────────────────────────────────────────────────────────
+
+/**
+ * The house moves on every night (DESIGN.md «The flight»). Asleep in her beds the party flies
+ * with it (`aboard`): the roof comes back on, a swirl of petals or fireflies, the house with its
+ * furniture and the sleepers rises over a sea of clouds, the world moves underneath, the house
+ * comes down with a toy's bounce as the sun rises, and the other hostess is at the stove. Awake
+ * in the yard at dawn (`seen`) they watch it lift off and melt into the sky. Far away, nothing
+ * is seen (moveJob). Content/flight.ts has the moments and the curves.
+ */
+interface Flight {
+  kind: 'aboard' | 'seen';
+  t: number;
+  phase: FlightPhase;
+  from: Site;
+  /** Found during the first seconds; the flight waits at lift-off until it is. */
+  to: Site | null;
+  /** The house's corner now: the old site until the world has moved under it. */
+  base: Site;
+  /** The world has moved under the house: the landing may be put up. */
+  landReady: boolean;
+  /** `seen`: she is on her way in. */
+  path: XZ[];
+  windT: number;
+  touched: boolean;
+  /** The hostess the house leaves with. */
+  leaving: Host;
+  /** `aboard`: wakes the sleep scene when the house has docked (true) or the flight was called off. */
+  done: ((flew: boolean) => void) | null;
+}
+
+let flight: Flight | null = null;
+let flyHintDay = -1;
+/** A save made mid-flight: on load, once the house stands, the party is carried to its gate. */
+let resumeAboard = false;
+
+/** Tonight the house moves on: the party asleep in her beds flies with it. */
+export function flightDue(ctx: Ctx): boolean {
+  const b = ctx.save.babusia;
+  return !!home && !!b.at && !b.moving && !job && !flight && !stroll && shouldMove(b, ctx.save.day + 1);
+}
+
+/** Looks for the landing while the party lies down; the flight reads `to` when it is time. */
+function* lookForSite(ctx: Ctx, f: Flight): Generator<void> {
+  f.to = yield* siteSearch(ctx, ctx.player.pos.clone());
+}
+
+/**
+ * Case 1, from the moment the party lies down in her beds. Resolves when the house has docked
+ * at the new place (true) or, with nowhere to land, at once after the lying down (false): then
+ * the night passes as anywhere.
+ */
+export function flyHouse(ctx: Ctx): Promise<boolean> {
+  const b = ctx.save.babusia;
+  if (!flightDue(ctx)) return Promise.resolve(false);
+  const at = b.at!;
+  return new Promise((done) => {
+    flight = { kind: 'aboard', t: 0, phase: 'settle', from: at, to: null, base: at, landReady: false, path: [], windT: 0, touched: false, leaving: b.host, done };
+    job = lookForSite(ctx, flight);
+    // she is indoors: the house leaves with its lights on
+    if (her) her.model.root.visible = false;
+    showYard(false);
+    leaveSeats(ctx, host);
+  });
+}
+
+/** Case 2: the party is up and about in her yard at dawn; she says a word and the house leaves before their eyes. */
+function startSeen(ctx: Ctx): void {
+  const b = ctx.save.babusia;
+  if (!home || !her || !b.at || flight || job) return;
+  const at = b.at;
+  flight = { kind: 'seen', t: 0, phase: 'settle', from: at, to: null, base: at, landReady: false, path: [], windT: 0, touched: false, leaving: b.host, done: null };
+  job = lookForSite(ctx, flight);
+  const h = her;
+  h.errand = null;
+  h.act = null;
+  setPose(h, 'idle');
+  home.tv.setOn(false);
+  const inside = insideHouse(ctx, h.pos);
+  h.path = inside ? [] : [world(at, BABUSIA_SPOTS.doorOut.dx, BABUSIA_SPOTS.doorOut.dz), world(at, BABUSIA_SPOTS.doorIn.dx, BABUSIA_SPOTS.doorIn.dz)];
+  flight.path = h.path;
+  leaveSeats(ctx, host);
+  showYard(false);
+  voice.say(OFF[b.host][Math.floor(Math.random() * OFF[b.host].length)], { priority: 7, interrupt: true });
+}
+
+/** The house leaves the ground: the move is written down, the ground under it goes back. */
+function liftOff(ctx: Ctx, f: Flight): void {
+  const b = ctx.save.babusia;
+  const aboard = f.kind === 'aboard';
+  b.moving = { from: f.from, to: f.to!, host: hostAfterMove(b.host, ctx.save.tales.done), day: ctx.save.day + (aboard ? 1 : 0), aboard };
+  job = carryOut(ctx, () => f.landReady, aboard ? () => f.touched : undefined);
+  sfx.play('lift');
+  if (aboard) {
+    ctx.hud.show(false);
+    if (!ctx.save.said.includes('babusia_flight_wow')) {
+      ctx.save.said.push('babusia_flight_wow');
+      setTimeout(() => voice.say('babusia_flight_wow', { priority: 6 }), 1200);
+    }
+  } else {
+    // nobody is carried off awake: a child indoors or in a seat is set down at the gate
+    if (her) her.model.root.visible = false;
+    if (insideHouse(ctx, ctx.player.pos)) {
+      const [gx, gz] = world(f.from, BABUSIA_SPOTS.gate.dx, BABUSIA_SPOTS.gate.dz);
+      let i = 0;
+      for (const h of ctx.heroes.values()) {
+        const side = h === ctx.player ? 0 : i++ === 0 ? -1 : 1;
+        placeOnGround(ctx.world, h.body, gx + side * 1.1, gz + (side ? 0.8 : 0));
+        ctx.effects.poof(tmp.copy(h.pos).setY(h.pos.y + 1), puff(ctx), 10);
+      }
+    }
+  }
+}
+
+/** The swirl of petals (Юля) or fireflies (Оля) round the house, `strength` 0..1 (0 clears it). */
+function swirl(who: Host, strength: number, dt: number): void {
+  home?.swirl.update(dt, strength, who === 'yulia' ? 'petals' : 'flies', BABUSIA_HOUSE.sizeX / 2, BABUSIA_HOUSE.sizeZ / 2);
+}
+
+/** Puts the house, with its roof and furniture, this far over its corner; `s` squashes it like a toy set down, `size` shrinks it as it flies off. */
+function placeHouse(h: Home, base: Site, dx: number, lift: number, dz: number, s = 0, opacity = 1, size = 1): void {
+  const sx = (1 + s) * size;
+  const sy = (1 - s) * size;
+  h.root.scale.set(sx, sy, sx);
+  // squashed and shrunk about its middle, not its corner
+  h.root.position.set(base[0] + dx - (BABUSIA_HOUSE.sizeX / 2) * (sx - 1), base[1] + lift, base[2] + dz - (BABUSIA_HOUSE.sizeZ / 2) * (sx - 1));
+  h.root.visible = true;
+  for (const m of [...h.shell.mats, ...h.roofMats]) {
+    m.opacity = opacity;
+    m.depthWrite = opacity > 0.98;
+  }
+}
+
+/** The sleepers lie in their beds wherever the house is. */
+function placeSleepers(ctx: Ctx, base: Site, dx: number, lift: number, dz: number): void {
+  for (const id of HERO_ORDER) {
+    const h = ctx.heroes.get(id);
+    if (!h) continue;
+    const s = BABUSIA_BEDS[id];
+    h.model.root.position.set(base[0] + s.dx + dx, base[1] + s.dy + lift, base[2] + s.dz + dz);
+  }
+}
+
+/** Under full cloud the world moves: the view and the bodies are at the new place at once. */
+function teleport(ctx: Ctx, f: Flight): void {
+  const to = f.to!;
+  // the clouds keep their places on screen while the view jumps with the house
+  ctx.clouds?.shift(to[0] - f.base[0], to[2] - f.base[2]);
+  f.base = to;
+  const [wx, wz] = world(to, BABUSIA_SPOTS.wake.dx, BABUSIA_SPOTS.wake.dz);
+  let i = 0;
+  for (const h of ctx.heroes.values()) {
+    const side = h === ctx.player ? 0 : i++ === 0 ? -1 : 1;
+    // the ground there is not made yet: the floor's height is known
+    h.body.pos.set(wx + side * 0.9, to[1] + 1.02, wz + (side ? 0.9 : 0));
+    h.body.vel.set(0, 0, 0);
+    h.body.onGround = true;
+    h.invulnerable = Math.max(h.invulnerable, 2);
+  }
+  for (const m of ctx.monsters) if (Math.hypot(m.pos.x - wx, m.pos.z - wz) < 24) m.alive = false;
+  const [cx, cz] = centreOf(to);
+  (ctx.focus ??= new THREE.Vector3()).set(cx, to[1] + 1 + FLIGHT.height, cz);
+  events.emit('hero:teleport', {});
+  // the other hostess is found at the stove when the house comes down
+  stoveUntil = ctx.clock.elapsed + AT_STOVE;
+  f.landReady = true;
+}
+
+/** The house is down: everything in its place, the view back on the hero, the sleep scene goes on. */
+function dock(ctx: Ctx, f: Flight): void {
+  const h = home!;
+  const to = f.to!;
+  placeHouse(h, to, 0, 0, 0);
+  placeSleepers(ctx, to, 0, 0, 0);
+  ctx.focus = null;
+  ctx.zoom = 1;
+  ctx.clouds?.set({ alpha: 0 });
+  veilFog(0);
+  ctx.hud.show(ctx.params.hud);
+  const done = f.done;
+  flight = null;
+  setTimeout(() => voice.say('babusia_flew', { priority: 5 }), 5500);
+  done?.(true);
+}
+
+/** Nowhere to land tonight: the night passes as anywhere, the house stays. */
+function callOff(ctx: Ctx, f: Flight): void {
+  const done = f.done;
+  flight = null;
+  ctx.focus = null;
+  ctx.zoom = 1;
+  ctx.clouds?.set({ alpha: 0 });
+  veilFog(0);
+  swirl(f.leaving, 0, 0);
+  if (her) {
+    her.model.root.visible = true;
+    if (f.kind === 'seen') beginAct(ctx, dayOf(ctx), true);
+  }
+  showYard(ctx.save.babusia.host === 'olia');
+  done?.(false);
+}
+
+function updateAboard(ctx: Ctx, f: Flight, dt: number): void {
+  const h = home!;
+  const c = ctx.clock;
+  f.t += dt;
+  const phase = phaseAt(f.t);
+  // the night deepens while they settle
+  if (phase === 'settle' && c.t < FLIGHT.night) c.t = Math.min(FLIGHT.night, c.t + dt * FLIGHT.nightfall);
+  if (phase !== 'settle' && !ctx.save.babusia.moving && !f.landReady) {
+    // the site is not found yet (or never): wait at the edge of take-off, or give up
+    if (!f.to) {
+      if (job) {
+        f.t = FLIGHT.settle;
+        return;
+      }
+      callOff(ctx, f);
+      return;
+    }
+    liftOff(ctx, f);
+  }
+  const lift = liftAt(f.t);
+  const [sx, sz] = swayAt(f.t, lift);
+  const dawn = dawnAt(f.t);
+  if (dawn !== null) c.t = Math.max(c.t, dawn);
+  if (phase === 'glide' && f.t >= FLIGHT.teleport && !f.landReady) teleport(ctx, f);
+  if (phase === 'touch' && !f.touched) {
+    f.touched = true;
+    sfx.play('place');
+    sfx.play('clink', { volume: 0.4, pitch: 1.3 });
+  }
+  if (phase === 'glide' || phase === 'lift') {
+    f.windT -= dt;
+    if (f.windT <= 0 && f.t > FLIGHT.cruise - 1) {
+      f.windT = 2.4;
+      sfx.play('wind', { volume: 0.5 });
+    }
+  }
+  const squash = f.touched ? squashAt(f.t - FLIGHT.touch) : 0;
+  placeHouse(h, f.base, sx, lift, sz, squash);
+  placeSleepers(ctx, f.base, sx, lift, sz);
+  const [cx, cz] = centreOf(f.base);
+  (ctx.focus ??= new THREE.Vector3()).set(cx + sx, f.base[1] + 1 + lift + lagAt(f.t), cz + sz);
+  ctx.zoom = zoomAt(f.t);
+  ctx.clouds?.set({ y: f.base[1] + 1 + FLIGHT.height - FLIGHT.cloudBelow, alpha: cloudsAt(f.t), drift: FLIGHT.drift });
+  veilFog(cloudsAt(f.t));
+  // she who leaves lifts it off, she who comes sets it down
+  swirl(f.t < FLIGHT.descend ? f.leaving : (ctx.save.babusia.moving?.host ?? ctx.save.babusia.host), swirlAt(f.t), dt);
+  updateHome(ctx, h, dt);
+  // down, and the landing finished: the scene goes on
+  if (phase === 'done' && !job) dock(ctx, f);
+}
+
+function updateSeen(ctx: Ctx, f: Flight, dt: number): void {
+  const h = home!;
+  f.t += dt;
+  ctx.zoom = FLIGHT.zoomSeen;
+  // she goes in first
+  if (her && her.model.root.visible) {
+    const [x, z] = f.path[0] ?? [her.pos.x, her.pos.z];
+    const speed = f.path.length ? WALK_SPEED : 0;
+    if (f.path.length && walkTo(ctx, her, x, z, speed, dt)) f.path.shift();
+    her.model.root.position.copy(her.pos);
+    her.model.root.rotation.set(0, her.yaw, 0, 'YXZ');
+    her.model.update(dt, speed);
+    holdGear(her, dt);
+    if (!f.path.length && f.t > 1.5) her.model.root.visible = false;
+  }
+  if (f.t >= FLIGHT.seenLift && !ctx.save.babusia.moving && !f.landReady) {
+    if (!f.to) {
+      if (job) {
+        f.t = FLIGHT.seenLift;
+        return;
+      }
+      callOff(ctx, f);
+      return;
+    }
+    liftOff(ctx, f);
+  }
+  const s = seenAt(f.t);
+  swirl(f.leaving, s.swirl, dt);
+  placeHouse(h, f.from, 0, s.lift, -s.away, 0, s.opacity, s.size);
+  updateHome(ctx, h, dt);
+  // the view leans towards the leaving house and pulls back a little; the hero stays in the frame
+  const [hx, hz] = centreOf(f.from);
+  const p = ctx.player.pos;
+  const vx = hx - p.x;
+  const vz = hz - s.away - p.z;
+  const lean = (Math.min(FLIGHT.seenLean, Math.hypot(vx, vz) * 0.5) * s.look) / Math.max(1, Math.hypot(vx, vz));
+  (ctx.focus ??= new THREE.Vector3()).set(p.x + vx * lean, p.y, p.z + vz * lean);
+  ctx.zoom = 1 + (FLIGHT.zoomSeen - 1) * s.look;
+  if (!s.gone) return;
+  // gone in a last puff of the swirl: the pieces are whole again for the landing, which the job puts up far away
+  ctx.effects.poof(tmp.set(hx, f.from[1] + 1 + s.lift, hz - s.away), HOSTS[f.leaving].puff, 26);
+  sfx.play('sticker', { pitch: 1.4 });
+  placeHouse(h, f.from, 0, 0, 0);
+  h.root.visible = false;
+  const was = ctx.save.babusia.host;
+  flight = null;
+  ctx.focus = null;
+  ctx.zoom = 1;
+  f.landReady = true;
+  const after = job;
+  job = (function* () {
+    if (after) yield* after;
+    const b = ctx.save.babusia;
+    voice.say(b.host === was ? 'babusia_moved' : CAME[b.host], { priority: 6 });
+  })();
+}
+
+function updateFlight(ctx: Ctx, dt: number): void {
+  const f = flight!;
+  if (!home) return;
+  f.phase = phaseAt(f.t);
+  if (f.kind === 'aboard') updateAboard(ctx, f, dt);
+  else updateSeen(ctx, f, dt);
+}
+
+/** Evenings near her house Пупся says why to stay the night, once a day. */
+function flyHint(ctx: Ctx): void {
+  const b = ctx.save.babusia;
+  if (!b.at || !b.met || flyHintDay === ctx.save.day || ctx.clock.daylight > 0.3 || ctx.sleeping || ctx.napping || flight) return;
+  const p = ctx.player.pos;
+  // her own good-night word comes first inside the yard
+  if ((nightSaid !== ctx.save.day && inSafeRing(b, p.x, p.z)) || voice.quietSeconds() < 4) return;
+  if (Math.hypot(p.x - centre.x, p.z - centre.z) > BABUSIA.moveAway) return;
+  flyHintDay = ctx.save.day;
+  voice.say('babusia_fly_hint', { priority: 4 });
+}
+
 // ─── the loop ────────────────────────────────────────────────────────────────
 
 function runJob(): void {
@@ -1385,14 +1766,16 @@ export function initBabusia(ctx: Ctx): void {
     while (!landing.next().done);
   }
   storkAt = ctx.clock.elapsed + 30;
+  if (b.moving?.aboard) resumeAboard = true;
   events.on('time:phase', ({ phase }) => {
-    const away = centre.distanceTo(tmp.copy(ctx.player.pos).setY(centre.y));
-    // with the party close by she stays, so nobody says she is leaving
-    if (phase === 'evening' && away > BABUSIA.moveAway && movesTomorrow(b, ctx.save.day, held(ctx))) setTimeout(() => voice.say('babusia_move_soon', { priority: 5 }), 3000);
     if (phase !== 'morning') return;
     if (home) home.table.snack = home.yard.snack = dishOfDay(ctx.save.day);
-    const homeAway = ctx.house ? centre.distanceTo(tmp.copy(ctx.house.centre).setY(centre.y)) : Infinity;
-    if (!job && shouldMove(b, ctx.save.day, away, held(ctx), homeAway)) job = moveJob(ctx, ctx.player.pos.clone());
+    // every morning the house is somewhere new: seen from the yard, or quietly while the party is far
+    // (asleep in her beds the flight has already begun; asleep elsewhere the fader is up)
+    if (job || flight || b.moving || !shouldMove(b, ctx.save.day)) return;
+    const away = centre.distanceTo(tmp.copy(ctx.player.pos).setY(centre.y));
+    if (!ctx.sleeping && !ctx.napping && away <= BABUSIA.moveAway && home?.root.visible && her) startSeen(ctx);
+    else job = moveJob(ctx, ctx.player.pos.clone());
   });
   // her bell: the party is carried to her gate; a jump ends a walk she was on
   events.on('effect:start', ({ kind }) => {
@@ -1443,12 +1826,29 @@ export function initBabusia(ctx: Ctx): void {
         flowers: b.flowers,
         giftDay: b.giftDay,
         seats: seatsState(),
+        movedDay: b.movedDay,
+        flight: flight ? { kind: flight.kind, phase: flight.phase, t: +flight.t.toFixed(2), to: flight.to, landReady: flight.landReady } : null,
+        focus: ctx.focus?.toArray() ?? null,
+        inside: insideHouse(ctx, ctx.player.pos),
+        time: +ctx.clock.t.toFixed(3),
+        houseAt: home?.root.position.toArray() ?? null,
+        houseShown: home?.root.visible ?? false,
+        sleeping: ctx.sleeping,
+        napping: ctx.napping,
+        party: [...ctx.heroes.values()].map((h) => {
+          const r = h.model.root;
+          const w = r.getWorldPosition(new THREE.Vector3());
+          return { id: h.id, model: w.toArray().map((v) => +v.toFixed(1)), shown: r.visible, parent: r.parent?.name || r.parent?.type || null, body: h.body.pos.toArray().map((v) => +v.toFixed(1)) };
+        }),
       };
     },
     /** She lands, or moves on, now. */
     move: () => {
       job = moveJob(ctx, ctx.player.pos.clone());
     },
+    /** The house leaves before the party's eyes now. */
+    fly: () => startSeen(ctx),
+    blockAt: (x: number, y: number, z: number) => ctx.world.getBlock(x, y, z),
     /** The greeting from the one away is due now. */
     note: () => {
       b.noted = false;
@@ -1557,6 +1957,17 @@ export function updateBabusia(ctx: Ctx, dt: number): void {
   if (job) runJob();
   if (!ctx.playing) return;
   const b = ctx.save.babusia;
+  if (flight) {
+    updateFlight(ctx, dt);
+    if (flight) return;
+  }
+  // the game was closed mid-flight: the house stands at its new place, the party goes to its gate
+  if (resumeAboard && !job && b.at && !b.moving) {
+    resumeAboard = false;
+    if (ctx.clock.t >= 0.6) ctx.clock.t = 0.02;
+    for (const h of ctx.heroes.values()) h.hearts = HERO_STATS.maxHearts;
+    jump(ctx);
+  }
   checkT -= dt;
   if (checkT <= 0) {
     checkT = 2;
@@ -1600,4 +2011,5 @@ export function updateBabusia(ctx: Ctx, dt: number): void {
   if (b.host === 'olia') updateYard(ctx, her.pos, her.act === 'feed', dt);
   talk(ctx, her, dt);
   night(ctx, dt);
+  flyHint(ctx);
 }

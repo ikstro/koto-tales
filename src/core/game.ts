@@ -34,6 +34,7 @@ import { applyDebugParams } from '../debug/give';
 import { pushBubble } from '../systems/tasks';
 import { updateVillages } from '../systems/villages';
 import { initWeather, updateWeather } from '../systems/weather';
+import { createCloudSea } from '../render/cloudSea';
 import { updateLanterns } from '../render/lanterns';
 import { updateHeroMark } from '../render/heroMark';
 import { cutaway } from '../render/skins/cutaway';
@@ -99,11 +100,13 @@ export class Game {
     this.cam = new FollowCamera(ctx.camera, FRAMINGS[ctx.params.cam ?? 1] ?? FRAMINGS[1]);
     initNarration(ctx);
     initWeather(ctx, quality);
+    // there from the start, empty, so its shader is built under the title and never mid-play
+    ctx.clouds = createCloudSea(ctx.scene);
     events.on('attack:bolt', ({ hero }) => {
       if (hero === ctx.player?.id) this.cam.shake(0.3);
     });
     // a portal carried the party far away: the camera is there at once, under the fade
-    events.on('hero:teleport', () => this.cam.snap(ctx.player.pos));
+    events.on('hero:teleport', () => this.cam.snap(ctx.focus ?? ctx.player.pos));
     events.on('sleep:done', () => this.persist());
 
     const persist = () => this.persist();
@@ -160,7 +163,7 @@ export class Game {
         };
       },
       /** The shader programs alive, by material type (or shader name) and what made them differ. */
-      shaders: () => (ctx.renderer.info.programs ?? []).map((p) => `${p.name} ${p.cacheKey.length > 160 ? p.cacheKey.slice(-160) : p.cacheKey}`),
+      shaders: () => (ctx.renderer.info.programs ?? []).map((p) => `${p.name} ${p.cacheKey.length > 220 ? `${p.cacheKey.slice(0, 60)}…${p.cacheKey.slice(-160)}` : p.cacheKey}`),
       /** Draw calls of the next drawn frame, by pass and by what is drawn. */
       probe: () => probeDrawCalls(ctx.renderer, ctx.scene, () => game.rendered),
     };
@@ -193,7 +196,7 @@ export class Game {
         }
       }
       const t0 = performance.now();
-      this.frame(Math.min(0.05, ms / 1000), ms);
+      this.frame(Math.min(this.ctx.params.step ?? 0.05, ms / 1000), ms);
       this.workMs += (performance.now() - t0 - this.workMs) * 0.05;
       if (this.onFirstFrame) {
         this.onFirstFrame();
@@ -334,9 +337,10 @@ export class Game {
       // Paused: the world stays drawn and still; nothing moves, nobody spawns.
       ctx.input.clearPresses();
       music.update(dt, -1, 0, false);
-      ctx.world.update(ctx.player.pos); // keeps streaming if paused before the world finished loading
-      ctx.skin.updateScene(ctx.clock.daylight, ctx.player.pos);
+      ctx.world.update(ctx.focus ?? ctx.player.pos); // keeps streaming if paused before the world finished loading
+      ctx.skin.updateScene(ctx.clock.daylight, ctx.focus ?? ctx.player.pos);
       updateWeather(ctx, 0, true);
+      ctx.clouds?.draw(0, ctx.camera, ctx.clock.daylight);
       ctx.skin.render(ctx.renderer, ctx.scene, ctx.camera);
       return;
     }
@@ -386,14 +390,15 @@ export class Game {
     updateLanterns(ctx, dt);
     updateHeroMark(ctx, dt);
 
-    const focus = ctx.playing ? ctx.player.pos : ctx.house!.centre;
+    // a scene may hold the view on something else than the player (the house flying at night)
+    const focus = ctx.focus ?? (ctx.playing ? ctx.player.pos : ctx.house!.centre);
     ctx.world.update(focus);
     if (ctx.playing) {
       // Near the Land Eater the camera pulls back so the whole beast fits on screen.
       const b = ctx.boss;
-      const near = !!b && b.alive && Math.hypot(b.pos.x - ctx.player.pos.x, b.pos.z - ctx.player.pos.z) < 28;
-      this.cam.zoomTarget = near ? 1.5 : 1;
-      this.cam.follow(ctx.player.pos, dt);
+      const near = !ctx.focus && !!b && b.alive && Math.hypot(b.pos.x - ctx.player.pos.x, b.pos.z - ctx.player.pos.z) < 28;
+      this.cam.zoomTarget = Math.max(ctx.zoom, near ? 1.5 : 1);
+      this.cam.follow(focus, dt);
     }
     else if (this.intro) this.intro.update(dt);
     else this.cam.idle(ctx.house!.centre, dt);
@@ -420,6 +425,7 @@ export class Game {
     const intro = ctx.playing ? null : this.intro;
     ctx.skin.updateScene(intro ? intro.daylight : ctx.clock.daylight, focus);
     updateWeather(ctx, dt);
+    ctx.clouds?.draw(dt, ctx.camera, ctx.clock.daylight);
     intro?.light?.();
     ctx.skin.render(ctx.renderer, ctx.scene, ctx.camera);
     intro?.overlay?.(ctx.renderer);

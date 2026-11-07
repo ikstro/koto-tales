@@ -15,6 +15,8 @@ import type { Skin } from '../contracts';
 import { Kit, type Paint, type V3 } from './parts/kit';
 import { CHARCOAL, CORAL, CORAL_DARK, CREAM, INK, MUSTARD, TAU, TEAL, ownGlow, setGlow } from './buildingParts';
 import type { PlaneModel } from './tales';
+import { BABUSIA_BLOCKS } from '../content/babusia';
+import { B, BLOCKS } from '../world/blocks';
 import { BRICK, BRICK_D, Build, HP, LEAF, LEAF2, LEAF_D, TEAL_D, WOODL, WOODL_D, finishShadows, fx, place, pool, tint } from './villages';
 
 const PETAL = '#fff9ec';
@@ -878,4 +880,189 @@ export function createYardLife(skin: Skin): YardLife {
   };
   update(0);
   return { root, update };
+}
+
+// ─── the flying shell ───────────────────────────────────────────────────────
+
+/** How far every box of the shell sits inside the real blocks' faces. */
+export const SHELL_INSET = 0.05;
+
+/**
+ * A stand-in for her house that can be lifted into the air (the night move): the same shapes as
+ * `BABUSIA_BLOCKS` (content/babusia.ts) as toy boxes in the blocks' own colours — the cobble rim and
+ * the floor (planks, the red rug, the white-and-green tiles), white walls with the open doorway, log
+ * corners, and warm glowing panes in the windows (glow only, no light). In the house's own space
+ * (x 0..13, z 0..9, y 0 = the floor block's bottom), like the roof. Every box keeps `SHELL_INSET`
+ * inside the real block faces, so while the real house stands the shell hides inside its opaque
+ * blocks and only the panes show through the glass. `mats` are the shell's own clones,
+ * transparent-capable but starting opaque: fade with `opacity = k`, `depthWrite = k > 0.98`.
+ */
+export function createHouseShell(skin: Skin): { root: THREE.Group; mats: THREE.Material[] } {
+  const I = SHELL_INSET;
+  const root = new THREE.Group();
+  root.name = 'babusiaShell';
+  const kit = new Kit('babusia-shell', skin);
+  const p = kit.part('shell', root);
+  const paint = (id: number): Paint => ({ c: BLOCKS[id].side.color, clear: true });
+  const PANE: Paint = { c: CREAM, glow: true };
+
+  const cells = new Map<string, number>();
+  let sx = 0;
+  let sy = 0;
+  let sz = 0;
+  for (const b of BABUSIA_BLOCKS) {
+    cells.set(`${b.dx},${b.dy},${b.dz}`, b.id);
+    sx = Math.max(sx, b.dx + 1);
+    sy = Math.max(sy, b.dy + 1);
+    sz = Math.max(sz, b.dz + 1);
+  }
+  const at = (x: number, y: number, z: number): number => cells.get(`${x},${y},${z}`) ?? B.AIR;
+  const solid = (id: number) => id !== B.AIR && id !== B.GLASS && id !== B.LANTERN;
+
+  // the floor: the cobble rim as four strips, then the inside region by region (shared inner faces stay hidden)
+  const slab = (x0: number, x1: number, z0: number, z1: number, id: number) =>
+    p.box([x1 - x0, 1 - 2 * I, z1 - z0], [(x0 + x1) / 2, 0.5, (z0 + z1) / 2], paint(id));
+  slab(I, sx - I, sz - 1, sz - I, B.COBBLE);
+  slab(I, sx - I, I, 1, B.COBBLE);
+  slab(I, 1, 1, sz - 1, B.COBBLE);
+  slab(sx - 1, sx - I, 1, sz - 1, B.COBBLE);
+  // the inside: runs of one block along x, row by row
+  for (let z = 1; z < sz - 1; z++) {
+    for (let x = 1; x < sx - 1; ) {
+      const id = at(x, 0, z);
+      let e = x + 1;
+      while (e < sx - 1 && at(e, 0, z) === id) e++;
+      slab(x, e, z, z + 1, id);
+      x = e;
+    }
+  }
+
+  // the walls cell by cell: each face meets a solid neighbour, keeps the inset from air, and gives
+  // way to a pane, which reaches the inset into its solid neighbours so no slit shows in the air
+  const PANE_DEPTH = 0.12;
+  for (let y = 1; y < sy; y++) {
+    for (let z = 0; z < sz; z++) {
+      for (let x = 0; x < sx; x++) {
+        const id = at(x, y, z);
+        if (id === B.AIR || id === B.LANTERN) continue;
+        const glass = id === B.GLASS;
+        const lo = [x, y, z];
+        const hi = [x + 1, y + 1, z + 1];
+        for (let a = 0; a < 3; a++) {
+          for (const s of [-1, 1]) {
+            const n = [x, y, z];
+            n[a] += s;
+            const nid = at(n[0], n[1], n[2]);
+            // under the walls lies the floor, its top inset: reach down to it
+            const floor = a === 1 && s < 0 && n[1] === 0;
+            let d: number;
+            if (floor) d = I;
+            else if (glass) d = solid(nid) ? I : nid === B.GLASS ? 0 : -PANE_DEPTH;
+            else d = solid(nid) ? 0 : -I;
+            if (s < 0) lo[a] -= d;
+            else hi[a] += d;
+          }
+        }
+        const size: V3 = [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]];
+        const mid: V3 = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2];
+        p.box(size, mid, glass ? PANE : paint(id));
+      }
+    }
+  }
+  p.done();
+
+  const mats: THREE.Material[] = [];
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const mat = (m.material as THREE.Material).clone();
+    mat.transparent = true;
+    mat.opacity = 1;
+    mat.depthWrite = true;
+    m.material = mat;
+    m.castShadow = true;
+    m.receiveShadow = true;
+    mats.push(mat);
+  });
+  return { root, mats };
+}
+
+/**
+ * The flight's swirl (DESIGN.md «The flight»): petals (Юля) or fireflies (Оля) going round the
+ * house in a rising spiral as it takes off and lands. Two instanced draws with the same materials
+ * as the effects' puffs and sparkles (render/effects.ts), so no shader of their own; always in the
+ * scene, with nothing drawn while the strength is 0.
+ */
+export interface HouseSwirl {
+  root: THREE.Group;
+  /** One frame: `strength` 0..1 (0 draws nothing), petals or fireflies, round the house's middle (its corner's coordinates). */
+  update(dt: number, strength: number, kind: 'petals' | 'flies', cx: number, cz: number): void;
+}
+
+const SWIRL_N = 110;
+const PETALS = ['#fff7ec', '#fff7ec', '#e8463a', '#ffd23a', '#ee6a82'].map((c) => new THREE.Color(c));
+const FLIES = ['#fff3a0', '#d6ff8a', '#ffe08a'].map((c) => new THREE.Color(c));
+
+export function createHouseSwirl(): HouseSwirl {
+  const root = new THREE.Group();
+  root.name = 'house-swirl';
+  const petals = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(0.7, 0.1, 0.48),
+    new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x3a3a3a }),
+    SWIRL_N,
+  );
+  const flies = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(0.34, 0.34, 0.34),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+    SWIRL_N,
+  );
+  flies.renderOrder = 10;
+  const seeds: { a: number; r: number; h: number; speed: number; spin: number; c: number }[] = [];
+  for (let i = 0; i < SWIRL_N; i++) {
+    seeds.push({ a: Math.random() * TAU, r: 7.5 + Math.random() * 3, h: i / SWIRL_N, speed: 1.5 + Math.random() * 1.1, spin: 2 + Math.random() * 4, c: Math.random() });
+    petals.setColorAt(i, PETALS[Math.floor(seeds[i].c * PETALS.length)]);
+    flies.setColorAt(i, FLIES[Math.floor(seeds[i].c * FLIES.length)]);
+  }
+  for (const m of [petals, flies]) {
+    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    m.frustumCulled = false;
+    m.count = 0;
+    m.userData.toyNoShadow = true;
+    root.add(m);
+  }
+  const mtx = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const e = new THREE.Euler();
+  const p = new THREE.Vector3();
+  const s = new THREE.Vector3();
+  let time = 0;
+  return {
+    root,
+    update(dt, strength, kind, cx, cz) {
+      const on = kind === 'petals' ? petals : flies;
+      const off = on === petals ? flies : petals;
+      off.count = 0;
+      if (strength <= 0.01) {
+        on.count = 0;
+        return;
+      }
+      time += dt;
+      for (let i = 0; i < SWIRL_N; i++) {
+        const k = seeds[i];
+        // up the spiral and round again from the bottom, wider as it rises
+        const h = (k.h + time * 0.22) % 1;
+        const a = k.a + time * k.speed;
+        const r = k.r * (0.8 + 0.4 * h) * (0.7 + 0.3 * strength);
+        p.set(cx + Math.sin(a) * r, -0.3 + h * 8 + Math.sin(time * 2 + i) * 0.3, cz + Math.cos(a) * r);
+        // grows in at the bottom, melts at the top
+        const size = strength * Math.sin(Math.PI * h);
+        s.setScalar(Math.max(0.001, size * (kind === 'petals' ? 1 : 0.8 + 0.4 * Math.sin(time * 9 + i * 3))));
+        e.set(time * k.spin, a, time * k.spin * 0.7);
+        mtx.compose(p, q.setFromEuler(e), s);
+        on.setMatrixAt(i, mtx);
+      }
+      on.count = SWIRL_N;
+      on.instanceMatrix.needsUpdate = true;
+    },
+  };
 }

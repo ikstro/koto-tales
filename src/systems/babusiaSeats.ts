@@ -109,6 +109,11 @@ export function plantChairFlowers(ctx: Ctx, y: YardSeats): void {
   for (let i = 0; i < n; i++) flower(ctx, y, i);
 }
 
+/** Whoever sits in her chair gets up (the house is about to leave). */
+export function leaveSeats(ctx: Ctx, host: Hostess): void {
+  stand(ctx, host);
+}
+
 function stand(ctx: Ctx, host: Hostess): void {
   const s = sat;
   if (!s) return;

@@ -27,6 +27,7 @@ import { SKIN_NAMES, type AnySkin } from '../render/skins';
  *   ?spawn=<monster>[,<monster>…]  (test only: those monsters appear beside the hero, content/monsters.ts)
  *   ?give=<id>[,<id>…]  (test only: a building into the kit, 3 of an item, an artifact or a companion — any card id)
  *   ?cam=<n>  (test only: another framing from core/camera.ts FRAMINGS, to compare shots)
+ *   ?step=<s>  (test only: a slow frame may step the game this far, default 0.05 s)
  */
 export interface Params {
   /** ?mute=1 silences everything (automated checks). */
@@ -86,6 +87,8 @@ export interface Params {
   spawn: string[];
   /** Test only (?give=a,b): buildings, items, artifacts or companions given after the start. */
   give: string[];
+  /** Test only (?step=<s>): the longest step one slow frame may take (default 0.05 s), for long scenes on software rendering. */
+  step: number | null;
 }
 
 export function readParams(): Params {
@@ -131,5 +134,6 @@ export function readParams(): Params {
     cam: num('cam'),
     spawn: (q.get('spawn') ?? '').split(',').filter(Boolean),
     give: (q.get('give') ?? '').split(',').filter(Boolean),
+    step: num('step'),
   };
 }

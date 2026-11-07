@@ -33,6 +33,15 @@ let indoors = false;
 let roofT = 0;
 /** The level the rain's sound was last asked for. */
 let heard = 0;
+/** A scene's veil 0..1 (the flying house over the clouds): the land sinks into the sky's colour beyond the house, the drops stop. */
+let veil = 0;
+const VEIL_NEAR = 44;
+const VEIL_FAR = 56;
+
+/** Sets the veil, 0..1 (systems/babusia.ts, the flight); 0 gives the world back. */
+export function veilFog(k: number): void {
+  veil = Math.max(0, Math.min(1, k));
+}
 
 export const weatherNow = (ctx: Ctx): number => weatherOf(ctx.save.weather);
 
@@ -98,8 +107,8 @@ function applyMood(scene: THREE.Scene): void {
   const fog = scene.fog as THREE.Fog | null;
   if (fog) {
     tone(fog.color);
-    fog.near = fogNear * mood.fogNear;
-    fog.far = fogFar * mood.fogFar;
+    fog.near = fogNear * mood.fogNear + (VEIL_NEAR - fogNear * mood.fogNear) * veil;
+    fog.far = fogFar * mood.fogFar + (VEIL_FAR - fogFar * mood.fogFar) * veil;
   }
   const sky = scene.background as THREE.Color | null;
   if (sky?.isColor) tone(sky);
@@ -153,7 +162,7 @@ export function updateWeather(ctx: Ctx, dt: number, paused = false): void {
   shelter += ((indoors ? 1 : 0) - shelter) * (1 - Math.exp(-dt * 8));
   applyMood(ctx.scene);
 
-  const fall = mood.rain + mood.snow;
+  const fall = (mood.rain + mood.snow) * (1 - veil);
   look.draw(dt, ctx.camera, particlesAt(quality.level), fall, fall > 0 ? mood.snow / fall : 0, mood.bow, ctx.clock.daylight, shelter);
 
   const level = paused || mood.rain < 0.02 ? 0 : mood.rain * (indoors ? RAIN_INDOORS : 1);

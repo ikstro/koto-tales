@@ -315,6 +315,10 @@ export type SfxName =
   | 'chug'
   /** A soft gust: the weather turning at the kit's weather pad. */
   | 'whoosh'
+  /** Бабуся's house lifts off: a soft rising sweep with a breath of air. */
+  | 'lift'
+  /** A gust of wind that swells and fades (the flying house), not a loop. */
+  | 'wind'
   /** Monsters' own voices (MonsterCard.cry), made in code. */
   | 'cry_siren'
   | 'cry_growl'

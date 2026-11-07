@@ -6,7 +6,7 @@ import { createPlane, createTaleThing, type PlaneModel, type TaleThing } from '.
 import type { LineId } from '../content/lines';
 import { starterProducts } from './cooking';
 import { SPAWN } from '../content/monsters';
-import { entryOf, nextTale, PROLOGUE, stepGoal, taleById, TALE_ITEMS, TALES, type TaleCard, type TaleItem, type TalePlace, type TaleStep } from '../content/tales';
+import { entryOf, nextTale, PROLOGUE, stepGoal, taleById, TALE_ITEMS, TALES, thanksOf, type TaleCard, type TaleItem, type TalePlace, type TaleStep } from '../content/tales';
 import { RACE_CARDS } from '../content/villages';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
@@ -290,8 +290,7 @@ function complete(ctx: Ctx, t: TaleCard, at?: THREE.Vector3): void {
   ctx.effects.ring(ctx.player.pos, 0xffd23a, 2.4);
   ctx.effects.poof(ctx.player.pos.clone().setY(ctx.player.pos.y + 1.2), 0xffd23a, 24);
   for (const h of ctx.heroes.values()) h.model.play('cheer');
-  if (t.after) tell(t.thanks, t.after, 'tale_page');
-  else tell(t.thanks, 'tale_page');
+  tell(...thanksOf(t, ctx.save.babusia.host), 'tale_page');
   if (t.weather !== undefined) setWeather(ctx, t.weather);
   // the tale's rare thing and a friend who joins, when the card has them
   if (t.artifact) giveArtifact(ctx, t.artifact);
@@ -299,6 +298,30 @@ function complete(ctx: Ctx, t: TaleCard, at?: THREE.Vector3): void {
   if (t.gifts) giveGifts(ctx, t.gifts);
   events.emit('tale:done', { id: t.id });
   syncRun(ctx);
+}
+
+/**
+ * Her house landed somewhere new while a step of hers is under way: a building already put up by the
+ * old house counts as done; otherwise the step's world part is laid out again round the new house on
+ * the next update (only the things not yet gathered: `save.tales.got` is kept; a visit measures its
+ * way afresh). A thief waiting by the old house is let go.
+ */
+function retarget(ctx: Ctx, from: [number, number] | null): void {
+  const step = stepOf(ctx);
+  if (!step || step.at !== 'babusia') return;
+  if (step.kind === 'place' && from) {
+    const [fx, fz] = from;
+    if (ctx.save.placed.some((b) => b.id === step.building && Math.hypot(b.x + 0.5 - fx, b.z + 0.5 - fz) < PLACE_AT)) {
+      stepDone(ctx);
+      return;
+    }
+  }
+  if (run?.thief) {
+    run.thief.alive = false;
+    run.thief = null;
+  }
+  setMapMarker('tale:thief', null);
+  clearRun(ctx);
 }
 
 /** A thing picked up: a poof; a chest opens and stands a moment before it goes. */
@@ -519,6 +542,7 @@ export function initTales(ctx: Ctx): void {
     const step = stepOf(ctx);
     if (step?.kind === 'place' && step.building === id) stepDone(ctx);
   });
+  events.on('babusia:moved', ({ from }) => retarget(ctx, from));
   events.on('lighthouse:lit', () => {
     if (stepOf(ctx)?.kind === 'light') stepDone(ctx);
   });

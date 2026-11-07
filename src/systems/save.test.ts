@@ -175,6 +175,18 @@ describe('save', () => {
     expect(s.day).toBe(9);
   });
 
+  it('migrates v18 → v19: a move under way lands on the save day with nobody aboard', () => {
+    const at: [number, number, number] = [10, 12, 20];
+    const v18 = { ...freshSave(), v: 18, day: 7, babusia: { ...freshBabusia(), at, moving: { from: at, to: [200, 9, 40], host: 'olia' } } } as unknown as Record<string, unknown>;
+    const s = migrate(v18);
+    expect(s.v).toBe(19);
+    expect(s.babusia.moving).toEqual({ from: at, to: [200, 9, 40], host: 'olia', day: 7, aboard: false });
+    expect(s.babusia.at).toEqual(at);
+    const still = migrate({ ...freshSave(), v: 18, day: 7, babusia: { ...freshBabusia(), moving: null } } as unknown as Record<string, unknown>);
+    expect(still.v).toBe(19);
+    expect(still.babusia.moving).toBeNull();
+  });
+
   it('keeps the boss as it was left (health, baits, beaten day)', () => {
     const boss = { kind: 'nessie', levels: { eater: 2, nessie: 3 }, site: [150, -20] as [number, number], hp: 12, baits: ['1,2,3'], defeatedDay: null, eatenAt: null, bites: 0 };
     const s = migrate({ ...freshSave(), day: 7, boss } as unknown as Record<string, unknown>);

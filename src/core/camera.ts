@@ -57,7 +57,7 @@ export class FollowCamera {
   /** Jump straight to the follow pose (the same one `follow` settles into). */
   snap(focus: THREE.Vector3): void {
     this.target.copy(focus);
-    this.poseFor(focus, this.camera.position, look);
+    this.poseFor(focus, this.camera.position, look, this.zoom);
     this.camera.lookAt(look);
   }
 

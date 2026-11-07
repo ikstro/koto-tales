@@ -2,6 +2,7 @@ import type * as THREE from 'three';
 import type { HeroId, IModels, IWorld, Skin } from '../contracts';
 import type { Arrow, Hero, Monster, Pickup } from '../actors/entities';
 import type { Bed, Door } from '../assets/props';
+import type { CloudSea } from '../render/cloudSea';
 import type { Effects } from '../render/effects';
 import type { Boss } from '../systems/boss';
 import type { SaveData } from '../systems/save';
@@ -68,4 +69,10 @@ export interface Ctx {
   fast: number;
   /** The hero's speed on what they ride (the scooter); 1 on foot. */
   mountSpeed: number;
+  /** What the camera and the world follow instead of the player (a scene that moves the house); null: the player. */
+  focus: THREE.Vector3 | null;
+  /** A scene's pull-back of the camera (1 = none): the flying house is seen whole. */
+  zoom: number;
+  /** The sea of clouds under a flying house (render/cloudSea.ts), made with the game. */
+  clouds: CloudSea | null;
 }

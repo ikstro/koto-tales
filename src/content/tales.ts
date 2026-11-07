@@ -1,5 +1,5 @@
 import type { Race } from '../world/villages';
-import type { Host } from './babusia';
+import { hostLine, type Host } from './babusia';
 import type { BuildingId } from './buildings';
 import type { ItemId } from './items';
 import type { LineId } from './lines';
@@ -638,6 +638,16 @@ export const taleById = (id: string | null): TaleCard | null => TALES.find((t) =
 /** How a tale reaches the child: the prologue as the heroes wake, Пупся's as a dream, the rest by paper plane. */
 export type Entry = 'wake' | 'dream' | 'letter';
 export const entryOf = (t: TaleCard): Entry => (t.id === PROLOGUE ? 'wake' : t.from === 'pupsia' ? 'dream' : 'letter');
+
+/**
+ * What is said at a tale's end, in order. A tale of the hostess who is away now (the house moved and
+ * they swapped while it was under way): the one at home says it is from her first, then her thanks.
+ */
+export function thanksOf(t: Pick<TaleCard, 'from' | 'host' | 'thanks' | 'after'>, host: Host): LineId[] {
+  const tail: LineId[] = [t.thanks, ...(t.after ? [t.after] : [])];
+  if (t.from === 'babusia' && (t.host ?? 'yulia') !== host) return [hostLine('babusia_relay', host), ...tail];
+  return tail;
+}
 
 /** How much a step asks for (things, monsters, seconds); one for the rest. */
 export const stepGoal = (s: TaleStep): number => (s.kind === 'gather' || s.kind === 'defend' || s.kind === 'music' ? (s.goal ?? 1) : 1);

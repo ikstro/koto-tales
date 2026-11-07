@@ -1,4 +1,5 @@
 import type { HeroId, ItemId, MonsterKind } from '../contracts';
+import type { Host } from '../content/babusia';
 
 /**
  * What happened in the game. Systems announce facts here; voice, album,
@@ -26,6 +27,8 @@ export interface GameEvents {
   'time:phase': { phase: 'morning' | 'evening' | 'night' };
   /** The weather changed, by itself in the morning or at the kit's weather pad (content/weather.ts). */
   'weather:change': { weather: number };
+  /** Бабуся's house landed somewhere new (systems/babusia.ts); the tales re-lay their things around it. Feet-level x/z centres of the old and the new house. */
+  'babusia:moved': { from: [number, number] | null; to: [number, number]; host: Host };
   'album:open': Record<string, never>;
   /** A building from the kit went up / was packed back into the box. */
   'building:placed': { id: string };

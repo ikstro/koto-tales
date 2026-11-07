@@ -32,10 +32,8 @@ export const BABUSIA = {
   park: 130,
   /** She lands this far from the party. */
   land: [110, 170] as [number, number],
-  /** She moves on only while the party is further than this. */
+  /** She moves on every night; within this the party sees the house fly off, further it simply lands somewhere new. */
   moveAway: 50,
-  /** A day is five minutes of play: she stays at least this many days. */
-  moveEvery: 3,
   /** The meadows she left behind that are remembered. */
   glades: 12,
   /** The stork comes at most this often (seconds). */
@@ -278,6 +276,7 @@ export const SHARED_LINES = [
   'babusia_cocoa',
   'babusia_chair',
   'babusia_pantry',
+  'babusia_relay',
   ...['start', 'stir', 'wait', 'done', 'cancel'].map((s) => `babusia_cook_${s}`),
   ...['cherry', 'potato', 'carrot', 'mushroom_brown', 'apple', 'honey', 'egg'].map((s) => `babusia_cook_need_${s}`),
 ];
@@ -285,8 +284,11 @@ export const SHARED_LINES = [
 /** The same moment in the voice of whoever is at home. */
 export const hostLine = <T extends string>(id: T, host: Host): T => (host === 'olia' && SHARED_LINES.includes(id) ? (id.replace('babusia_', 'olia_') as T) : id);
 
-/** The one away sends a greeting by stork, once a trip, from the day after they swapped. */
-export const noteDue = (b: Pick<BabusiaSave, 'noted' | 'movedDay'>, day: number): boolean => !b.noted && day > b.movedDay;
+/**
+ * The one away sends a greeting by stork, once a trip, after the one at home has said where she went.
+ * The day does not matter: the house moves every night.
+ */
+export const noteDue = (b: Pick<BabusiaSave, 'noted' | 'told'>, _day?: number): boolean => !b.noted && b.told;
 
 // ─── the save ────────────────────────────────────────────────────────────────
 
@@ -304,8 +306,12 @@ export interface BabusiaSave {
   giftDay: number;
   /** The party has met her. */
   met: boolean;
-  /** A move under way: a save made in the middle of it finishes it on load. */
-  moving: { from: Site | null; to: Site; host?: Host } | null;
+  /**
+   * A move under way: a save made in the middle of it finishes it on load. `day`: the day she counts
+   * as landed (stamped into `movedDay` when the move completes); `aboard`: the party was asleep in the
+   * house when it flew (on load they wake at her gate).
+   */
+  moving: { from: Site | null; to: Site; host?: Host; day: number; aboard: boolean } | null;
   /** How many flowers have come up round her chair here; they stay until she moves. */
   flowers: number;
   /** How far down `PRESENTS` she has given. */
@@ -387,17 +393,11 @@ export function inSafeRing(b: BabusiaSave, x: number, z: number, margin = 0): bo
 }
 
 /**
- * Whether she moves on this morning. A tale that leads to her keeps her where she is. A house an
- * older version left too near the heroes' home does not wait out its days.
+ * Whether her house moves on: every night, once she has come and has not moved yet today. Nothing
+ * holds her: not the party near, not a tale of hers (its things are laid out again round the new place).
  */
-export function shouldMove(b: BabusiaSave, day: number, partyAway: number, held: boolean, homeAway = Infinity): boolean {
-  if (!b.at || held || partyAway <= BABUSIA.moveAway) return false;
-  return day - b.movedDay >= BABUSIA.moveEvery || homeAway < BABUSIA.keepHome;
-}
-
-/** Tomorrow would be a day to move: she tells the party the evening before. */
-export function movesTomorrow(b: BabusiaSave, day: number, held: boolean): boolean {
-  return !!b.at && !held && day + 1 - b.movedDay >= BABUSIA.moveEvery;
+export function shouldMove(b: Pick<BabusiaSave, 'at' | 'movedDay'>, day: number): boolean {
+  return !!b.at && day > b.movedDay;
 }
 
 /** A meadow more, the oldest forgotten. */
@@ -413,14 +413,16 @@ export interface SiteProbe {
   height(x: number, z: number): number;
   wet(x: number, z: number): boolean;
   tree(x: number, z: number): boolean;
+  /** The biome of a column. */
+  biome(x: number, z: number): string;
 }
 
 /**
  * Whether the yard fits with its corner at (ox, oz): dry, and even enough that a jump gets out of
  * the flattened ground anywhere. Lower scores are better: even, few trees, water close by (she
- * swims). Null: it does not fit.
+ * swims), and a different kind of land from `avoidBiome` (where she stood last). Null: it does not fit.
  */
-export function judgeSite(p: SiteProbe, ox: number, oz: number): { y: number; score: number } | null {
+export function judgeSite(p: SiteProbe, ox: number, oz: number, avoidBiome?: string): { y: number; score: number } | null {
   const hs: number[] = [];
   let trees = 0;
   for (let z = YARD.z0; z <= YARD.z1; z += 3) {
@@ -441,7 +443,8 @@ export function judgeSite(p: SiteProbe, ox: number, oz: number): { y: number; sc
     const a = (i / 12) * Math.PI * 2;
     water = p.wet(Math.round(midX + Math.sin(a) * 22), Math.round(midZ + Math.cos(a) * 22));
   }
-  return { y, score: spread + trees * 0.5 - (water ? 4 : 0) };
+  const same = avoidBiome !== undefined && p.biome(Math.floor(midX), Math.floor(midZ)) === avoidBiome;
+  return { y, score: spread + trees * 0.5 - (water ? 4 : 0) + (same ? 3 : 0) };
 }
 
 /** Flowers round a spot: seeded by it, so a meadow looks the same every time it is shown. */

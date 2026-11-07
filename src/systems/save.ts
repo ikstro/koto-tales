@@ -133,7 +133,7 @@ export const freshBoss = (): BossSave => ({ kind: 'eater', levels: { eater: 1, n
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 18;
+export const SAVE_VERSION = 19;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -253,6 +253,13 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
   },
   // v18: the kitchen at the grandmothers'.
   17: (d) => ({ ...d, v: 18, recipes: [], babusia: { ...(d.babusia as object), pantryDay: -1 } }),
+  // v19: the house moves every night. A move saved half-way lands on the save's day, nobody aboard.
+  18: (d) => {
+    const b = d.babusia as { moving?: unknown } | undefined;
+    if (!b || !b.moving || typeof b.moving !== 'object') return { ...d, v: 19 };
+    const day = typeof d.day === 'number' ? d.day : 0;
+    return { ...d, v: 19, babusia: { ...b, moving: { ...(b.moving as object), day, aboard: false } } };
+  },
 };
 
 export function migrate(raw: Raw): SaveData {

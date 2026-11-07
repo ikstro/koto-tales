@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import lines from './lines.json';
 import { SAVE_VERSION, migrate } from '../systems/save';
 import { hostAfterMove, hostLine, HOSTS, noteDue, otherHost, SHARED_LINES } from './babusia';
-import { addGlade, BABUSIA, BABUSIA_BLOCKS, BABUSIA_HOUSE, centreOf, DISHES, dishOfDay, flowerSpots, freshBabusia, GARDEN, inSafeRing, judgeSite, movesTomorrow, routineAt, shouldMove, WALK_LOOP, YARD, type SiteProbe, nextJoke, POLE, poleAngle, poleDay, tapReply, BABUSIA_SPOTS, CHAIR_FLOWERS, chairFlowerSpots, PRESENTS, presentDue, strollDue } from './babusia';
+import { addGlade, BABUSIA, BABUSIA_BLOCKS, BABUSIA_HOUSE, centreOf, DISHES, dishOfDay, flowerSpots, freshBabusia, GARDEN, inSafeRing, judgeSite, routineAt, shouldMove, WALK_LOOP, YARD, type SiteProbe, nextJoke, POLE, poleAngle, poleDay, tapReply, BABUSIA_SPOTS, CHAIR_FLOWERS, chairFlowerSpots, PRESENTS, presentDue, strollDue } from './babusia';
 import { TALES } from './tales';
 import { B } from '../world/blocks';
 
-const flat = (h = 10): SiteProbe => ({ height: () => h, wet: () => false, tree: () => false });
+const flat = (h = 10): SiteProbe => ({ height: () => h, wet: () => false, tree: () => false, biome: () => 'meadow' });
 
 describe('what she brings from her trips', () => {
   const key = (g: (typeof PRESENTS)[number]) => ('building' in g ? g.building : g.item);
@@ -102,25 +102,18 @@ describe('her day', () => {
 
 describe('moving on', () => {
   const b = { ...freshBabusia(), at: [0, 10, 0] as [number, number, number], movedDay: 5 };
-  it('waits for the party to be far, and for her days', () => {
-    expect(shouldMove(b, 5 + BABUSIA.moveEvery, BABUSIA.moveAway + 1, false)).toBe(true);
-    expect(shouldMove(b, 5 + BABUSIA.moveEvery, BABUSIA.moveAway - 1, false)).toBe(false);
-    expect(shouldMove(b, 5 + BABUSIA.moveEvery - 1, 200, false)).toBe(false);
-    // a house an older version left too near the heroes' home goes at the first chance, unseen
-    expect(shouldMove(b, 6, 200, false, BABUSIA.keepHome - 1)).toBe(true);
-    expect(shouldMove(b, 6, BABUSIA.moveAway - 1, false, BABUSIA.keepHome - 1)).toBe(false);
-    expect(shouldMove(b, 6, 200, true, BABUSIA.keepHome - 1)).toBe(false);
+  it('moves every night: the day after she landed, never the same day', () => {
+    expect(shouldMove(b, 6)).toBe(true);
+    expect(shouldMove(b, 5)).toBe(false);
+    expect(shouldMove({ ...b, movedDay: 6 }, 6)).toBe(false);
   });
-  it('stays while a tale leads to her', () => {
-    expect(shouldMove(b, 99, 200, true)).toBe(false);
-    expect(movesTomorrow(b, 99, true)).toBe(false);
+  it('is not held by the party near or a tale of hers under way', () => {
+    // nothing about the party or the tales goes in: she moves all the same
+    const nearWithTale = { ...b, host: 'olia' as const };
+    expect(shouldMove(nearWithTale, 6)).toBe(true);
   });
   it('does not move before she has come', () => {
-    expect(shouldMove(freshBabusia(), 99, 200, false)).toBe(false);
-  });
-  it('says so the evening before the day she may leave', () => {
-    expect(movesTomorrow(b, 5 + BABUSIA.moveEvery - 1, false)).toBe(true);
-    expect(movesTomorrow(b, 5, false)).toBe(false);
+    expect(shouldMove(freshBabusia(), 99)).toBe(false);
   });
   it('remembers only the last meadows', () => {
     let g: [number, number][] = [];
@@ -153,6 +146,10 @@ describe('a site', () => {
   });
   it('refuses ground a jump could not climb out of', () => {
     expect(judgeSite({ ...flat(), height: (x) => (x > 8 ? 10 + BABUSIA.rim + 1 : 10) }, 0, 0)).toBeNull();
+  });
+  it('likes a different kind of land from the last', () => {
+    expect(judgeSite(flat(), 0, 0, 'meadow')!.score).toBe(judgeSite(flat(), 0, 0)!.score + 3);
+    expect(judgeSite(flat(), 0, 0, 'snow')!.score).toBe(judgeSite(flat(), 0, 0)!.score);
   });
   it('likes water nearby and dislikes trees', () => {
     const lake: SiteProbe = { ...flat(), wet: (x, z) => Math.hypot(x - 6.5, z - 4.5) > 21 };
@@ -213,10 +210,10 @@ describe('two hostesses', () => {
     expect(HOSTS.yulia.part).not.toBe(HOSTS.olia.part);
     expect(HOSTS.yulia.mark).not.toBe(HOSTS.olia.mark);
   });
-  it('the one away sends one greeting a trip, from the day after', () => {
-    expect(noteDue({ noted: false, movedDay: 5 }, 5)).toBe(false);
-    expect(noteDue({ noted: false, movedDay: 5 }, 6)).toBe(true);
-    expect(noteDue({ noted: true, movedDay: 5 }, 9)).toBe(false);
+  it('the one away sends one greeting a trip, once the one at home has said where she went', () => {
+    expect(noteDue({ noted: false, told: false }, 5)).toBe(false);
+    expect(noteDue({ noted: false, told: true }, 5)).toBe(true);
+    expect(noteDue({ noted: true, told: true }, 9)).toBe(false);
   });
   it('an old save keeps Юля until the next move, unless a tale of Оля is under way', () => {
     const old = (cur: string | null) => migrate({ v: 16, babusia: freshBabusia(), tales: { cur, done: [], after: 0 } } as never);

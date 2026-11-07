@@ -67,8 +67,10 @@ export function initNarration(ctx: Ctx): void {
   });
 
   events.on('time:phase', ({ phase }) => {
+    // a night slept through (or flown through) is not announced
+    if (ctx.sleeping) return;
     voice.say(phase, { priority: 5 });
-    if (phase === 'night') setTimeout(() => voice.say('pupsia_tip_night', { priority: 3 }), 5000);
+    if (phase === 'night') setTimeout(() => !ctx.sleeping && voice.say('pupsia_tip_night', { priority: 3 }), 5000);
   });
 
   events.on('hero:hurt', ({ hearts }) => {
