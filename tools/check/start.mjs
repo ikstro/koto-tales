@@ -19,7 +19,7 @@ const H = 800;
 let server = null;
 let base = opt('url');
 if (!base) {
-  server = spawn('npx', ['vite', 'preview', '--base', '/koto-tales/', '--port', '4190', '--strictPort'], {
+  server = spawn('npx vite preview --base /koto-tales/ --port 4190 --strictPort', {
     shell: true,
     stdio: 'ignore',
     env: { ...process.env, MSYS_NO_PATHCONV: '1' },
