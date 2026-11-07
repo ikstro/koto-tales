@@ -953,7 +953,8 @@
   "tale_first_dinner_1": { "speaker": "pupsia", "text": "Ходімо до бабусі, стрілка покаже дорогу." },
   "tale_first_dinner_2": { "speaker": "pupsia", "text": "Підійди до плити, там з’явиться каструля. Натисни на неї, і будемо готувати!" },
   "tale_first_dinner_thanks": { "speaker": "pupsia", "text": "Смачно! Тепер ми вміємо готувати всі разом. Мур!" },
-  "tale_first_dinner_retell": { "speaker": "narrator", "text": "Герої разом із бабусею зварили свій перший обід, а Пупся його перевірила." },
+  "tale_first_dinner_retell": { "speaker": "narrator", "text": "Герої разом із бабусею зварили свій перший обід, а Пупся його перевірила." }
+,
   "first_garden": { "speaker": "pupsia", "text": "Наша грядка! Принеси картоплю, моркву, вишні чи яблуко і натисни на грядку. Посадимо!" },
   "garden_plant": { "speaker": "pupsia", "text": "Посадили! Натисни ще раз, і поллємо." },
   "garden_water": { "speaker": "pupsia", "text": "Буль-буль, полили! Рости швиденько!" },
@@ -975,4 +976,6 @@
   "garden_harvest_cherry": { "speaker": "pupsia", "text": "Ура, вишні! Повна жменя!" },
   "garden_harvest_apple": { "speaker": "pupsia", "text": "Ура, яблука! Червоні-червоні!" },
   "reward_garden": { "speaker": "narrator", "text": "Грядка в скриньці! Що посадиш, те й виросте." }
+,
+  "first_bigchess": { "speaker": "narrator", "text": "TODO" }
 }

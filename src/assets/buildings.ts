@@ -19,6 +19,7 @@ import { createGolem, createRobohelper, createSaucer, createTreehouse } from './
 import { createRadar, createTransmitter, createWifi } from './signal';
 import { createIcecream, createPicnic, createSwings } from './food';
 import { createStation } from './station';
+import { createBigchess } from './bigchess';
 import { createGarden } from './garden';
 import { createPieoven } from './pieoven';
 import { createCandyfloss } from './candyfloss';
@@ -227,6 +228,7 @@ export const BUILDING_MODELS: Record<BuildingId, (skin: Skin) => BuildingModel> 
   candyfloss: createCandyfloss,
   pieoven: createPieoven,
   garden: createGarden,
+  bigchess: createBigchess,
 };
 
 export function createBuilding(skin: Skin, id: BuildingId): BuildingModel {

@@ -133,6 +133,10 @@ interface Card<Id extends string = string> {
   mount?: { speed: number };
   /** Every morning one of this item lies next to it. */
   daily?: { item: string };
+  /** A knight-puzzle board of `board`×`board` one-block cells (the chess kingdom's prize, systems/chess.ts):
+   *  the cells the knight may jump to glow, the hero steps onto one and it hops there; reaching the coin
+   *  gives it (CHESS.bigADay a day). */
+  board?: number;
   power?: PowerCard;
 }
 
@@ -1203,6 +1207,18 @@ const CARDS = {
     tab: 'home',
     firstLine: 'first_garden',
     rewardLine: 'reward_garden',
+  },
+  bigchess: {
+    id: 'bigchess',
+    name: 'Великі шахи',
+    about: 'Шаховий килимок із живим конем: стрибни конем до монетки — до п’яти задачок на день.',
+    size: [4, 4],
+    solid: [],
+    count: 0,
+    sprite: 'b-bigchess',
+    tab: 'fun',
+    firstLine: 'first_bigchess',
+    board: 4,
   },
 } satisfies Record<string, Card>;
 

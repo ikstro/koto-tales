@@ -33,7 +33,7 @@ export const SEA_LEVEL = 10;
  * Bump when terrain generation changes in a way that moves the ground.
  * Saves remember the version they were made with (see systems/save.ts).
  */
-export const TERRAIN_VERSION = 4;
+export const TERRAIN_VERSION = 5;
 
 export interface RayHit {
   /** The block that was hit. */

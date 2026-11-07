@@ -9,6 +9,7 @@ import type { CastleSave } from '../content/castles';
 import { freshTales, PROLOGUE, TALES, type TalesSave } from '../content/tales';
 import { freshKitchen, type KitchenSave } from '../content/recipes';
 import { freshNews, type NewsSave } from '../content/news';
+import { freshChess, type ChessSave } from '../content/chess';
 import { LATEST_RELEASE } from '../content/whatsNew';
 import type { VillageSave } from '../content/villages';
 import type { Race } from '../world/villages';
@@ -32,6 +33,8 @@ export interface SaveData {
   news: NewsSave;
   /** The last «Що нового» release this save has seen (content/whatsNew.ts). */
   whatsNew: number;
+  /** The chess kingdom: the king met, his tasks, the chest, the daily puzzles (content/chess.ts). */
+  chess: ChessSave;
   /** Бабуся: where her house stands, the meadows she left, the day of her last gift (content/babusia.ts). */
   babusia: BabusiaSave;
   /** The heroes' home life: Сірко, the aquarium, the garden beds, the postbox, the guests (content/home.ts). */
@@ -145,7 +148,7 @@ export const freshBoss = (): BossSave => ({ kind: 'eater', levels: { eater: 1, n
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 22;
+export const SAVE_VERSION = 23;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -171,6 +174,7 @@ export function freshSave(): SaveData {
     kitchen: freshKitchen(),
     news: freshNews(),
     whatsNew: LATEST_RELEASE,
+    chess: freshChess(),
     picked: [],
     edits: {},
     time: 0.03,
@@ -285,6 +289,8 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
   20: (d) => ({ ...d, v: 21, kitchen: freshKitchen(), news: freshNews() }),
   // v22: «Що нового» — a save from before shows everything new since the nightly flight.
   21: (d) => ({ ...d, v: 22, whatsNew: 0 }),
+  // v23: the chess kingdom (TERRAIN_VERSION 5 flattens its square; buildings standing there go back to the kit).
+  22: (d) => ({ ...d, v: 23, chess: freshChess() }),
 };
 
 export function migrate(raw: Raw): SaveData {
@@ -297,7 +303,7 @@ export function migrate(raw: Raw): SaveData {
     v = d.v as number;
   }
   const slice = <T extends object>(fresh: T, raw: unknown): T => ({ ...fresh, ...(raw && typeof raw === 'object' ? raw : {}) });
-  return { ...freshSave(), ...d, home: normHome(d.home), kitchen: slice(freshKitchen(), d.kitchen), news: slice(freshNews(), d.news) } as SaveData;
+  return { ...freshSave(), ...d, home: normHome(d.home), kitchen: slice(freshKitchen(), d.kitchen), news: slice(freshNews(), d.news), chess: slice(freshChess(), d.chess) } as SaveData;
 }
 
 /**

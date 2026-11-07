@@ -5,6 +5,7 @@ import { freshHome } from '../content/home';
 import { freshKitchen } from '../content/recipes';
 import { freshNews } from '../content/news';
 import { LATEST_RELEASE } from '../content/whatsNew';
+import { freshChess } from '../content/chess';
 import { SAVE_VERSION, freshSave, migrate, reconcileTerrain, restartSave } from './save';
 
 describe('save', () => {
@@ -219,6 +220,13 @@ describe('save', () => {
     expect(s.v).toBe(SAVE_VERSION);
     expect(s.whatsNew).toBe(0);
     expect(freshSave().whatsNew).toBe(LATEST_RELEASE);
+  });
+
+  it('migrates v22 → v23: the chess kingdom starts unmet', () => {
+    const s = migrate({ ...freshSave(), v: 22, chess: undefined } as unknown as Record<string, unknown>);
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.chess).toEqual(freshChess());
+    expect(migrate({ ...freshSave(), chess: { met: true } } as unknown as Record<string, unknown>).chess).toEqual({ ...freshChess(), met: true });
   });
 
   it('fills in kitchen and news fields a save of the same version lacks', () => {
