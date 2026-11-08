@@ -13,6 +13,7 @@
  * the bevel from fract(uv) by tilting the normal near the edges, so the real
  * lights make the lit rim bright and the opposite rim dark.
  */
+import { markShared } from '../sharedMaterials';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { ChunkGeometry, QualityTier, Skin, SkinId } from '../../contracts';
@@ -668,7 +669,7 @@ export function createStyledBrickSkin(style: BrickSkinStyle): Skin {
       const k = `${c.getHexString()}|${o?.emissive ? 1 : 0}|${o?.map?.uuid ?? ''}|${o?.vertexColors ? 1 : 0}`;
       let m = parts.get(k);
       if (!m) {
-        m = make();
+        m = markShared(make());
         parts.set(k, m);
       }
       return m;

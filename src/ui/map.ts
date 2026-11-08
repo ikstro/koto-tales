@@ -148,6 +148,11 @@ export class GameMap {
   private taps: { x: number; y: number; fn: () => void }[] = [];
   private view = { cx: 0, cz: 0, ppb: 4, vw: 0, vh: 0, s: 1, pd: 1, bounds: [0, 0, 0, 0] as [number, number, number, number] };
   private raf = 0;
+  /** The whole big map is to be drawn again on the next frame. */
+  private bigFull = false;
+  /** Explored chunks in view with no tile yet, the nearest the middle last (popped first). */
+  private bigMissing: [number, number][] = [];
+  private bigDrawnAt = 0;
   /** Fly mode (the saucer): a tap on any explored spot picks where to land. */
   private flyPick: ((x: number, z: number) => void) | null = null;
 
@@ -498,6 +503,7 @@ export class GameMap {
     this.root.replaceChildren(panel);
     this.root.classList.remove('hidden');
     this.drawBig();
+    if (this.bigMissing.length) this.raf = requestAnimationFrame(() => this.bigStep());
     close.drop(120, 40);
     sfx.play('sticker');
 
@@ -514,6 +520,8 @@ export class GameMap {
     this.root.replaceChildren();
     cancelAnimationFrame(this.raf);
     this.raf = 0;
+    this.bigMissing = [];
+    this.bigFull = false;
     this.big = null;
     this.bigLayer = null;
     this.bigMarks = [];
@@ -602,13 +610,38 @@ export class GameMap {
     el.addEventListener('pointercancel', up);
   }
 
+  /** The view moved or the marks changed: the whole big map is drawn again on the next frame. */
   private schedule(): void {
-    if (!this.raf) this.raf = requestAnimationFrame(() => this.drawBig());
+    this.bigFull = true;
+    if (!this.raf) this.raf = requestAnimationFrame(() => this.bigStep());
   }
 
-  /** Draws the big map; tiles not built yet are built a few per frame, then it draws again. */
-  private drawBig(): void {
+  private bigStep(): void {
     this.raf = 0;
+    if (!this.big) return;
+    if (this.bigFull) this.drawBig();
+    else this.buildMissing();
+    if ((this.bigFull || this.bigMissing.length) && !this.raf) this.raf = requestAnimationFrame(() => this.bigStep());
+  }
+
+  /** Where the view's top-left corner is in the world and how wide one chunk is on the canvas. */
+  private bigGeom(): { left: number; top: number; w: number } {
+    const v = this.view;
+    return { left: v.cx - v.vw / 2 / v.ppb, top: v.cz - v.vh / 2 / v.ppb, w: CS * v.ppb };
+  }
+
+  private blitTile(g: CanvasRenderingContext2D, t: HTMLCanvasElement, x: number, y: number, w: number): void {
+    const pd = this.view.pd;
+    g.drawImage(t, Math.floor(x * pd) / pd, Math.floor(y * pd) / pd, Math.ceil(w * pd + 1) / pd, Math.ceil(w * pd + 1) / pd);
+  }
+
+  /**
+   * Draws the whole big map from the tiles already built. Explored chunks with no tile yet are listed,
+   * nearest the middle first, and built a few a frame by `buildMissing`, each drawn on its own:
+   * the map grows out from the hero instead of the whole canvas being drawn again every frame.
+   */
+  private drawBig(): void {
+    this.bigFull = false;
     const cv = this.big;
     const ctx = this.ctx;
     if (!cv || !ctx) return;
@@ -619,16 +652,15 @@ export class GameMap {
     g.setTransform(v.pd, 0, 0, v.pd, 0, 0);
     g.fillStyle = HAZE;
     g.fillRect(0, 0, v.vw, v.vh);
-    const left = v.cx - v.vw / 2 / v.ppb;
-    const top = v.cz - v.vh / 2 / v.ppb;
+    const { left, top, w } = this.bigGeom();
     const cx0 = chunkOf(left) - 1;
     const cz0 = chunkOf(top) - 1;
     const cx1 = chunkOf(left + v.vw / v.ppb) + 1;
     const cz1 = chunkOf(top + v.vh / v.ppb) + 1;
-    const w = CS * v.ppb;
-    const deadline = performance.now() + 10;
-    let pending = 0;
+    const missing: [number, number, number][] = [];
     const fog: [number, number, number, number][] = [];
+    const mcx = v.cx / CS - 0.5;
+    const mcz = v.cz / CS - 0.5;
     g.imageSmoothingEnabled = v.ppb * v.pd < 3;
     for (let cz = cz0; cz <= cz1; cz++) {
       for (let cx = cx0; cx <= cx1; cx++) {
@@ -638,11 +670,14 @@ export class GameMap {
           fog.push([cx, cz, x, y]);
           continue;
         }
-        const t = tiles.get(cx, cz, performance.now() < deadline);
-        if (t) g.drawImage(t, Math.floor(x * v.pd) / v.pd, Math.floor(y * v.pd) / v.pd, Math.ceil(w * v.pd + 1) / v.pd, Math.ceil(w * v.pd + 1) / v.pd);
-        else pending++;
+        const t = tiles.peek(cx, cz);
+        if (t) this.blitTile(g, t, x, y, w);
+        else missing.push([cx, cz, (cx - mcx) ** 2 + (cz - mcz) ** 2]);
       }
     }
+    // popped from the end: the nearest last
+    missing.sort((a, b) => b[2] - a[2]);
+    this.bigMissing = missing.map(([cx, cz]) => [cx, cz] as [number, number]);
     g.imageSmoothingEnabled = true;
     for (const f of fog) this.puff(g, f[0], f[1], f[2], f[3], w, w, true);
     for (const f of fog) this.puff(g, f[0], f[1], f[2], f[3], w, w, false);
@@ -650,7 +685,28 @@ export class GameMap {
       if (m.zoneRadius) this.zone(g, (m.pos.x - left) * v.ppb, (m.pos.z - top) * v.ppb, m.zoneRadius * v.ppb, m.zoneRadius * v.ppb, 4);
     }
     this.placeBigMarks(left, top);
-    if (pending) this.schedule();
+    this.bigDrawnAt = performance.now();
+  }
+
+  /** Builds missing tiles for a few milliseconds and draws each in its place; a full draw now and then sets the clouds and marks over them again. */
+  private buildMissing(): void {
+    const cv = this.big;
+    if (!cv || !this.bigMissing.length) return;
+    const tiles = this.tiles!;
+    const v = this.view;
+    const g = cv.getContext('2d')!;
+    g.setTransform(v.pd, 0, 0, v.pd, 0, 0);
+    g.imageSmoothingEnabled = v.ppb * v.pd < 3;
+    const { left, top, w } = this.bigGeom();
+    // the game is paused behind the map, so the frame is the map's own
+    const deadline = performance.now() + 12;
+    do {
+      const [cx, cz] = this.bigMissing.pop()!;
+      const t = tiles.get(cx, cz, true);
+      if (t) this.blitTile(g, t, (cx * CS - left) * v.ppb, (cz * CS - top) * v.ppb, w);
+    } while (this.bigMissing.length && performance.now() < deadline);
+    g.imageSmoothingEnabled = true;
+    if (!this.bigMissing.length || performance.now() - this.bigDrawnAt > 600) this.bigFull = true;
   }
 
   private placeBigMarks(left: number, top: number): void {

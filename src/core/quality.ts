@@ -265,6 +265,10 @@ export class Quality {
   private skin: Skin | null = null;
   private world: IWorld | null = null;
   private appliedTier: QualityTier | null = null;
+  private scene: THREE.Scene | null = null;
+  private camera: THREE.Camera | null = null;
+  /** A tier switch whose shaders are being built; a newer apply makes an older one stale. */
+  private preparing = 0;
 
   constructor(
     private renderer: THREE.WebGLRenderer,
@@ -306,6 +310,16 @@ export class Quality {
     this.apply();
   }
 
+  /**
+   * The scene and camera a tier switch prepares its shaders for: without them a switch builds every
+   * program of the new look on the frame it lands (a freeze of a second or more on a tablet, worst
+   * after the villages and castles were met, since the title prepared only what stood then).
+   */
+  prepareWith(scene: THREE.Scene, camera: THREE.Camera): void {
+    this.scene = scene;
+    this.camera = camera;
+  }
+
   /** Feed the milliseconds between two drawn frames, while playing. */
   sample(ms: number): void {
     if (!this.adaptive) return;
@@ -338,14 +352,36 @@ export class Quality {
     this.applyPixelRatio();
     this.cap.setFps(this.fps);
     if (this.skin) {
-      const was = this.appliedTier;
-      this.appliedTier = this.spec.tier;
-      this.skin.setTier(this.spec.tier);
       this.skin.setStuds?.(this.spec.studs);
       this.skin.setPostQuality?.(this.spec.post);
-      // chunks dressed while light have no dressing yet: dress them again
-      if (was === 0 && this.spec.tier === 1) this.world?.setSkin(this.skin);
+      const want = this.spec.tier;
+      const skin = this.skin;
+      if (this.appliedTier !== null && want !== this.appliedTier && skin.prepareTiers && this.scene && this.camera) {
+        // the new look's shaders are built on the driver's thread first; the game keeps its old look
+        // for the second that takes, then switches with nothing left to build
+        const token = ++this.preparing;
+        void skin
+          .prepareTiers(this.renderer, this.scene, this.camera)
+          .catch(() => undefined)
+          .then(() => {
+            if (token === this.preparing) this.applyTier();
+          });
+      } else {
+        this.preparing++;
+        this.applyTier();
+      }
     }
     this.world?.setRenderDistance?.(this.spec.renderDistance);
   }
+
+  private applyTier(): void {
+    if (!this.skin) return;
+    const was = this.appliedTier;
+    this.appliedTier = this.spec.tier;
+    if (was === this.appliedTier) return;
+    this.skin.setTier(this.spec.tier);
+    // chunks dressed while light have no dressing yet: dress them again
+    if (was === 0 && this.spec.tier === 1) this.world?.setSkin(this.skin);
+  }
+
 }

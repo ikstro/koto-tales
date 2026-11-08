@@ -1,3 +1,4 @@
+import { isShared, markShared } from '../sharedMaterials';
 import * as THREE from 'three';
 
 /**
@@ -151,6 +152,7 @@ export function cutawayModel(root: THREE.Object3D): void {
         c = m.clone();
         c.onBeforeCompile = (shader) => injectCutaway(shader);
         c.customProgramCacheKey = () => `${m.customProgramCacheKey()}-cut`;
+        if (isShared(m)) markShared(c);
         cutCopies.set(m.uuid, c);
       }
       return c;

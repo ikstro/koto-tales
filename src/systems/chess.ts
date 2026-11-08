@@ -11,6 +11,7 @@ import {
 } from '../content/chess';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
+import { outOfView } from '../render/outOfView';
 import { cutawayModel } from '../render/skins/cutaway';
 import { setMapMarker } from '../ui/map';
 import { music } from '../voice/music';
@@ -40,6 +41,8 @@ import { homeGate, inGate, travelTo } from './travel';
 
 const SHOW = 170;
 const HIDE = 190;
+/** Half the square's diagonal, the tower, and room for its shadow on a low sun. */
+const VIEW_RADIUS = 46;
 const SCAN = 1.2;
 const BUBBLE_AT = 34;
 const TALK_AGAIN = 40;
@@ -1005,6 +1008,13 @@ export function updateChess(ctx: Ctx, dt: number): void {
   if (ctx.playing) updateBig(ctx, dt);
   const b = built;
   if (!b || !shown) return;
+  // Wholly out of the frame (from home it always is): left out of the drawing, its folk still,
+  // until the party comes close enough to see it; nothing a child could see changes.
+  const hidden = !run && outOfView(ctx.camera, b.centre, VIEW_RADIUS);
+  if (hidden === b.model.root.visible) {
+    for (const r of [b.model.root, b.portal.model.root, b.chest.root]) r.visible = !hidden;
+  }
+  if (hidden) return;
   const c = saveOf(ctx);
   const k = b.tick;
   const ease = (from: number, to: number) => from + Math.sign(to - from) * Math.min(Math.abs(to - from), dt * WAKE_RATE);

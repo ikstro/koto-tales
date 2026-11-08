@@ -1,4 +1,5 @@
 import type * as THREE from 'three';
+import { splitDepth, splitInstanced } from './sharedMaterials';
 
 type Gate = (scene: THREE.Scene, camera: THREE.Camera) => void;
 
@@ -45,6 +46,8 @@ export function createShaderGate(renderer: THREE.WebGLRenderer): Gate {
     for (const c of scene.children) {
       if (seen.has(c)) continue;
       seen.add(c);
+      splitInstanced(c);
+      splitDepth(c);
       if (!neverDrawn(c)) continue;
       const before = programs();
       const ready = renderer.compileAsync(c, camera, scene);

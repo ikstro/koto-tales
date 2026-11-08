@@ -88,6 +88,7 @@ async function boot(): Promise<void> {
   const world = new World(scene, { seed: save.seed, renderDistance: quality.renderDistance }, skin);
   world.importEdits(save.edits);
   quality.attach(skin, world);
+  quality.prepareWith(scene, camera);
 
   const portraits = makePortraits(renderer, models);
   const input = new Input();

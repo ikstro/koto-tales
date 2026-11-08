@@ -89,6 +89,8 @@ export class Game {
   intro: Intro | null = null;
   private saveTimer = AUTOSAVE_EVERY;
   private paused = false;
+  /** While paused nothing moves, so the last picture stays on the canvas; it is drawn again only when it must be. */
+  private stillDirty = true;
   /** «Почати знову» wrote a new story: the old one is no longer saved. */
   private restarting = false;
   private stats: HTMLElement | null = null;
@@ -129,6 +131,7 @@ export class Game {
         persist();
         return;
       }
+      this.stillDirty = true;
       if (hiddenAt && performance.now() - hiddenAt >= UPDATE_AFTER_AWAY_MS && applyWaitingUpdate()) return;
       void checkForUpdate();
     });
@@ -186,6 +189,7 @@ export class Game {
     this.ctx.camera.aspect = w / h;
     this.ctx.camera.updateProjectionMatrix();
     this.quality.resize();
+    this.stillDirty = true;
   }
 
   start(): void {
@@ -275,8 +279,12 @@ export class Game {
       if (paused) {
         this.persist();
         this.quality.quiet();
+        // a step up may have changed the look: the still picture is drawn once more in it
+        this.stillDirty = true;
       }
     };
+    // The album fills the screen: the world waits behind it, as behind the big map.
+    ctx.album.onClose = () => ctx.hud.onPause?.(false);
     // a step up in quality waits for a moment like this, never mid-play
     ctx.hud.onDark = () => this.quality.quiet();
     // The big map pauses the game the same way the pause menu does.
@@ -351,13 +359,20 @@ export class Game {
     ctx.input.update();
     if (this.paused) {
       // Paused: the world stays drawn and still; nothing moves, nobody spawns.
+      if (ctx.album.isOpen && (ctx.input.take('close') || ctx.input.take('album'))) ctx.album.close();
       ctx.input.clearPresses();
       music.update(dt, -1, 0, false);
       ctx.world.update(ctx.focus ?? ctx.player.pos); // keeps streaming if paused before the world finished loading
-      ctx.skin.updateScene(ctx.clock.daylight, ctx.focus ?? ctx.player.pos);
-      updateWeather(ctx, 0, true);
-      ctx.clouds?.draw(0, ctx.camera, ctx.clock.daylight);
-      ctx.skin.render(ctx.renderer, ctx.scene, ctx.camera);
+      // The canvas keeps its last picture: drawing the same still scene every frame only heats the
+      // tablet and slows the map and the menus on top. Drawn again after a resize, a new look, land
+      // streaming in, or a return from the background.
+      if (this.stillDirty || !(ctx.world.isIdle?.() ?? true)) {
+        this.stillDirty = false;
+        ctx.skin.updateScene(ctx.clock.daylight, ctx.focus ?? ctx.player.pos);
+        updateWeather(ctx, 0, true);
+        ctx.clouds?.draw(0, ctx.camera, ctx.clock.daylight);
+        ctx.skin.render(ctx.renderer, ctx.scene, ctx.camera);
+      }
       return;
     }
     if (ctx.playing) {
@@ -367,6 +382,7 @@ export class Game {
       if (ctx.input.take('album') && !ctx.album.isOpen) {
         ctx.album.open(ctx.save);
         events.emit('album:open', {});
+        ctx.hud.onPause?.(true);
       }
       if (ctx.input.take('close')) ctx.album.close();
 
