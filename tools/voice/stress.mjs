@@ -47,8 +47,13 @@ export function parseStressed(word) {
   return { plain, stressAt };
 }
 
-/** Ukrainian spelling → IPA with ˈ before the stressed syllable (Ukrainian spelling is close to phonemic). */
-export function toIpa(plain, stressAt) {
+/**
+ * Ukrainian spelling → IPA with ˈ before the stressed syllable (Ukrainian spelling is close to phonemic).
+ * `beforeVowel`: the mark goes right before the stressed vowel instead (nɑlʲɑkˈɑlɪ). Azure's uk-UA voices stress
+ * the right syllable only this way (the owner's blind test, 2026-11-10); with the mark before the consonant
+ * they often stress another one.
+ */
+export function toIpa(plain, stressAt, { beforeVowel = false } = {}) {
   const w = plain.toLowerCase();
   const out = []; // one entry per letter, so the stress can be placed by letter index
   for (let i = 0; i < w.length; i++) {
@@ -88,6 +93,11 @@ export function toIpa(plain, stressAt) {
     else if (ch === "'" || ch === '’' || ch === '-') out.push('');
     else if (ch in CONS) out.push(CONS[ch]);
     else out.push('');
+  }
+  if (beforeVowel) {
+    // a soft/iotated vowel prints its glide with it (ʲɑ, jɑ): the mark goes before the vowel sound itself
+    out[stressAt] = out[stressAt].replace(/^([ʲj]?)/, '$1ˈ');
+    return out.join('');
   }
   // The stress mark goes before the consonant (with its softness) that opens the stressed syllable.
   let at = stressAt;
@@ -140,6 +150,26 @@ export function applyAutoStress(stressed, dict, method = 'ipa') {
   }
   ssml += xml(stressed.slice(last));
   return { ssml, used };
+}
+
+/** The same as applyAutoStress with 'acute', as plain text (no XML): the stressed line HolosTTS reads. */
+export function stressText(stressed, dict) {
+  return applyAutoStress(stressed, dict, 'acute')
+    .ssml.replace(/&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+}
+
+/**
+ * stress.json `azure`: { lineId: ["сло́во", …] } — the few words the Azure voices (narrator, Пупся) get wrong in
+ * a line. Azure reads plain text better than with our hints (the owner's blind test, 2026-11-10), so only these
+ * words get one.
+ */
+export function loadAzureFixes(file = path.join(here, 'stress.json')) {
+  const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const azureEntry = (stressed) => {
+    const { plain, stressAt } = parseStressed(stressed);
+    return { stressed, plain, stressAt, ipa: toIpa(plain, stressAt, { beforeVowel: true }) };
+  };
+  return Object.fromEntries(Object.entries(raw.azure ?? {}).map(([id, words]) => [id, words.map(azureEntry)]));
 }
 
 const SHIFTING = new Set(['мене', 'тебе', 'себе']);

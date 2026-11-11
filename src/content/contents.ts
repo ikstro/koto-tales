@@ -23,7 +23,46 @@ import { latestReleases } from './whatsNew';
  * a new card shows up here by itself. Ukrainian text (its `about` lines live on the cards).
  */
 
-export type SectionId = 'new' | 'next' | 'babusia' | 'kit' | 'buildings' | 'villages' | 'castles' | 'chess' | 'tales' | 'recipes' | 'items' | 'monsters' | 'world' | 'treasures' | 'friends';
+export type SectionId = 'new' | 'next' | 'babusia' | 'kit' | 'buildings' | 'villages' | 'castles' | 'chess' | 'tales' | 'recipes' | 'items' | 'monsters' | 'world' | 'treasures' | 'friends' | 'voices';
+
+/**
+ * Who made the voices (the owner's call, 2026-11-10). The Apache-2.0 studio recordings require their authors
+ * to be named; the rest is said out of courtesy. Sources in tools/voice/VOICES.md.
+ */
+export const VOICE_CREDITS: readonly Row[] = [
+  {
+    key: 'voices-engines',
+    pic: { sprite: 'sound-on' },
+    title: 'Чим озвучено',
+    about: 'Оповідача і Пупсю озвучує Azure Speech від Microsoft. Усіх інших героїв — HolosTTS (patriotyk, ліцензія MIT), що працює на нашому комп’ютері й ставить наголоси так, як ми їх записали.',
+    state: 'have',
+    status: 'Azure Speech, HolosTTS',
+  },
+  {
+    key: 'voices-studio',
+    pic: { sprite: 'hero-david' },
+    title: 'Голос дикторки Тетяни',
+    about: 'Давид і бабуся Оля говорять голосом, зробленим із відкритих записів дикторки Тетяни (набір speech-uk/opentts-tetiana).',
+    state: 'have',
+    status: 'Ліцензія Apache 2.0',
+  },
+  {
+    key: 'voices-common',
+    pic: { sprite: 'hero-lyosha' },
+    title: 'Голоси добровольців',
+    about: 'Голоси Льоші, бабусі Юлі, рас, правителів, Сірка й ведучого новин зроблені із записів добровольців Mozilla Common Voice, які подарували свої голоси всім.',
+    state: 'have',
+    status: 'Суспільне надбання (CC0)',
+  },
+  {
+    key: 'voices-own',
+    pic: { sprite: 'hero-solomiia' },
+    title: 'Соломія',
+    about: 'Соломію озвучила Наташа.',
+    state: 'have',
+    status: 'Дякуємо!',
+  },
+];
 
 /** A HUD sprite, or a picture rendered at runtime (ui/portraits.ts). */
 export type Pic = { sprite: string } | { portrait: 'item' | 'monster' | 'artifact'; id: string };
@@ -564,6 +603,7 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
     { id: 'world', title: 'Маяки і велетні', icon: 'task-lighthouse', rows: world },
     { id: 'treasures', title: 'Скарби', icon: 'chest', rows: treasures },
     { id: 'friends', title: 'Друзі', icon: 'heart', rows: friends },
+    { id: 'voices', title: 'Голоси', icon: 'sound-on', rows: [...VOICE_CREDITS] },
   ];
   return sections.filter((s) => s.rows.length > 0);
 }

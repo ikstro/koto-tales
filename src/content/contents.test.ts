@@ -99,6 +99,13 @@ describe('contents: everything in the game, for the parents', () => {
     for (const t of TALES) expect(t.name.length).toBeGreaterThan(3);
     for (const sec of contentsOf(freshSave(), PLACES)) for (const r of sec.rows) expect(r.about, r.key).not.toMatch(/undefined|TODO/);
   });
+
+  it('names who made the voices, last, in every save (the studio recordings require it)', () => {
+    const s = contentsOf(freshSave(), PLACES);
+    const voices = s[s.length - 1];
+    expect(voices.id).toBe('voices');
+    expect(voices.rows.map((r) => r.about).join(' ')).toMatch(/opentts-tetiana/);
+  });
 });
 
 describe('contents: what is new', () => {

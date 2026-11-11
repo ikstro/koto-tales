@@ -1,5 +1,5 @@
 {
-  "_note": "Words the stress marker (autostress.py) cannot tell, and words it gets wrong; these win over it. Mark the stressed vowel with a combining acute (Пу́пся) or an apostrophe after it (Пу'пся). Inflected forms are separate entries. 'lines' gives words for one line only (a homograph that means something else there). After мене/тебе/себе a preposition moves the stress to the first syllable by itself (до ме́не). method: 'ipa' (each stressed word as an IPA phoneme) or 'acute' (the word with the mark). After editing: npm run voice (only lines with changed words are re-voiced).",
+  "_note": "Words the stress marker (autostress.py) cannot tell, and words it gets wrong; these win over it. Mark the stressed vowel with a combining acute (Пу́пся) or an apostrophe after it (Пу'пся). Inflected forms are separate entries. 'lines' gives words for one line only (a homograph that means something else there). After мене/тебе/себе a preposition moves the stress to the first syllable by itself (до ме́не). 'words' and 'lines' serve the HolosTTS speakers. 'azure': { lineId: [words] } — the only words the Azure speakers (narrator, Пупся) get a hint for; they are sent plain text otherwise. After editing: npm run voice (only lines with changed words are re-voiced).",
   "method": "ipa",
   "words": [
     "Льо́ша",
@@ -171,5 +171,9 @@
     "cook_hint_deruny": [
       "яйця́"
     ]
+  },
+  "azure": {
+    "tale_dog_open": ["тя́вкає", "наляка́ли", "Поспіша́й"],
+    "pupsia_wisdom_5": ["ми́ска"]
   }
 }

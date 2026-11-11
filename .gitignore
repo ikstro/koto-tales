@@ -1,6 +1,7 @@
 node_modules/
 dist/
 tools/voice/.cache/
+tools/voice/.venv/
 refs/
 *.local
 .playwright-mcp/

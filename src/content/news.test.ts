@@ -26,7 +26,9 @@ function show(w: NewsWorld, n: number): LineId[] {
 describe('the monster news on the TV', () => {
   it('has every line, read by the anchor, and the anchor is a voice', () => {
     for (const id of NEWS_LINES) expect(LINES[id]?.speaker, id).toBe('anchor');
-    expect((speakers as Record<string, { voice: string }>).anchor.voice).toMatch(/^uk-UA-(Ostap|Polina)Neural$/);
+    const anchor = (speakers as Record<string, { engine: string; voice: string }>).anchor;
+    expect(['azure', 'holos']).toContain(anchor.engine);
+    expect(anchor.voice).toBeTruthy();
     expect(LINES[COMMENTS.pupsia[0]].speaker).toBe('pupsia');
     expect(LINES[COMMENTS.yulia[0]].speaker).toBe('babusia');
     expect(LINES[COMMENTS.olia[0]].speaker).toBe('olia');

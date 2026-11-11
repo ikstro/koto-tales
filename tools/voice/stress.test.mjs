@@ -8,6 +8,12 @@ describe('stress dictionary', () => {
     expect(parseStressed("пі'р'я").plain).toBe("пір'я");
   });
 
+  it('can put the stress right before the vowel, the way Azure reads it', () => {
+    expect(toIpa('налякали', 5, { beforeVowel: true })).toBe('nɑlʲɑkˈɑlɪ');
+    expect(toIpa('тявкає', 1, { beforeVowel: true })).toBe('tʲˈɑʋkɑjɛ');
+    expect(toIpa('миска', 1, { beforeVowel: true })).toBe('mˈɪskɑ');
+  });
+
   it('builds IPA with the stress before the stressed syllable', () => {
     expect(toIpa('Пупся', 1)).toBe('ˈpupsʲɑ');
     expect(toIpa('Льоша', 2)).toBe('ˈlʲɔʃɑ');

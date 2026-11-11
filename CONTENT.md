@@ -22,9 +22,13 @@ a wish that does not is engine work, done only after the owner's yes.
   Льоша's own words kept where they fit. Speakers: `tools/voice/speakers.json` (`narrator`, `pupsia`,
   `lyosha`, `solomiia`, `david`, `monster`, the races and their rulers). Every line needs its mp3
   (`public/voice/<id>.mp3`); `STRICT_VOICE=1` (the deploy) fails on a missing one.
-- Stress (the owner's call, 2026-11-07): `npm run voice` marks the stress of every word by itself (`tools/voice/autostress.py`)
-  and sends each stressed word to the voice spelled out; names, homographs and words it gets wrong go into
+- Two engines (the owner's call, 2026-11-10; `tools/voice/VOICES.md`): the narrator and Пупся are Azure, sent plain
+  text; everyone else is HolosTTS on this computer (`tools/voice/holos.py`, its Python in `tools/voice/.venv`, voices
+  outside git), which reads our stress exactly. A new speaker gets `engine` and its voice in `speakers.json`.
+- Stress (the owner's calls, 2026-11-07 and 2026-11-10): `npm run voice` marks the stress of every word by itself
+  (`tools/voice/autostress.py`) for the HolosTTS speakers; names, homographs and words it gets wrong go into
   `tools/voice/stress.json` by hand (`words`, or `lines` for one line), and the script lists what is still unmarked.
+  A word Azure stresses wrong goes into `stress.json` `azure` under its line id; only those words get a hint.
   Пупся says «Мау» and «Мур» (never «Мяу» or «Мур-р-р»: the voice growls them). `tools/voice/listen.mjs` hears the
   mp3s with Gemini and reports wrong stress (20 free requests a day; a flagged word is a lead, not a verdict).
 - `lyosha: true` on a monster, item, artifact or tale card: its album sticker gets the gold rim.
