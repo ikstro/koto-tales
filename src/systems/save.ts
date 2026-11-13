@@ -151,7 +151,7 @@ export const freshBoss = (): BossSave => ({ kind: 'eater', levels: { eater: 1, n
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 26;
+export const SAVE_VERSION = 27;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -298,6 +298,7 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
   23: (d) => ({ ...d, v: 24, wind: freshWind() }),
   24: (d) => ({ ...d, v: 25, wind: normalWind(d.wind) }),
   25: (d) => ({ ...d, v: 26, wind: normalWind(d.wind) }),
+  26: (d) => ({ ...d, v: 27, wind: normalWind(d.wind) }),
 };
 
 export function migrate(raw: Raw): SaveData {

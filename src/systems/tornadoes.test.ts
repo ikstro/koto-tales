@@ -30,7 +30,7 @@ function context(): Ctx {
   const ctx={scene:new THREE.Scene(),heroes,player:heroes.get('lyosha'),playing:true,sleeping:false,napping:false,boss:null,house:null,monsters:[],params:{tornado:null},save:freshSave(),effects:{ring:vi.fn(),sparkle:vi.fn()},hud:{setCarried:vi.fn(),setWindCharge:vi.fn(),setWindBoard:vi.fn()},input:{moveX:0,moveY:0,taps:[],pendingHero:null,take:(a:string)=>{const had=actions.has(a);actions.delete(a);return had;},press:(a:string)=>actions.add(a),clearPresses:()=>actions.clear()},world:{groundHeight:()=>3,getBlock:()=>B.GRASS,isWater:()=>false,isSolid:()=>false,castles:()=>[]}} as unknown as Ctx;
   contexts.push(ctx); initTornadoes(ctx); return ctx;
 }
-const state=()=> (window as unknown as {__kotoTornadoes:{state:{riding:boolean;returning:boolean;fuel:number;fireAge:number;nextFire:number;blue:number[]|null;fire:number[]|null}}}).__kotoTornadoes.state;
+const state=()=> (window as unknown as {__kotoTornadoes:{state:{riding:boolean;returning:boolean;fuel:number;fireAge:number;nextFire:number;meeting:number[]|null;blue:number[]|null;fire:number[]|null}}}).__kotoTornadoes.state;
 const advance=(ctx:Ctx,seconds:number)=>{for(let t=0;t<seconds-1e-8;t+=0.05) updateTornadoes(ctx,Math.min(0.05,seconds-t),true);};
 const land=(ctx:Ctx)=>{const accepted=landWind(ctx);advance(ctx,2);return accepted;};
 beforeEach(()=> {vi.clearAllMocks();vi.stubGlobal('window',{});});
@@ -96,7 +96,7 @@ describe('two winds in the game',()=> {
     expect(spawnFireWind(ctx,35,0)).toBe(false);
     ctx.house!.centre.set(30,3,0);updateTornadoes(ctx,0.1,true);
     expect(state().fire).toBeNull();expect(hurtHero).not.toHaveBeenCalled();
-    expect(setMapMarker).toHaveBeenLastCalledWith('wind:fire',null);
+    expect(vi.mocked(setMapMarker).mock.calls.filter(([id])=>id==='wind:fire').at(-1)).toEqual(['wind:fire',null]);
   });
   it('warns before contact, then damages through the normal credited combat path at a bounded rate',()=> {
     const ctx=context();ctx.player.pos.set(28,3.001,0);
@@ -215,6 +215,43 @@ describe('two winds in the game',()=> {
     ctx.world.isWater=()=>false;advance(ctx,5);
     expect(state().fire).not.toBeNull();
     vi.restoreAllMocks();
+  });
+
+  it('keeps a visible meeting destination even when no fire is active, including before the prologue',()=> {
+    const ctx=context();updateTornadoes(ctx,.05,true);
+    expect(state().fire).toBeNull();expect(state().meeting).not.toBeNull();
+    expect(setMapMarker).toHaveBeenCalledWith('wind:meeting',expect.objectContaining({icon:'map-fire-wind',pointer:true,highlight:'locked'}));
+    const [x,,z]=state().meeting!;ctx.player.pos.set(x,3,z);advance(ctx,.3);
+    expect(state().fire).toBeNull();
+    ctx.save.tales.done.push('fish');advance(ctx,.3);
+    expect(state().fire).not.toBeNull();expect(state().fireAge).toBeLessThan(2.5);
+    expect(setMapMarker).toHaveBeenCalledWith('wind:meeting',expect.objectContaining({highlight:'place'}));
+  });
+  it('a visit guarantees a warned encounter, then requires leaving and returning for another',()=> {
+    const ctx=context();ctx.save.tales.done.push('fish');updateTornadoes(ctx,.05,true);
+    const [x,,z]=state().meeting!;ctx.player.pos.set(x-15,3,z);advance(ctx,.3);
+    expect(state().fire).toEqual([x,3.001,z]);expect(state().fireAge).toBeLessThan(2.5);
+    advance(ctx,46);expect(state().fire).toBeNull();expect(state().meeting).not.toBeNull();
+    ctx.player.pos.set(x-25,3,z);advance(ctx,.3);ctx.player.pos.set(x-15,3,z);advance(ctx,.3);
+    expect(state().fire).not.toBeNull();expect(state().fireAge).toBeLessThan(2.5);
+  });
+  it('remembers the meeting place across a saved-game restart',()=> {
+    const ctx=context();updateTornadoes(ctx,.05,true);const place=ctx.save.wind.meeting;
+    const saved=migrate(JSON.parse(JSON.stringify(ctx.save))),reloaded=context();
+    disposeTornadoes(reloaded);reloaded.save=saved;initTornadoes(reloaded);updateTornadoes(reloaded,.05,true);
+    expect(reloaded.save.wind.meeting).toEqual(place);expect(state().meeting![0]).toBe(place![0]);
+  });
+  it('never summons at a meeting pad occupied by a moving safe area',()=> {
+    const ctx=context();ctx.save.tales.done.push('fish');updateTornadoes(ctx,.05,true);
+    const [x,,z]=state().meeting!;ctx.house={centre:new THREE.Vector3(x,3,z)} as Ctx['house'];
+    ctx.player.pos.set(x-15,3,z);advance(ctx,.3);
+    expect(state().fire).toBeNull();expect(setMapMarker).toHaveBeenCalledWith('wind:meeting',null);
+  });
+  it('uses the same single fire model when a visit gathers a distant active wind',()=> {
+    const ctx=context();ctx.save.tales.done.push('fish');updateTornadoes(ctx,.05,true);
+    spawnFireWind(ctx,65,40);const objects=ctx.scene.children.length;
+    const [x,,z]=state().meeting!;ctx.player.pos.set(x-15,3,z);advance(ctx,.3);
+    expect(state().fire).toEqual([x,3.001,z]);expect(ctx.scene.children.length).toBe(objects);
   });
 
 });

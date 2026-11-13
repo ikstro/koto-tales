@@ -118,15 +118,15 @@ describe('contents: what is new', () => {
   it('lists the latest updates newest first; a new game has seen them all', () => {
     const s = contentsOf(freshSave(), PLACES)[0];
     expect(s.id).toBe('new');
-    expect(s.rows[0].key).toBe('new-tornadoes');
-    expect(s.rows.at(-1)!.key).toBe('new-chess_kingdom');
+    expect(s.rows[0].key).toBe('new-tornado_meeting');
+    expect(s.rows.at(-1)!.key).toBe('new-tornadoes');
     expect(s.rows.every((r) => r.state === 'have' && r.line && r.status.startsWith('Оновлення'))).toBe(true);
   });
   it('an old save: what it has not seen yet is under way', () => {
     const s = contentsOf({ ...freshSave(), whatsNew: 3 }, PLACES)[0];
     expect(row([s], 'new-tornadoes').state).toBe('now');
     expect(row([s], 'new-tornadoes').status).toMatch(/^Оновлення 4 · ще не дивилися/);
-    expect(row([s], 'new-chess_kingdom').state).toBe('have');
+    expect(row([s], 'new-tornado_meeting').state).toBe('now');
   });
 });
 

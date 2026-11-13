@@ -44,6 +44,11 @@ interface State {
   passengers: Passenger[];
   tale: string | null;
   off: (()=>void)[];
+  meetingPos: THREE.Vector3 | null;
+  meetingProbe: number;
+  meetingTry: number;
+  meetingInside: boolean;
+  meetingUnlocked: boolean | null;
 }
 const states = new WeakMap<Ctx, State>();
 const dir = new THREE.Vector3();
@@ -81,7 +86,7 @@ export function initTornadoes(ctx: Ctx): void {
     ctx.scene.add(look.root);
     return {look,pos:new THREE.Vector3(),active:false,age:0};
   };
-  const s:State={fire:wind('fire'),blue:wind('blue'),time:0,started:false,riding:false,recallAt:0,nextFire:ctx.save.wind.fireIn??nextFireDelay(),fireStep:0,fireHit:0,engaged:0,landingAt:0,hintAt:0,route:[],returnDistance:0,returning:false,descent:null,passengers:[],tale:null,off:[]};
+  const s:State={fire:wind('fire'),blue:wind('blue'),time:0,started:false,riding:false,recallAt:0,nextFire:ctx.save.wind.fireIn??nextFireDelay(),fireStep:0,fireHit:0,engaged:0,landingAt:0,hintAt:0,route:[],returnDistance:0,returning:false,descent:null,passengers:[],tale:null,off:[],meetingPos:null,meetingProbe:0,meetingTry:0,meetingInside:false,meetingUnlocked:null};
   ctx.save.wind.fireIn=s.nextFire;
   states.set(ctx,s);
   s.off.push(events.on('effect:start', ({kind}) => { if(kind==='wind') summonBlueWind(ctx); }));
@@ -92,7 +97,7 @@ export function initTornadoes(ctx: Ctx): void {
     fire:(x?:number,z?:number)=>spawnFireWind(ctx,x,z),
     board:()=>boardWind(ctx),
     land:()=>landWind(ctx),
-    get state() { return {riding:s.riding,returning:s.returning,landing:!!s.descent,fuel:ctx.save.wind.fuel,returnDistance:s.returnDistance,nextFire:s.nextFire,fire:s.fire.active?s.fire.pos.toArray():null,blue:s.blue.active?s.blue.pos.toArray():null,fireAge:s.fire.age,giftDay:ctx.save.wind.giftDay,time:s.time}; },
+    get state() { return {riding:s.riding,returning:s.returning,landing:!!s.descent,fuel:ctx.save.wind.fuel,returnDistance:s.returnDistance,nextFire:s.nextFire,meeting:s.meetingPos?.toArray()??null,fire:s.fire.active?s.fire.pos.toArray():null,blue:s.blue.active?s.blue.pos.toArray():null,fireAge:s.fire.age,giftDay:ctx.save.wind.giftDay,time:s.time}; },
   };
 }
 
@@ -105,6 +110,7 @@ export function disposeTornadoes(ctx: Ctx): void {
   s.blue.look.dispose();
   ctx.hud.setWindBoard(false);
   setMapMarker('wind:fire',null);
+  setMapMarker('wind:meeting',null);
   states.delete(ctx);
 }
 
@@ -142,7 +148,7 @@ export function spawnFireWind(ctx: Ctx, x?:number,z?:number): boolean {
     if(!at) continue;
     s.fire.pos.set(px,at[0].y,pz);
     s.fire.age=0; s.fire.active=true; s.fireStep=0; s.fireHit=0; s.engaged=0;
-    setMapMarker('wind:fire',{pos:s.fire.pos,icon:'map-fire-wind',pointer:true,zoneRadius:TORNADO.fire.reach});
+    setMapMarker('wind:fire',{pos:s.fire.pos,icon:'map-fire-wind',pointer:true,zoneRadius:TORNADO.fire.reach,highlight:'danger'});
     ctx.effects.ring(s.fire.pos,0xff7722,3);
     voice.say('tornado_fire_spot',{priority:8});
     sfx.play('rumble',{volume:0.35,pitch:1.25});
@@ -345,6 +351,47 @@ function fireStep(ctx:Ctx,s:State,dt:number):void {
   }
 }
 
+function meetingAllowed(ctx:Ctx,x:number,z:number):boolean {
+  return !fireProtected(ctx,x,z) && !(ctx.world.castles?.()??[]).some(c=>Math.hypot(c.x-x,c.z-z)<40);
+}
+
+/** One bounded terrain probe per quarter second. The chosen place survives old-save upgrades. */
+function updateMeeting(ctx:Ctx,s:State):void {
+  if(s.time<s.meetingProbe) return;
+  s.meetingProbe=s.time+TORNADO.meeting.probeEvery;
+  if(!s.meetingPos) {
+    const home=ctx.house?.centre??ctx.player.pos, saved=ctx.save.wind.meeting;
+    const i=s.meetingTry++,angle=(ctx.save.seed%8191)/8191*Math.PI*2+(i%16)*Math.PI/8;
+    const radius=52+Math.floor((i%128)/16)*16;
+    const useSaved=i===0 && saved && Math.hypot(saved[0]-home.x,saved[1]-home.z)<220;
+    const x=useSaved?saved![0]:home.x+Math.sin(angle)*radius;
+    const z=useSaved?saved![1]:home.z+Math.cos(angle)*radius;
+    if(!meetingAllowed(ctx,x,z)) return;
+    const at=windLandingAt(ctx.world,x,z,(px,pz)=>meetingAllowed(ctx,px,pz));
+    if(!at) return;
+    s.meetingPos=new THREE.Vector3(x,at[0].y,z);ctx.save.wind.meeting=[x,z];
+  }
+  const unlocked=ctx.save.tales.done.includes('fish'),pos=s.meetingPos;
+  if(s.meetingUnlocked!==unlocked) {
+    s.meetingUnlocked=unlocked;
+    setMapMarker('wind:meeting',{pos,icon:'map-fire-wind',pointer:true,highlight:unlocked?'place':'locked'});
+  }
+  const d=Math.hypot(ctx.player.pos.x-pos.x,ctx.player.pos.z-pos.z);
+  if(d>TORNADO.meeting.leave) s.meetingInside=false;
+  if(!unlocked || s.meetingInside || d>TORNADO.meeting.arrive || ctx.sleeping || ctx.napping || s.riding) return;
+  const at=windLandingAt(ctx.world,pos.x,pos.z,(x,z)=>meetingAllowed(ctx,x,z));
+  if(!at) {
+    // A new building or moving safe area may occupy the old pad. Find a new safe meeting place.
+    s.meetingPos=null;s.meetingUnlocked=null;ctx.save.wind.meeting=null;setMapMarker('wind:meeting',null);return;
+  }
+  s.meetingInside=true;
+  if(s.fire.active && Math.hypot(s.fire.pos.x-pos.x,s.fire.pos.z-pos.z)<TORNADO.meeting.arrive) return;
+  // One look and one hazard: an existing distant wind gathers here with a fresh warning.
+  s.fire.active=false;setMapMarker('wind:fire',null);
+  if(spawnFireWind(ctx,pos.x,pos.z)) s.nextFire=nextFireDelay();
+  else s.meetingInside=false;
+}
+
 /** Called only on unpaused game frames. Heavy contacts run at most ten times a second. */
 export function updateTornadoes(ctx:Ctx,dt:number,low:boolean):void {
   const s=states.get(ctx);
@@ -385,6 +432,7 @@ export function updateTornadoes(ctx:Ctx,dt:number,low:boolean):void {
     }
   }
   if(s.riding || (!ctx.sleeping && !ctx.napping)) fireStep(ctx,s,dt);
+  updateMeeting(ctx,s);
   ctx.save.wind.fireIn=Math.max(0,s.nextFire);
   if(!s.riding && !ctx.napping && ctx.player.body.onGround)
     ctx.save.wind.fuel=Math.min(TORNADO.blue.range,ctx.save.wind.fuel+TORNADO.blue.range/TORNADO.blue.recharge*dt);
