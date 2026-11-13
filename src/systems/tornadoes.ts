@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Ctx } from '../core/ctx';
 import { events } from '../core/events';
-import { TORNADO, nextFireDelay } from '../content/tornadoes';
+import { TORNADO } from '../content/tornadoes';
 import { inSafeRing } from '../content/babusia';
 import { COMPANIONS } from '../content/companions';
 import { taleById } from '../content/tales';
@@ -31,7 +31,9 @@ interface State {
   started: boolean;
   riding: boolean;
   recallAt: number;
-  nextFire: number;
+  fireSearchAt: number;
+  fireSearchTurn: number;
+  fireAnnounced: boolean;
   fireStep: number;
   fireHit: number;
   fireHeading: number;
@@ -87,8 +89,7 @@ export function initTornadoes(ctx: Ctx): void {
     ctx.scene.add(look.root);
     return {look,pos:new THREE.Vector3(),active:false,age:0};
   };
-  const s:State={fire:wind('fire'),blue:wind('blue'),time:0,started:false,riding:false,recallAt:0,nextFire:ctx.save.wind.fireIn??nextFireDelay(),fireStep:0,fireHit:0,fireHeading:0,fireTurnUntil:0,firePassUntil:0,engaged:0,landingAt:0,hintAt:0,route:[],returnDistance:0,returning:false,descent:null,passengers:[],tale:null,off:[],decorAt:0,decorBreaks:0};
-  ctx.save.wind.fireIn=s.nextFire;
+  const s:State={fire:wind('fire'),blue:wind('blue'),time:0,started:false,riding:false,recallAt:0,fireSearchAt:0,fireSearchTurn:0,fireAnnounced:false,fireStep:0,fireHit:0,fireHeading:0,fireTurnUntil:0,firePassUntil:0,engaged:0,landingAt:0,hintAt:0,route:[],returnDistance:0,returning:false,descent:null,passengers:[],tale:null,off:[],decorAt:0,decorBreaks:0};
   states.set(ctx,s);
   setMapMarker('wind:meeting',null); // Remove the obsolete permanent destination on hot reload too.
   s.off.push(events.on('effect:start', ({kind}) => { if(kind==='wind') summonBlueWind(ctx); }));
@@ -99,7 +100,7 @@ export function initTornadoes(ctx: Ctx): void {
     fire:(x?:number,z?:number)=>spawnFireWind(ctx,x,z),
     board:()=>boardWind(ctx),
     land:()=>landWind(ctx),
-    get state() { return {riding:s.riding,returning:s.returning,landing:!!s.descent,fuel:ctx.save.wind.fuel,returnDistance:s.returnDistance,nextFire:s.nextFire,decorBreaks:s.decorBreaks,fire:s.fire.active?s.fire.pos.toArray():null,blue:s.blue.active?s.blue.pos.toArray():null,fireAge:s.fire.age,giftDay:ctx.save.wind.giftDay,time:s.time}; },
+    get state() { return {riding:s.riding,returning:s.returning,landing:!!s.descent,fuel:ctx.save.wind.fuel,returnDistance:s.returnDistance,searchIn:Math.max(0,s.fireSearchAt-s.time),decorBreaks:s.decorBreaks,fire:s.fire.active?s.fire.pos.toArray():null,blue:s.blue.active?s.blue.pos.toArray():null,fireAge:s.fire.age,giftDay:ctx.save.wind.giftDay,time:s.time}; },
   };
 }
 
@@ -136,7 +137,7 @@ export function summonBlueWind(ctx: Ctx): boolean {
 /** The optional point is for authored tales and reproducible checks; safe rules still apply. */
 export function spawnFireWind(ctx: Ctx, x?:number,z?:number): boolean {
   const s=states.get(ctx);
-  if(!s || !ctx.playing || ctx.sleeping || ctx.napping || s.fire.active) return false;
+  if(!s || !ctx.playing || ctx.sleeping || (ctx.napping && !s.riding) || s.fire.active) return false;
   const p=ctx.player.pos;
   const tries: [number,number][]=[];
   if(x!==undefined && z!==undefined) tries.push([x,z]);
@@ -146,19 +147,41 @@ export function spawnFireWind(ctx: Ctx, x?:number,z?:number): boolean {
     tries.push([p.x+Math.sin(a)*r,p.z+Math.cos(a)*r]);
   }
   for(const [px,pz] of tries) {
-    if(fireProtected(ctx,px,pz)) continue;
-    const y=fireGroundAt(ctx.world,px,pz);
-    if(y===null) continue;
-    s.fire.pos.set(px,y,pz);
-    s.fire.age=0; s.fire.active=true; s.fireStep=0; s.fireHit=0; s.engaged=0;
-    s.fireHeading=Math.atan2(p.x-px,p.z-pz); s.fireTurnUntil=0; s.firePassUntil=0;
-    setMapMarker('wind:fire',{pos:s.fire.pos,icon:'map-fire-wind',pointer:true,zoneRadius:TORNADO.fire.reach});
-    ctx.effects.ring(s.fire.pos,0xff7722,3);
-    voice.say('tornado_fire_spot',{priority:8});
-    sfx.play('rumble',{volume:0.35,pitch:1.25});
-    return true;
+    if(placeFire(ctx,s,px,pz,true)) return true;
   }
   return false;
+}
+
+function announceFire(s:State):void {
+  s.fireAnnounced=true;
+  voice.say('tornado_fire_spot',{priority:8});
+  sfx.play('rumble',{volume:0.35,pitch:1.25});
+}
+
+/** Validate first, then replace the one existing actor and its ordinary map marker atomically. */
+function placeFire(ctx:Ctx,s:State,x:number,z:number,announce:boolean):boolean {
+  if(fireProtected(ctx,x,z)) return false;
+  const y=fireGroundAt(ctx.world,x,z);
+  if(y===null) return false;
+  s.fire.pos.set(x,y,z);s.fire.age=0;s.fire.active=true;s.fireStep=0;s.fireHit=0;s.engaged=0;
+  s.fireHeading=Math.atan2(ctx.player.pos.x-x,ctx.player.pos.z-z);s.fireTurnUntil=0;s.firePassUntil=0;s.fireAnnounced=false;
+  setMapMarker('wind:fire',{pos:s.fire.pos,icon:'map-fire-wind',pointer:true,zoneRadius:TORNADO.fire.reach});
+  ctx.effects.ring(s.fire.pos,0xff7722,3);
+  if(announce) announceFire(s);
+  return true;
+}
+
+/** One terrain probe per quarter second, never a search or simulation across the whole world. */
+function keepFire(ctx:Ctx,s:State):void {
+  if(!ctx.save.tales.done.includes('fish') || s.time<s.fireSearchAt) return;
+  const rule=TORNADO.fire,f=s.fire,p=ctx.player.pos;
+  if(f.active && f.age<rule.relocateAfter && Math.hypot(p.x-f.pos.x,p.z-f.pos.z)<rule.maxDistance) return;
+  s.fireSearchAt=s.time+rule.searchEvery;
+  const a=Math.random()*Math.PI*2+s.fireSearchTurn++*2.399963229728653;
+  const r=rule.spawnNear+Math.random()*(rule.spawnFar-rule.spawnNear);
+  const x=p.x+Math.sin(a)*r,z=p.z+Math.cos(a)*r;
+  if(f.active && Math.hypot(x-f.pos.x,z-f.pos.z)<18) return;
+  placeFire(ctx,s,x,z,false);
 }
 
 export function boardWind(ctx: Ctx): boolean {
@@ -326,9 +349,13 @@ function fireStep(ctx:Ctx,s:State,dt:number):void {
   if(!f.active) return;
   f.age+=dt;
   const p=ctx.player.pos, d=Math.hypot(p.x-f.pos.x,p.z-f.pos.z);
-  if(f.age>rule.life || d>rule.maxDistance || fireProtected(ctx,f.pos.x,f.pos.z)) {
+  const roaming=ctx.save.tales.done.includes('fish');
+  if((!roaming && (f.age>rule.relocateAfter || d>rule.maxDistance)) || fireProtected(ctx,f.pos.x,f.pos.z)) {
     f.active=false; setMapMarker('wind:fire',null); return;
   }
+  // Keep the real far-away marker while looking for another place; do not load/simulate its terrain.
+  if(d>rule.maxDistance) return;
+  if(!s.fireAnnounced && d<24) announceFire(s);
   if(f.age<rule.warn) return;
   s.engaged=Math.max(0,s.engaged-dt);
   const grounded=Math.abs(p.y-f.pos.y)<3 && !s.riding;
@@ -401,22 +428,18 @@ export function updateTornadoes(ctx:Ctx,dt:number,low:boolean):void {
       if(boardRequested || tappedInBox(ctx,tapBox)) boardWind(ctx);
     }
     if(taleById(cur)?.wind==='blue' && !b.active) summonBlueWind(ctx);
-    // Encounters happen on a journey, rather than while waiting at a station.
-    if(Math.hypot(ctx.input.moveX,ctx.input.moveY)>0.1) s.nextFire-=dt;
-    if(s.nextFire<=0 && !s.fire.active) {
-      const spawned=ctx.save.tales.done.includes('fish') && !fireProtected(ctx,ctx.player.pos.x,ctx.player.pos.z) && spawnFireWind(ctx);
-      s.nextFire=spawned?nextFireDelay():5;
-    }
   }
-  if(s.riding || (!ctx.sleeping && !ctx.napping)) fireStep(ctx,s,dt);
+  if(s.riding || (!ctx.sleeping && !ctx.napping)) {
+    fireStep(ctx,s,dt);
+    keepFire(ctx,s);
+  }
   if(s.time>=s.decorAt) {
     s.decorAt=s.time+0.5;
-    const at=s.fire.active && s.fire.age>=TORNADO.fire.warn && (s.riding || (!ctx.sleeping && !ctx.napping))?s.fire.pos:null;
+    const at=s.fire.active && s.fire.age>=TORNADO.fire.warn && s.fire.pos.distanceTo(ctx.player.pos)<TORNADO.fire.maxDistance && (s.riding || (!ctx.sleeping && !ctx.napping))?s.fire.pos:null;
     let broke=false;
     ctx.skin?.disturbDecor?.(at,s.time,(p,color)=> { ctx.effects.poof(p,color,8);s.decorBreaks++;broke=true; });
     if(broke) sfx.play('break',{volume:0.2,pitch:1.4});
   }
-  ctx.save.wind.fireIn=Math.max(0,s.nextFire);
   if(!s.riding && !ctx.napping && ctx.player.body.onGround)
     ctx.save.wind.fuel=Math.min(TORNADO.blue.range,ctx.save.wind.fuel+TORNADO.blue.range/TORNADO.blue.recharge*dt);
   ctx.hud.setWindCharge(s.riding,ctx.save.wind.fuel/TORNADO.blue.range,s.returning || !!s.descent);

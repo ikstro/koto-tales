@@ -9,6 +9,7 @@ import { boardWind, disposeTornadoes, initTornadoes, landWind, spawnFireWind, su
 import { damageMonster, hurtHero } from './combat';
 import { useItem, initEffects } from './effects';
 import { setMapMarker } from '../ui/map';
+import { voice } from '../voice/voice';
 
 vi.mock('../voice/sfx',()=>({sfx:{play:vi.fn()}}));
 vi.mock('../voice/voice',()=>({voice:{say:vi.fn()}}));
@@ -30,7 +31,7 @@ function context(): Ctx {
   const ctx={scene:new THREE.Scene(),heroes,player:heroes.get('lyosha'),playing:true,sleeping:false,napping:false,boss:null,house:null,monsters:[],params:{tornado:null},save:freshSave(),effects:{ring:vi.fn(),sparkle:vi.fn()},hud:{setCarried:vi.fn(),setWindCharge:vi.fn(),setWindBoard:vi.fn()},input:{moveX:0,moveY:0,taps:[],pendingHero:null,take:(a:string)=>{const had=actions.has(a);actions.delete(a);return had;},press:(a:string)=>actions.add(a),clearPresses:()=>actions.clear()},world:{groundHeight:()=>3,getBlock:()=>B.GRASS,isWater:()=>false,isSolid:()=>false,castles:()=>[]}} as unknown as Ctx;
   contexts.push(ctx); initTornadoes(ctx); return ctx;
 }
-const state=()=> (window as unknown as {__kotoTornadoes:{state:{riding:boolean;returning:boolean;fuel:number;fireAge:number;nextFire:number;blue:number[]|null;fire:number[]|null}}}).__kotoTornadoes.state;
+const state=()=> (window as unknown as {__kotoTornadoes:{state:{riding:boolean;returning:boolean;fuel:number;fireAge:number;searchIn:number;blue:number[]|null;fire:number[]|null}}}).__kotoTornadoes.state;
 const advance=(ctx:Ctx,seconds:number)=>{for(let t=0;t<seconds-1e-8;t+=0.05) updateTornadoes(ctx,Math.min(0.05,seconds-t),true);};
 const land=(ctx:Ctx)=>{const accepted=landWind(ctx);advance(ctx,2);return accepted;};
 beforeEach(()=> {vi.clearAllMocks();vi.stubGlobal('window',{});});
@@ -179,44 +180,62 @@ describe('two winds in the game',()=> {
     expect(vi.mocked(damageMonster).mock.calls.at(-1)![4]).toBeNull();
     expect(hurtHero).not.toHaveBeenCalled();
   });
-  it('randomises encounter delays and only counts down while travelling',()=> {
-    vi.spyOn(Math,'random').mockReturnValue(0.25);
-    const ctx=context();const first=state().nextFire;expect(first).toBe(92.5);
-    advance(ctx,2);expect(state().nextFire).toBe(first);
-    ctx.input.moveX=1;advance(ctx,1);expect(state().nextFire).toBeCloseTo(first-1);
-    vi.restoreAllMocks();
+  it('keeps one red wind after the fish tale, without waiting for walking',()=> {
+    const ctx=context();advance(ctx,3);expect(state().fire).toBeNull();
+    ctx.save.tales.done.push('fish');advance(ctx,0.05);
+    const at=state().fire!;expect(at).not.toBeNull();
+    expect(Math.hypot(at[0]-ctx.player.pos.x,at[2]-ctx.player.pos.z)).toBeGreaterThanOrEqual(32);
+    expect(Math.hypot(at[0]-ctx.player.pos.x,at[2]-ctx.player.pos.z)).toBeLessThanOrEqual(56);
+    expect(spawnFireWind(ctx,50,50)).toBe(false);expect(hurtHero).not.toHaveBeenCalled();
   });
-  it('keeps walking already accumulated when an old saved game is closed and resumed',()=> {
-    vi.spyOn(Math,'random').mockReturnValue(0.25);
-    const ctx=context();ctx.save.tales.done.push('fish');ctx.input.moveX=1;advance(ctx,60);
-    expect(ctx.save.wind.fireIn).toBeCloseTo(32.5);
+  it('ignores the obsolete saved walking delay on an old save and after reload',()=> {
+    const ctx=context();ctx.save.tales.done.push('fish');ctx.save.wind={giftDay:4,fuel:82.75,fireIn:160};ctx.player.body.onGround=false;
+    advance(ctx,0.05);expect(state().fire).not.toBeNull();expect(ctx.save.wind.fuel).toBe(82.75);expect(ctx.save.wind.giftDay).toBe(4);
     const saved=migrate(JSON.parse(JSON.stringify(ctx.save)));
     const reloaded=context();disposeTornadoes(reloaded);reloaded.save=saved;initTornadoes(reloaded);
-    expect(state().nextFire).toBeCloseTo(32.5);
-    reloaded.input.moveX=1;advance(reloaded,33);
-    expect(state().fire).not.toBeNull();
-    vi.restoreAllMocks();
+    advance(reloaded,0.05);expect(state().fire).not.toBeNull();expect(reloaded.save.tales.done).toContain('fish');
   });
-  it('spawns an encounter ahead of a travelling hero, with a full warning and only one active wind',()=> {
-    vi.spyOn(Math,'random').mockReturnValue(0.25);
-    const ctx=context();ctx.save.tales.done.push('fish');ctx.input.moveY=1;
-    advance(ctx,93);
-    const at=state().fire!;
-    expect(at).not.toBeNull();expect(at[2]).toBeGreaterThan(ctx.player.pos.z);
-    expect(Math.hypot(at[0]-ctx.player.pos.x,at[2]-ctx.player.pos.z)).toBeGreaterThan(11);
-    expect(state().fireAge).toBeLessThan(2.5);expect(hurtHero).not.toHaveBeenCalled();
-    expect(spawnFireWind(ctx,50,50)).toBe(false);
-    vi.restoreAllMocks();
+  it('warns on approaching the real wind, without announcing every distant appearance',()=> {
+    const ctx=context();ctx.save.tales.done.push('fish');advance(ctx,0.05);
+    expect(voice.say).not.toHaveBeenCalled();
+    const at=state().fire!;ctx.player.pos.set(at[0]+10,at[1],at[2]);advance(ctx,0.05);
+    expect(voice.say).toHaveBeenCalledExactlyOnceWith('tornado_fire_spot',{priority:8});
+    advance(ctx,0.2);expect(voice.say).toHaveBeenCalledTimes(1);
   });
-  it('retries a blocked encounter soon, instead of losing the encounter for another long interval',()=> {
-    vi.spyOn(Math,'random').mockReturnValue(0.25);
-    const ctx=context();ctx.save.tales.done.push('fish');ctx.input.moveY=1;ctx.world.isWater=()=>true;
-    advance(ctx,93);expect(state().fire).toBeNull();expect(state().nextFire).toBeLessThanOrEqual(5);
-    ctx.world.isWater=()=>false;advance(ctx,5);
-    expect(state().fire).not.toBeNull();
-    vi.restoreAllMocks();
+  it('replaces the wind in another place with no empty frame or second actor',()=> {
+    const ctx=context();ctx.save.tales.done.push('fish');advance(ctx,0.05);
+    const objects=ctx.scene.children.length;let last=state().fire!,relocations=0;
+    for(let i=0;i<2000;i++) {
+      advance(ctx,0.05);const at=state().fire!;expect(at).not.toBeNull();
+      const distance=Math.hypot(at[0]-last[0],at[2]-last[2]);
+      if(distance>10) {relocations++;expect(distance).toBeGreaterThanOrEqual(18);expect(state().fireAge).toBe(0);}
+      last=at;expect(ctx.scene.children.length).toBe(objects);
+    }
+    expect(relocations).toBeGreaterThanOrEqual(2);
+    expect(vi.mocked(setMapMarker).mock.calls.filter(([id])=>id==='wind:fire').every(([,m])=>m!==null)).toBe(true);
   });
-
+  it('finds a place outside the safe home even while the hero stays at home',()=> {
+    const ctx=context();ctx.save.tales.done.push('fish');ctx.house={centre:ctx.player.pos.clone()} as Ctx['house'];
+    advance(ctx,0.05);const at=state().fire!;expect(at).not.toBeNull();
+    expect(Math.hypot(at[0]-ctx.player.pos.x,at[2]-ctx.player.pos.z)).toBeGreaterThan(18.25);
+    expect(hurtHero).not.toHaveBeenCalled();
+  });
+  it('bounds a blocked search and retries without requiring movement',()=> {
+    const ctx=context();ctx.save.tales.done.push('fish');ctx.world.isWater=()=>true;
+    const height=vi.spyOn(ctx.world,'groundHeight');advance(ctx,1);
+    expect(state().fire).toBeNull();expect(height.mock.calls.length).toBeGreaterThanOrEqual(3);expect(height.mock.calls.length).toBeLessThanOrEqual(5);
+    ctx.world.isWater=()=>false;advance(ctx,0.3);expect(state().fire).not.toBeNull();
+  });
+  it('retains the far wind and marker while its next place is blocked, then relocates safely',()=> {
+    const ctx=context();ctx.save.tales.done.push('fish');advance(ctx,0.05);
+    const at=state().fire!;ctx.player.pos.x+=150;ctx.world.isWater=()=>true;
+    ctx.monsters=[{alive:true,state:'chase',card:{},pos:new THREE.Vector3(...at as [number,number,number])}] as Ctx['monsters'];
+    const height=vi.spyOn(ctx.world,'groundHeight');
+    advance(ctx,50);expect(state().fire).toEqual(at);
+    expect(height.mock.calls.length).toBeLessThanOrEqual(201);expect(damageMonster).not.toHaveBeenCalled();
+    expect(vi.mocked(setMapMarker).mock.calls.filter(([id])=>id==='wind:fire').every(([,m])=>m!==null)).toBe(true);
+    ctx.world.isWater=()=>false;advance(ctx,0.3);expect(state().fire).not.toEqual(at);expect(state().fireAge).toBeLessThan(0.3);
+  });
   it('shows only the ordinary live-wind marker, with no permanent destination',()=> {
     const ctx=context();advance(ctx,5);
     expect(state().fire).toBeNull();expect(ctx.save.wind).not.toHaveProperty('meeting');

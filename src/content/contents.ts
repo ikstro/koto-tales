@@ -581,8 +581,8 @@ export function contentsOf(save: SaveData, places: Places): Section[] {
         title: t.name,
         about: t.about,
         state: unseen ? 'now' : 'have',
-        status: `Оновлення ${r.id}${unseen ? ' · ще не дивилися: подарунок угорі' : ''}` + (t.id==='tornadoes'||t.id==='tornado_map'||t.id==='tornado_hunt' ?
-          (save.tales.done.includes('fish') ? ` · Вогняний: ${save.wind.fireIn===null?'випадкова зустріч під час прогулянки':`до наступної спроби ~${Math.ceil(save.wind.fireIn)} с ходьби`}; поява лише поза безпечними місцями.` :
+        status: `Оновлення ${r.id}${unseen ? ' · ще не дивилися: подарунок угорі' : ''}` + (t.id.startsWith('tornado') ?
+          (save.tales.done.includes('fish') ? ' · Вогняний постійно гуляє поза безпечними місцями; шукай його мітку на мапі. Чекати ходьби не потрібно.' :
             ' · Вогняний: спочатку заверши казку про рибку.') : ''),
         line: t.line,
       };

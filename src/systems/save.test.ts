@@ -13,7 +13,7 @@ describe('save', () => {
     const s=migrate({ ...freshSave(), v:23, wind:undefined, coins:42, inv:{apple:3}, tales:{...freshSave().tales,done:['fish','dog']} });
     expect(s.v).toBe(SAVE_VERSION);
     expect(s.wind).toMatchObject({giftDay:-1,fuel:300});
-    expect(s.wind.fireIn).toBeNull(); // The live system schedules the first encounter once.
+    expect(s.wind.fireIn).toBeNull(); // Legacy walking delay; the live wind no longer waits for it.
     expect(s.coins).toBe(42);
     expect(s.inv.apple).toBe(3);
     expect(s.tales.done).toEqual(['fish','dog']);
