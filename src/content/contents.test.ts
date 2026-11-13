@@ -22,9 +22,9 @@ const row = (s: Section[], key: string): Row => {
 describe('contents: everything in the game, for the parents', () => {
   it('explains the actual fire-wind prerequisite and the saved walking countdown',()=> {
     const save=freshSave();
-    expect(row(contentsOf(save,PLACES),'new-tornadoes').status).toContain('спочатку заверши казку про рибку');
+    expect(row(contentsOf(save,PLACES),'new-tornado_hunt').status).toContain('спочатку заверши казку про рибку');
     save.tales.done.push('fish');save.wind.fireIn=12.5;
-    expect(row(contentsOf(save,PLACES),'new-tornadoes').status).toContain('~13 с ходьби');
+    expect(row(contentsOf(save,PLACES),'new-tornado_hunt').status).toContain('~13 с ходьби');
   });
   it('Ukrainian plurals after a number', () => {
     const w = ['рибку', 'рибки', 'рибок'] as const;
@@ -118,15 +118,15 @@ describe('contents: what is new', () => {
   it('lists the latest updates newest first; a new game has seen them all', () => {
     const s = contentsOf(freshSave(), PLACES)[0];
     expect(s.id).toBe('new');
-    expect(s.rows[0].key).toBe('new-tornado_meeting');
-    expect(s.rows.at(-1)!.key).toBe('new-tornadoes');
+    expect(s.rows[0].key).toBe('new-tornado_hunt');
+    expect(s.rows.at(-1)!.key).toBe('new-tornado_map');
     expect(s.rows.every((r) => r.state === 'have' && r.line && r.status.startsWith('Оновлення'))).toBe(true);
   });
   it('an old save: what it has not seen yet is under way', () => {
     const s = contentsOf({ ...freshSave(), whatsNew: 3 }, PLACES)[0];
-    expect(row([s], 'new-tornadoes').state).toBe('now');
-    expect(row([s], 'new-tornadoes').status).toMatch(/^Оновлення 4 · ще не дивилися/);
-    expect(row([s], 'new-tornado_meeting').state).toBe('now');
+    expect(row([s], 'new-tornado_hunt').state).toBe('now');
+    expect(row([s], 'new-tornado_hunt').status).toMatch(/^Оновлення 6 · ще не дивилися/);
+    expect(row([s], 'new-tornado_map').state).toBe('now');
   });
 });
 

@@ -6,6 +6,13 @@ type Ground = Pick<IWorld, 'groundHeight' | 'getBlock' | 'isWater' | 'isSolid'>;
 export type WindLanding = { x: number; y: number; z: number }[];
 const GROUND = new Set<number>([B.GRASS, B.DIRT, B.SAND, B.STONE, B.COBBLE, B.SNOW]);
 
+/** A narrow funnel follows dry ground, including one-block steps; it does not need four seats. */
+export function fireGroundAt(world:Ground,x:number,z:number):number|null {
+  const bx=Math.floor(x),bz=Math.floor(z),y=world.groundHeight(bx,bz);
+  return y>0 && GROUND.has(world.getBlock(bx,y-1,bz)) && !world.isWater(bx,y,bz) &&
+    !world.isSolid(bx,y,bz) && !world.isSolid(bx,y+1,bz) ? y+0.001 : null;
+}
+
 /** Every foot and the whole body must fit; roofs, tree crowns and water are not landing pads. */
 export function windLandingAt(world: Ground, x: number, z: number, allowed: (x: number, z: number) => boolean = () => true): WindLanding | null {
   const spots: WindLanding = [];
@@ -35,4 +42,16 @@ export function findWindLanding(world: Ground, x: number, z: number, allowed?: (
 
 export function windCanHit(m: { alive: boolean; state: string; card: { armor?: string; shy?: boolean } }): boolean {
   return m.alive && m.state!=='dance' && m.state!=='wait' && !m.card.armor && !m.card.shy;
+}
+
+type WindTarget={alive:boolean;state:string;card:{armor?:string;shy?:boolean};pos:{x:number;y:number;z:number}};
+/** Only active hostile monsters are prey; protected places and airborne targets stay safe. */
+export function windPrey<T extends WindTarget>(monsters:readonly T[],from:{x:number;y:number;z:number},reach:number,allowed:(x:number,z:number)=>boolean):T|null {
+  let best:T|null=null,distance=reach;
+  for(const m of monsters) {
+    if(!windCanHit(m) || Math.abs(m.pos.y-from.y)>=3) continue;
+    const d=Math.hypot(m.pos.x-from.x,m.pos.z-from.z);
+    if(d<distance && allowed(m.pos.x,m.pos.z)) { best=m;distance=d; }
+  }
+  return best;
 }

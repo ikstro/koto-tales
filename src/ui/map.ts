@@ -34,8 +34,6 @@ export interface MapMarker {
   zoneRadius?: number;
   /** A tap on the mark on the big map: the map closes, then this runs (the house: the portal home). */
   onTap?: () => void;
-  /** A destination on a toy ring, a dim locked destination, or a breathing live danger. */
-  highlight?: 'place' | 'locked' | 'danger';
 }
 
 const marks = new Map<string, MapMarker>();
@@ -86,9 +84,6 @@ class Mark {
   piece: Piece;
   private last = '';
   private name: string;
-  private highlight: MapMarker['highlight'];
-  private decorated: Piece | null = null;
-  private plate: Piece | null = null;
 
   constructor(parent: HTMLElement, name: string, readonly scale = 1) {
     this.el.className = 'mk';
@@ -105,27 +100,12 @@ class Mark {
     this.piece = new Piece(this.el, n as SpriteName, 0, 0, shadowOf(n));
   }
 
-  setHighlight(kind:MapMarker['highlight']):void {
-    if(this.highlight===kind && this.decorated===this.piece) return;
-    this.highlight=kind;this.decorated=this.piece;
-    this.last='';
-    this.el.dataset.highlight=kind??'';
-    this.piece.el.classList.toggle('prompt',kind==='danger');
-    this.piece.el.classList.toggle('dim',kind==='locked');
-    if((kind==='place'||kind==='locked') && !this.plate) {
-      this.plate=new Piece(this.el,'ring',0,-26,null);
-      this.plate.el.style.transform='scale(0.62)';
-      this.el.insertBefore(this.plate.el,this.piece.el);
-    }
-    this.plate?.el.classList.toggle('hidden',kind!=='place' && kind!=='locked');
-  }
-
   at(x: number, y: number, extra = ''): void {
-    const t = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${this.scale*(this.highlight?1.35:1)})${extra}`;
+    const t = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${this.scale})${extra}`;
     if (t !== this.last) {
       this.last = t;
       this.el.style.transform = t;
-      this.el.style.zIndex = String(this.highlight==='danger'?2400:this.highlight?1800:Math.round(y + 500));
+      this.el.style.zIndex = String(Math.round(y + 500));
     }
     this.show(true);
   }
@@ -402,7 +382,6 @@ export class GameMap {
       let pm = this.miniMarks.get(id);
       if (!pm) this.miniMarks.set(id, (pm = { icon: new Mark(L, mk.icon, 0.5), arrow: new Mark(L, 'map-arrow', 0.9) }));
       pm.icon.setIcon(mk.icon);
-      pm.icon.setHighlight(mk.highlight);
       const [x, y, inside] = onPlate(mk.pos.x, mk.pos.z, 4);
       if (inside) {
         pm.icon.at(x, y);
@@ -739,20 +718,18 @@ export class GameMap {
       let m = this.bigMarks[i];
       if (!m) this.bigMarks.push((m = new Mark(L, name, scale)));
       m.setIcon(name);
-      m.setHighlight(undefined);
       m.piece.el.classList.remove('on');
       i++;
       return m;
     };
     const inset = 26;
     this.taps = [];
-    const place = (wx: number, wz: number, name: string, pointer: boolean, lift = false, onTap?: () => void, highlight?:MapMarker['highlight']) => {
+    const place = (wx: number, wz: number, name: string, pointer: boolean, lift = false, onTap?: () => void) => {
       let x = (wx - left) * v.ppb;
       let y = (wz - top) * v.ppb;
       const inside = x >= inset && x <= v.vw - inset && y >= inset && y <= v.vh - inset;
       if (!inside && !pointer) return;
       const m = next(name);
-      m.setHighlight(highlight);
       m.piece.el.classList.toggle('on', lift);
       if (inside) {
         m.at(x, y + 10);
@@ -774,7 +751,7 @@ export class GameMap {
       next('map-arrow').at(x + Math.cos(a) * 46, y + Math.sin(a) * 46, ` rotate(${((a * 180) / Math.PI + 90).toFixed(1)}deg)`);
     };
     for (const mon of ctx.monsters) if (mon.alive) place(mon.pos.x, mon.pos.z, 'mark-monster', false);
-    for (const mk of marks.values()) place(mk.pos.x, mk.pos.z, mk.icon, mk.pointer, false, mk.onTap,mk.highlight);
+    for (const mk of marks.values()) place(mk.pos.x, mk.pos.z, mk.icon, mk.pointer, false, mk.onTap);
     for (const hero of ctx.heroes.values()) if (hero !== ctx.player) place(hero.pos.x, hero.pos.z, `mark-${hero.id}`, false);
     place(ctx.player.pos.x, ctx.player.pos.z, `mark-${ctx.player.id}`, true, true);
     for (let j = i; j < this.bigMarks.length; j++) this.bigMarks[j].show(false);

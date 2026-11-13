@@ -22,7 +22,7 @@ describe('save', () => {
   });
   it('adds fuel to v24 without resetting the gift, and preserves spent fuel across reloads',()=> {
     expect(migrate({...freshSave(),v:24,wind:{giftDay:4}}).wind).toMatchObject({giftDay:4,fuel:300});
-    const save={...freshSave(),wind:{giftDay:4,fuel:82.75,fireIn:29.25,meeting:null}};
+    const save={...freshSave(),wind:{giftDay:4,fuel:82.75,fireIn:29.25}};
     expect(migrate(JSON.parse(JSON.stringify(save))).wind).toEqual(save.wind);
     for(const [fuel,want] of [[-1,0],[999,300],[NaN,300],[Infinity,300]] as const)
       expect(migrate({...save,wind:{giftDay:4,fuel}}).wind.fuel).toBe(want);
@@ -38,13 +38,11 @@ describe('save', () => {
     expect(migrate({...current,wind:{...current.wind,fireIn:NaN}}).wind.fireIn).toBeNull();
     expect(migrate({...current,wind:{...current.wind,fireIn:999}}).wind.fireIn).toBe(160);
   });
-  it('adds the meeting destination to v26 and validates saved coordinates',()=> {
-    const old={...freshSave(),v:26,wind:{giftDay:4,fuel:82.75,fireIn:12.5}};
-    const migrated=migrate(old);expect(migrated.wind).toEqual({...old.wind,meeting:null});
-    migrated.wind.meeting=[52.5,-18.25];
-    expect(migrate(JSON.parse(JSON.stringify(migrated))).wind.meeting).toEqual([52.5,-18.25]);
-    for(const meeting of [[NaN,0],['52',0],[0,0,0],[1000000,0],null])
-      expect(migrate({...migrated,wind:{...migrated.wind,meeting}}).wind.meeting).toBeNull();
+  it('removes the obsolete meeting place from v27 while keeping actual game progress',()=> {
+    const old={...freshSave(),v:27,wind:{giftDay:4,fuel:82.75,fireIn:12.5,meeting:[52.5,-18.25]},coins:19};
+    old.tales.done=['fish','dog'];const migrated=migrate(old);
+    expect(migrated.wind).toEqual({giftDay:4,fuel:82.75,fireIn:12.5});
+    expect(migrated.coins).toBe(19);expect(migrated.tales.done).toEqual(['fish','dog']);
   });
   it('migrates a v1 save without losing progress', () => {
     const v1 = { v: 1, seed: 1, hero: 'pupsia', coins: 42, inv: { apple: 3 }, found: ['apple'], picked: ['0,0,1'], coinMilestones: [10], said: ['tip_move'], edits: { '1,2,3': 14 } };

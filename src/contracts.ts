@@ -179,6 +179,8 @@ export interface Skin {
   chunkMaterial(pass: 'opaque' | 'transparent'): THREE.Material;
   /** Extra per-chunk objects (e.g. studs), only near the camera. Null when nothing to add. */
   decorate?(g: ChunkGeometry, distChunks: number): THREE.Object3D | null;
+  /** Temporarily scatter loose decorative plants; null only advances restoration. World blocks stay intact. */
+  disturbDecor?(at:THREE.Vector3|null,seconds:number,onBreak:(at:THREE.Vector3,color:number)=>void):void;
   /** Material for a part of a character or item. Same colour, different look per skin. */
   /** `vertexColors`: the mesh carries its colours per vertex (merged parts); `color` is then white. */
   partMaterial(color: string | number, opts?: { emissive?: boolean; map?: THREE.Texture; transparent?: boolean; vertexColors?: boolean }): THREE.Material;

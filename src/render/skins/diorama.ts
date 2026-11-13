@@ -25,6 +25,7 @@ import { brickHash, buildLookupTexture, createStyledBrickSkin, F_STUDLESS, lookO
 import { LEAF_PIECES, injectCutaway } from './cutaway';
 import { getPixelAtlas } from './pixelAtlas';
 import { brickFlags, roughnessOf, toyColor } from './toy';
+import { WindDecor, type WindDecorCell } from '../windDecor';
 
 // --- palette ---------------------------------------------------------------------
 
@@ -414,6 +415,8 @@ function makeDresser() {
   let cols = new Float32Array(cap * 3);
   let cuts = new Float32Array(cap);
   let n = 0;
+  const windDecor=new WindDecor();
+  const windColor=new THREE.Color();
   const m4 = new THREE.Matrix4();
   const p = new THREE.Vector3();
   const s = new THREE.Vector3();
@@ -574,6 +577,7 @@ function makeDresser() {
 
   return {
     treeTex,
+    disturb:windDecor.disturb,
     decorate(g: ChunkGeometry, dist: number, tier: QualityTier): THREE.Object3D | null {
       const tops = g.tops;
       const x0 = g.cx * 16;
@@ -591,6 +595,7 @@ function makeDresser() {
 
       const full = dist <= 1;
       n = 0;
+      const windCells:WindDecorCell[]=[];
       const topAt = (x: number, z: number) => {
         const lx = x - x0;
         const lz = z - z0;
@@ -623,9 +628,11 @@ function makeDresser() {
         const u = (h & 0xffff) / 65536;
         if (u >= 0.12) continue;
         const r = stream(h);
+        const first=n;
         if (u < 0.04) bush(x, y, z, r);
         else if (u < 0.075) flowers(x, y, z, r);
         else tuft(x, y, z, r);
+        windCells.push({x:x+0.5,y:y+1,z:z+0.5,first,count:n-first,color:windColor.fromArray(cols,(n-1)*3).getHex()});
       }
 
       // shoreline foam: water columns (no top at all) next to land at water level or above
@@ -656,9 +663,11 @@ function makeDresser() {
       mesh.computeBoundingBox();
       mesh.matrixAutoUpdate = false;
       mesh.name = `diorama:${g.cx},${g.cz}`;
+      windDecor.register(mesh,windCells,x0,z0);
       return mesh;
     },
     dispose() {
+      windDecor.dispose();
       geo.dispose();
       mat.dispose();
       treeTex.dispose();
@@ -689,7 +698,7 @@ export function createDioramaSkin(): Skin {
     uStuds: { value: 1 },
     uStudShade: { value: 0.3 },
   };
-  return createStyledBrickSkin({
+  const skin=createStyledBrickSkin({
     id: 'toy',
     cacheKey: 'diorama-chunk',
     lookup: buildLookup(),
@@ -715,4 +724,6 @@ export function createDioramaSkin(): Skin {
       uniforms.uStudShade.value = 0.12 + 0.2 * daylight;
     },
   });
+  skin.disturbDecor=dresser.disturb;
+  return skin;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { B } from '../world/blocks';
-import { findWindLanding, windLandingAt, windCanHit } from './tornadoRules';
+import { findWindLanding, windLandingAt, windCanHit, windPrey, fireGroundAt } from './tornadoRules';
 
 const meadow=()=>({groundHeight:(_x:number,_z:number)=>3,getBlock:(_x:number,_y:number,_z:number)=>B.GRASS,isWater:(_x:number,_y:number,_z:number)=>false,isSolid:(_x:number,_y:number,_z:number)=>false});
 describe('wind landing',()=> {
@@ -34,5 +34,23 @@ describe('fire wind targets',()=> {
     for(const armor of ['bolt','lantern']) expect(windCanHit({...monster,card:{armor}})).toBe(false);
     expect(windCanHit({...monster,card:{shy:true}})).toBe(false);
     expect(windCanHit({...monster,alive:false})).toBe(false);
+  });
+});
+
+describe('fire movement and prey',()=> {
+  it('can cross dry one-block steps without needing a four-hero landing pad',()=> {
+    const world={...meadow(),groundHeight:(x:number)=>x>=1?4:3};
+    expect(windLandingAt(world,.75,0)).toBeNull();expect(fireGroundAt(world,.75,0)).toBe(3.001);
+    expect(fireGroundAt(world,1.05,0)).toBe(4.001);
+    expect(fireGroundAt({...world,isWater:()=>true},1,0)).toBeNull();
+    expect(fireGroundAt({...world,getBlock:()=>B.LEAVES},1,0)).toBeNull();
+  });
+  it('chooses the closest hostile target, excluding protected, peaceful and unreachable monsters',()=> {
+    const at={x:0,y:3,z:0},base={alive:true,state:'chase',card:{},pos:{x:4,y:3,z:0}};
+    const farther={...base,pos:{x:8,y:3,z:0}};
+    for(const skip of [{...base,state:'dance'},{...base,state:'wait'},{...base,alive:false},{...base,card:{armor:'bolt'}},{...base,card:{shy:true}},{...base,pos:{x:4,y:8,z:0}}])
+      expect(windPrey([skip,farther],at,16,()=>true)).toBe(farther);
+    expect(windPrey([base,farther],at,16,x=>x>6)).toBe(farther);
+    expect(windPrey([farther],at,6,()=>true)).toBeNull();
   });
 });
