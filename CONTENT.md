@@ -88,7 +88,7 @@ found and when its sticker is tapped). Add the id to `ITEM_ORDER` (album order) 
 | `home` | the party is carried home (portal) | — (not allowed) |
 | `babusia` | the party is carried to her gate | — (not allowed) |
 | `bloom` | daisies and poppies come up round the hero | — (not allowed) |
-| `wind` | recalls the friendly blue wind; tap it to ride, joystick to steer, jump to land | — (not allowed) |
+| `wind` | recalls the friendly blue wind; tap to fly high, joystick to steer, jump to land; saved distance-based fuel and automatic safe return | — (not allowed) |
 A new kind = one entry in `EFFECTS` + one branch in `src/systems/effects.ts` (engine work).
 
 ## Artifact — `src/content/artifacts.ts`

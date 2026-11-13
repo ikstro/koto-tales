@@ -22,13 +22,15 @@ const contexts:Ctx[]=[];
 function context(): Ctx {
   const actions=new Set<string>();
   const heroes=new Map(HERO_ORDER.map(id=> {
-    const body=makeBody(0.3,1.45); body.pos.set(40,3.001,40);
+    const body=makeBody(0.3,1.45); body.pos.set(40,3.001,40); body.onGround=true;
     return [id,{id,body,get pos(){return body.pos;},yaw:0,invulnerable:0,model:{root:new THREE.Group(),play:vi.fn(),update:vi.fn()},syncModel:vi.fn()}] as const;
   }));
-  const ctx={scene:new THREE.Scene(),heroes,player:heroes.get('lyosha'),playing:true,sleeping:false,napping:false,boss:null,house:null,monsters:[],params:{tornado:null},save:freshSave(),effects:{ring:vi.fn(),sparkle:vi.fn()},hud:{setCarried:vi.fn()},input:{moveX:0,moveY:0,taps:[],pendingHero:null,take:(a:string)=>{const had=actions.has(a);actions.delete(a);return had;},press:(a:string)=>actions.add(a),clearPresses:()=>actions.clear()},world:{groundHeight:()=>3,getBlock:()=>B.GRASS,isWater:()=>false,isSolid:()=>false,castles:()=>[]}} as unknown as Ctx;
+  const ctx={scene:new THREE.Scene(),heroes,player:heroes.get('lyosha'),playing:true,sleeping:false,napping:false,boss:null,house:null,monsters:[],params:{tornado:null},save:freshSave(),effects:{ring:vi.fn(),sparkle:vi.fn()},hud:{setCarried:vi.fn(),setWindCharge:vi.fn()},input:{moveX:0,moveY:0,taps:[],pendingHero:null,take:(a:string)=>{const had=actions.has(a);actions.delete(a);return had;},press:(a:string)=>actions.add(a),clearPresses:()=>actions.clear()},world:{groundHeight:()=>3,getBlock:()=>B.GRASS,isWater:()=>false,isSolid:()=>false,castles:()=>[]}} as unknown as Ctx;
   contexts.push(ctx); initTornadoes(ctx); return ctx;
 }
-const state=()=> (window as unknown as {__kotoTornadoes:{state:{riding:boolean;blue:number[]|null;fire:number[]|null}}}).__kotoTornadoes.state;
+const state=()=> (window as unknown as {__kotoTornadoes:{state:{riding:boolean;returning:boolean;fuel:number;fireAge:number;nextFire:number;blue:number[]|null;fire:number[]|null}}}).__kotoTornadoes.state;
+const advance=(ctx:Ctx,seconds:number)=>{for(let t=0;t<seconds-1e-8;t+=0.05) updateTornadoes(ctx,Math.min(0.05,seconds-t),true);};
+const land=(ctx:Ctx)=>{const accepted=landWind(ctx);advance(ctx,2);return accepted;};
 beforeEach(()=> {vi.clearAllMocks();vi.stubGlobal('window',{});});
 afterEach(()=> {for(const ctx of contexts.splice(0)) disposeTornadoes(ctx);vi.unstubAllGlobals();});
 
@@ -46,18 +48,18 @@ describe('two winds in the game',()=> {
   it('carries all heroes with the joystick and gives only one gift per day, including after reload',()=> {
     const ctx=context();expect(summonBlueWind(ctx)).toBe(true);expect(boardWind(ctx)).toBe(true);
     const before=ctx.player.pos.x;ctx.input.moveX=1;
-    updateTornadoes(ctx,0.05,true);
+    advance(ctx,1);
     expect(ctx.napping).toBe(true);
     expect(ctx.player.pos.x).toBeGreaterThan(before);
     for(const h of ctx.heroes.values()) expect(h.pos.y).toBeGreaterThan(4);
-    expect(landWind(ctx)).toBe(true);
+    ctx.input.moveX=0;expect(land(ctx)).toBe(true);
     expect(ctx.napping).toBe(false);expect(ctx.save.inv.babusia_pie).toBe(1);
-    expect(boardWind(ctx)).toBe(true);expect(landWind(ctx)).toBe(true);
+    expect(boardWind(ctx)).toBe(true);expect(land(ctx)).toBe(true);
     expect(ctx.save.inv.babusia_pie).toBe(1);
-    ctx.save.day=1;expect(boardWind(ctx)).toBe(true);expect(landWind(ctx)).toBe(true);
+    ctx.save.day=1;expect(boardWind(ctx)).toBe(true);expect(land(ctx)).toBe(true);
     expect(ctx.save.inv.babusia_pie).toBe(2);
     const reloaded=context(); reloaded.save=migrate(JSON.parse(JSON.stringify(ctx.save)));
-    expect(summonBlueWind(reloaded)).toBe(true);expect(boardWind(reloaded)).toBe(true);expect(landWind(reloaded)).toBe(true);
+    expect(summonBlueWind(reloaded)).toBe(true);expect(boardWind(reloaded)).toBe(true);expect(land(reloaded)).toBe(true);
     expect(reloaded.save.inv.babusia_pie).toBe(2);
   });
   it('does not release the party into water or a newly blocked landing',()=> {
@@ -66,7 +68,7 @@ describe('two winds in the game',()=> {
     expect(landWind(ctx)).toBe(false);
     expect(state().riding).toBe(true);expect(ctx.napping).toBe(true);
     ctx.world.isWater=()=>false;
-    ctx.input.press('jump'); updateTornadoes(ctx,0.05,true);
+    ctx.input.press('jump'); advance(ctx,2);
     expect(state().riding).toBe(false);expect(ctx.napping).toBe(false);
   });
   it('protects the full home boundary and retracts a fire wind if a safe zone moves onto it',()=> {
@@ -96,6 +98,85 @@ describe('two winds in the game',()=> {
     const ctx=context();ctx.player.pos.set(50,3,0);
     ctx.monsters=[{alive:true,state:'chase',card:{},pos:new THREE.Vector3(30,3,0)}] as Ctx['monsters'];
     spawnFireWind(ctx,30,0);updateTornadoes(ctx,3,true);
-    expect(damageMonster).not.toHaveBeenCalled();
+    expect(damageMonster).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(damageMonster).mock.calls[0][4]).toBeNull();
   });
+  it('flies above crowns at three times running speed, spends distance not hovering, and recharges only on ground',()=> {
+    const ctx=context();summonBlueWind(ctx);boardWind(ctx);
+    advance(ctx,1);const fuel=ctx.save.wind.fuel;
+    expect(ctx.player.pos.y).toBeGreaterThan(11.8);
+    advance(ctx,2);expect(ctx.save.wind.fuel).toBe(fuel);
+    const x=ctx.player.pos.x;ctx.input.moveX=1;advance(ctx,2);ctx.input.moveX=0;
+    expect(ctx.player.pos.x-x).toBeCloseTo(30,5);
+    expect(ctx.save.wind.fuel).toBeCloseTo(fuel-30,5);
+    ctx.world.groundHeight=()=>14;advance(ctx,1);
+    expect(ctx.player.pos.y).toBeGreaterThan(22.8);
+    ctx.world.groundHeight=()=>3;land(ctx);
+    const spent=ctx.save.wind.fuel;expect(spent).toBeLessThan(300);
+    ctx.player.body.onGround=false;advance(ctx,1);expect(ctx.save.wind.fuel).toBe(spent);
+    ctx.player.body.onGround=true;advance(ctx,1);expect(ctx.save.wind.fuel).toBeCloseTo(spent+10,5);
+    advance(ctx,30);expect(ctx.save.wind.fuel).toBe(300);
+  });
+  it('returns along its flown path from a large lake and lands with fuel left',()=> {
+    const ctx=context();ctx.world.isWater=(x)=>x>44;
+    summonBlueWind(ctx);boardWind(ctx);ctx.input.moveX=1;
+    let turned=false;
+    for(let i=0;i<900 && state().riding;i++) {
+      updateTornadoes(ctx,0.05,true);turned ||= state().returning;
+      expect(ctx.save.wind.fuel).toBeGreaterThan(0);
+    }
+    expect(turned).toBe(true);expect(state().riding).toBe(false);
+    expect(ctx.player.pos.x).toBeLessThanOrEqual(44);
+    expect(ctx.player.body.onGround).toBe(true);expect(ctx.napping).toBe(false);
+  });
+  it('lands automatically on dry ground when empty and does not refill on recall or reload',()=> {
+    const ctx=context();ctx.save.wind.fuel=55;summonBlueWind(ctx);boardWind(ctx);
+    ctx.input.moveX=1;advance(ctx,4);ctx.input.moveX=0;
+    expect(state().riding).toBe(false);
+    ctx.save.wind.fuel=10;summonBlueWind(ctx);
+    expect(boardWind(ctx)).toBe(false);expect(ctx.save.wind.fuel).toBe(10);
+    const reloaded=context();reloaded.save=migrate(JSON.parse(JSON.stringify(ctx.save)));
+    summonBlueWind(reloaded);expect(boardWind(reloaded)).toBe(false);expect(reloaded.save.wind.fuel).toBe(10);
+  });
+  it('a landing request over deep water starts a controlled return instead of a distant jump',()=> {
+    const ctx=context();ctx.world.isWater=(x)=>x>44;
+    summonBlueWind(ctx);boardWind(ctx);ctx.input.moveX=1;advance(ctx,3);ctx.input.moveX=0;
+    const before=ctx.player.pos.x;
+    expect(landWind(ctx)).toBe(false);expect(state().returning).toBe(true);
+    updateTornadoes(ctx,0.05,true);
+    expect(before-ctx.player.pos.x).toBeLessThanOrEqual(0.751);
+    advance(ctx,6);
+    expect(state().riding).toBe(false);expect(ctx.player.pos.x).toBeLessThanOrEqual(44);
+  });
+  it('keeps the fire wind moving and damaging monsters below a high blue flight',()=> {
+    const ctx=context();ctx.player.pos.set(40,3,40);
+    spawnFireWind(ctx,43,40);summonBlueWind(ctx);boardWind(ctx);advance(ctx,1);
+    const before=state().fire!;
+    const monster={alive:true,state:'chase',card:{},pos:new THREE.Vector3(...before)};
+    ctx.monsters=[monster] as Ctx['monsters'];advance(ctx,2);
+    expect(state().fireAge).toBeGreaterThan(2.9);
+    expect(state().fire).not.toEqual(before);
+    expect(damageMonster).toHaveBeenCalled();
+    expect(vi.mocked(damageMonster).mock.calls.at(-1)![4]).toBeNull();
+    expect(hurtHero).not.toHaveBeenCalled();
+  });
+  it('randomises encounter delays and only counts down while travelling',()=> {
+    vi.spyOn(Math,'random').mockReturnValue(0.25);
+    const ctx=context();const first=state().nextFire;expect(first).toBe(92.5);
+    advance(ctx,2);expect(state().nextFire).toBe(first);
+    ctx.input.moveX=1;advance(ctx,1);expect(state().nextFire).toBeCloseTo(first-1);
+    vi.restoreAllMocks();
+  });
+  it('spawns an encounter ahead of a travelling hero, with a full warning and only one active wind',()=> {
+    vi.spyOn(Math,'random').mockReturnValue(0.25);
+    const ctx=context();ctx.save.tales.done.push('fish');ctx.input.moveY=1;
+    advance(ctx,93);
+    const at=state().fire!;
+    expect(at).not.toBeNull();expect(at[2]).toBeGreaterThan(ctx.player.pos.z);
+    expect(Math.hypot(at[0]-ctx.player.pos.x,at[2]-ctx.player.pos.z)).toBeGreaterThan(11);
+    expect(state().fireAge).toBeLessThan(2.5);expect(hurtHero).not.toHaveBeenCalled();
+    expect(spawnFireWind(ctx,50,50)).toBe(false);
+    vi.restoreAllMocks();
+  });
+
 });

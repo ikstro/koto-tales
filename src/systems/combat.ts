@@ -142,8 +142,9 @@ export function castBolt(ctx: Ctx, hero: Hero): void {
   events.emit('attack:bolt', { hero: hero.id, hits: hit.size + bossHit });
 }
 
-export function damageMonster(ctx: Ctx, m: Monster, damage: number, dir: THREE.Vector3, by: Hero): void {
+export function damageMonster(ctx: Ctx, m: Monster, damage: number, dir: THREE.Vector3, by: Hero | null): void {
   if (!m.alive) return;
+  if (by) m.lastHitBy = by;
   m.hp -= damage;
   m.stun = 0.35;
   m.body.vel.x += dir.x * 5;
@@ -152,21 +153,25 @@ export function damageMonster(ctx: Ctx, m: Monster, damage: number, dir: THREE.V
   m.model.play('hurt');
   ctx.effects.sparkle(centreOf(m, tmp), 0xffffff);
   sfx.play('hit');
-  if (m.hp <= 0) defeatMonster(ctx, m, by);
+  if (m.hp <= 0) defeatMonster(ctx, m, by ?? m.lastHitBy ?? null);
 }
 
-function defeatMonster(ctx: Ctx, m: Monster, by: Hero): void {
+function defeatMonster(ctx: Ctx, m: Monster, by: Hero | null): void {
   m.alive = false;
+  m.defeatCredited = by !== null;
   const c = centreOf(m, new THREE.Vector3());
   ctx.effects.poof(c, m.card.color, 26);
-  ctx.effects.coinBurst(c);
-  const [lo, hi] = m.card.coins;
-  dropCoins(ctx, c, lo + Math.floor(Math.random() * (hi - lo + 1)));
+  if (by) {
+    ctx.effects.coinBurst(c);
+    const [lo, hi] = m.card.coins;
+    dropCoins(ctx, c, lo + Math.floor(Math.random() * (hi - lo + 1)));
+  }
   // Sometimes a heart for a hero who has lost some (difficulty sets how often).
-  if (ctx.player.hearts < HERO_STATS.maxHearts && Math.random() < tuneOf(ctx).heartDrop) dropHeart(ctx, c);
+  if (by && ctx.player.hearts < HERO_STATS.maxHearts && Math.random() < tuneOf(ctx).heartDrop) dropHeart(ctx, c);
   sfx.play('poof');
   ctx.scene.remove(m.model.root);
   m.model.dispose();
+  if (!by) return;
   const key = `m:${m.kind}`;
   const first = !ctx.save.found.includes(key);
   if (first) ctx.save.found.push(key);

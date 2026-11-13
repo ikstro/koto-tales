@@ -91,7 +91,7 @@ export function runWave(ctx: Ctx, w: Wave, centre: THREE.Vector3, left: number, 
   for (const m of [...w.wave]) {
     if (m.alive && ctx.monsters.includes(m)) continue;
     w.wave.delete(m);
-    if (m.hp <= 0) beaten++;
+    if (m.hp <= 0 && m.defeatCredited !== false) beaten++;
   }
   left -= beaten;
   if (left <= 0) return beaten;

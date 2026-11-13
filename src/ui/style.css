@@ -1,3 +1,7 @@
+/* The whistle breathes while it brings the party down or back to shore. */
+.wind-returning .bd { animation: wind-return 0.8s ease-in-out infinite alternate; }
+@keyframes wind-return { to { transform: translateY(-5px); } }
+
 /* Nunito 900 for the printed numbers (vendored, Cyrillic + Latin). */
 @font-face {
   font-family: 'Nunito HUD';

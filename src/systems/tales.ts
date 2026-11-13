@@ -395,7 +395,7 @@ function updateStep(ctx: Ctx, r: Run, step: TaleStep, dt: number): number {
       const m = r.thief;
       if (m && (!m.alive || !ctx.monsters.includes(m))) {
         r.thief = null;
-        if (m.hp <= 0) {
+        if (m.hp <= 0 && m.defeatCredited !== false) {
           const at = m.pos.clone();
           at.y = ctx.world.groundHeight(Math.floor(at.x), Math.floor(at.z));
           addThing(ctx, r, step.item ?? 'fish', at);

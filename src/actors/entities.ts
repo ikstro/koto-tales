@@ -87,6 +87,10 @@ export class Monster {
   cryCd = 2 + Math.random() * 4;
   spotted = false;
   alive = true;
+  /** Environmental defeats disappear normally, but do not finish a child's task. */
+  defeatCredited = true;
+  /** A hero's earlier hit also counts when the wind finishes this monster. */
+  lastHitBy: Hero | null = null;
 
   constructor(
     readonly kind: MonsterKind,

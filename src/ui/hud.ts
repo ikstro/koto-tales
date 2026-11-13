@@ -414,6 +414,13 @@ export class Hud {
   private bolt: Piece;
   private boltFull: HTMLImageElement;
   private boltGlow: HTMLDivElement;
+  private windRing: Piece;
+  private windTile: Piece;
+  private windLit: HTMLImageElement[] = [];
+  private windFuel = 1;
+  private windRiding = false;
+  private windReturning = false;
+  private windStuds = -1;
   private kitRing: Piece;
   private kitLit: HTMLImageElement[] = [];
   private kitPiece: Piece;
@@ -453,7 +460,7 @@ export class Hud {
   private kitAbove = false;
   private kitNext: { sprite: string; task: string } | null = null;
   private carriedItems: CarriedItem[] = [];
-  private carriedCells = new Map<string, { p: Piece; count: Counter }>();
+  private carriedCells = new Map<string, { p: Piece; count: Counter; charge?: HTMLImageElement[] }>();
   private kitSelected: string | null = null;
   private kitLitN = -1;
   private guide: Guide;
@@ -612,6 +619,14 @@ export class Hud {
     this.boltFull = this.bolt.layer('bolt');
     this.boltGlow = div('glow');
     this.bolt.lf.insertBefore(this.boltGlow, this.bolt.pr);
+    // While carried, the unused lightning place becomes the whistle's eight-stud fuel gauge.
+    this.windRing=this.gAct.add('ring',COL_X,BOLT_Y);
+    for(let i=0;i<8;i++) this.windLit.push(this.windRing.layer(`ring-lit-${i}` as SpriteName,'sp lit'));
+    this.windTile=this.gAct.add('sticker-on',COL_X,BOLT_Y-TOP,'sticker-sh');
+    const windPicture=document.createElement('img');
+    windPicture.className='stk-img'; windPicture.src=portraits.items.wind_whistle; windPicture.alt='';
+    windPicture.style.top=`${-TOP-46}px`; this.windTile.pr.appendChild(windPicture);
+    this.windRing.el.classList.add('hidden'); this.windTile.el.classList.add('hidden');
     const bow = this.gAct.add('bow', COL_X, -74, 'big-sh');
     this.firePiece = bow;
     this.kitRing = this.gAct.add('ring', COL_X, KIT_Y);
@@ -652,6 +667,7 @@ export class Hud {
       { up: () => (input.fireHeld = false) },
     );
     this.press(this.bolt, this.bolt.target(104), () => input.press('bolt'));
+    this.press(this.windTile,this.windTile.target(104),()=>input.press('jump'));
     this.press(jump, jump.target(104), () => input.press('jump'));
     this.press(this.kitPiece, this.kitPiece.target(116, 116, 18), () => this.kitTap());
     this.press(this.cancelPiece, this.cancelPiece.target(96), () => input.press('kit:cancel'), { ui: true });
@@ -1113,6 +1129,7 @@ export class Hud {
       scaled(holder);
       // the item's sticker tile, as in the album, with how many on a number tile
       const p = new Piece(holder, 'sticker-on', 0, 0, 'sticker-sh');
+      const charge=item.id==='wind_whistle'?Array.from({length:8},(_,i)=>p.layer(`ring-lit-${i}` as SpriteName,'sp lit')):undefined;
       const img = document.createElement('img');
       img.className = 'stk-img';
       img.src = item.img;
@@ -1125,7 +1142,7 @@ export class Hud {
       const count = new Counter(new Piece(ch, 'numtile', 0, 0, null));
       this.press(p, p.target(KIT_CELL, KIT_CELL, 34), () => this.useCarried(item.id), { ui: true });
       K.pieces.push(p);
-      this.carriedCells.set(item.id, { p, count });
+      this.carriedCells.set(item.id, { p, count, charge });
     });
     K.minX = -fw / 2;
     K.minY = -fh / 2;
@@ -1133,6 +1150,7 @@ export class Hud {
     K.h = fh + 20;
     K.inner.style.transform = `translate(${fw / 2}px, ${fh / 2}px)`;
     this.refreshKitCells();
+    this.refreshWindCell();
     if (this.kitOpen) this.placeKit();
   }
 
@@ -1456,6 +1474,31 @@ export class Hud {
       for (const l of this.lit) l.animate([{ transform: 'translateY(-6px)' }, { transform: 'none' }], o);
     }
     this.boltLevel = level;
+  }
+
+  /** Eight studs, shared with the carried whistle; no per-frame DOM writes. Tap asks to land. */
+  setWindCharge(riding:boolean,fuel:number,returning=false):void {
+    this.windFuel=fuel;
+    if(this.windRiding!==riding) {
+      this.windRiding=riding;
+      this.bolt.el.classList.toggle('hidden',riding); this.ring.el.classList.toggle('hidden',riding);
+      this.windTile.el.classList.toggle('hidden',!riding); this.windRing.el.classList.toggle('hidden',!riding);
+    }
+    if(this.windReturning!==returning) {
+      this.windReturning=returning;
+      this.windTile.el.classList.toggle('wind-returning',returning);
+    }
+    const studs=Math.ceil(Math.max(0,Math.min(1,fuel))*8);
+    if(studs===this.windStuds) return;
+    this.windStuds=studs;
+    this.windLit.forEach((l,i)=>l.style.visibility=i<studs?'':'hidden');
+    this.refreshWindCell();
+  }
+
+  private refreshWindCell():void {
+    const cell=this.carriedCells.get('wind_whistle');
+    if(!cell) return;
+    cell.charge?.forEach((l,i)=>l.style.visibility=i<Math.ceil(this.windFuel*8)?'':'hidden');
   }
 
   setPlayer(id: HeroId): void {

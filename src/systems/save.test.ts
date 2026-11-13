@@ -12,12 +12,19 @@ describe('save', () => {
   it('adds the daily wind-gift guard to v23 without losing inventory or progress', () => {
     const s=migrate({ ...freshSave(), v:23, wind:undefined, coins:42, inv:{apple:3}, tales:{...freshSave().tales,done:['fish','dog']} });
     expect(s.v).toBe(SAVE_VERSION);
-    expect(s.wind).toEqual({giftDay:-1});
+    expect(s.wind).toEqual({giftDay:-1,fuel:300});
     expect(s.coins).toBe(42);
     expect(s.inv.apple).toBe(3);
     expect(s.tales.done).toEqual(['fish','dog']);
     expect(migrate({...s,wind:{giftDay:7}}).wind.giftDay).toBe(7);
     expect(migrate({...s,wind:{giftDay:'bad'}}).wind.giftDay).toBe(-1);
+  });
+  it('adds fuel to v24 without resetting the gift, and preserves spent fuel across reloads',()=> {
+    expect(migrate({...freshSave(),v:24,wind:{giftDay:4}}).wind).toEqual({giftDay:4,fuel:300});
+    const save={...freshSave(),wind:{giftDay:4,fuel:82.75}};
+    expect(migrate(JSON.parse(JSON.stringify(save))).wind).toEqual(save.wind);
+    for(const [fuel,want] of [[-1,0],[999,300],[NaN,300],[Infinity,300]] as const)
+      expect(migrate({...save,wind:{giftDay:4,fuel}}).wind.fuel).toBe(want);
   });
   it('migrates a v1 save without losing progress', () => {
     const v1 = { v: 1, seed: 1, hero: 'pupsia', coins: 42, inv: { apple: 3 }, found: ['apple'], picked: ['0,0,1'], coinMilestones: [10], said: ['tip_move'], edits: { '1,2,3': 14 } };
