@@ -365,6 +365,7 @@ export const SPRITES = {
   'new-chess-kingdom': {w: 200,h: 200,oy: 0.9,x: 36,y: 51,cw: 127,ch: 138},
   'new-chess-kingdom-sh': {w: 200,h: 200,oy: 0.9,x: 34,y: 80,cw: 166,ch: 120},
   'new-tornadoes': {w: 200,h: 200,oy: 1.05,x: 31,y: 68,cw: 137,ch: 81},
+  'map-fire-wind': {w: 160,h: 180,oy: 0.8,x: 44,y: 42,cw: 69,ch: 85},
 } satisfies Record<string, SpriteMeta>;
 
 export type SpriteName = keyof typeof SPRITES;

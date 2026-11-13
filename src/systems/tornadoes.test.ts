@@ -8,10 +8,12 @@ import { freshSave, migrate } from './save';
 import { boardWind, disposeTornadoes, initTornadoes, landWind, spawnFireWind, summonBlueWind, updateTornadoes } from './tornadoes';
 import { damageMonster, hurtHero } from './combat';
 import { useItem, initEffects } from './effects';
+import { setMapMarker } from '../ui/map';
 
 vi.mock('../voice/sfx',()=>({sfx:{play:vi.fn()}}));
 vi.mock('../voice/voice',()=>({voice:{say:vi.fn()}}));
 vi.mock('./combat',()=>({damageMonster:vi.fn(),hurtHero:vi.fn()}));
+vi.mock('../ui/map',()=>({setMapMarker:vi.fn()}));
 vi.mock('./villages',()=>({inVillage:()=>false}));
 vi.mock('./kit',()=>({selectedBuilding:()=>null,pick:vi.fn()}));
 vi.mock('./travel',()=>({homeGate:()=>null,travelTo:vi.fn()}));
@@ -25,7 +27,7 @@ function context(): Ctx {
     const body=makeBody(0.3,1.45); body.pos.set(40,3.001,40); body.onGround=true;
     return [id,{id,body,get pos(){return body.pos;},yaw:0,invulnerable:0,model:{root:new THREE.Group(),play:vi.fn(),update:vi.fn()},syncModel:vi.fn()}] as const;
   }));
-  const ctx={scene:new THREE.Scene(),heroes,player:heroes.get('lyosha'),playing:true,sleeping:false,napping:false,boss:null,house:null,monsters:[],params:{tornado:null},save:freshSave(),effects:{ring:vi.fn(),sparkle:vi.fn()},hud:{setCarried:vi.fn(),setWindCharge:vi.fn()},input:{moveX:0,moveY:0,taps:[],pendingHero:null,take:(a:string)=>{const had=actions.has(a);actions.delete(a);return had;},press:(a:string)=>actions.add(a),clearPresses:()=>actions.clear()},world:{groundHeight:()=>3,getBlock:()=>B.GRASS,isWater:()=>false,isSolid:()=>false,castles:()=>[]}} as unknown as Ctx;
+  const ctx={scene:new THREE.Scene(),heroes,player:heroes.get('lyosha'),playing:true,sleeping:false,napping:false,boss:null,house:null,monsters:[],params:{tornado:null},save:freshSave(),effects:{ring:vi.fn(),sparkle:vi.fn()},hud:{setCarried:vi.fn(),setWindCharge:vi.fn(),setWindBoard:vi.fn()},input:{moveX:0,moveY:0,taps:[],pendingHero:null,take:(a:string)=>{const had=actions.has(a);actions.delete(a);return had;},press:(a:string)=>actions.add(a),clearPresses:()=>actions.clear()},world:{groundHeight:()=>3,getBlock:()=>B.GRASS,isWater:()=>false,isSolid:()=>false,castles:()=>[]}} as unknown as Ctx;
   contexts.push(ctx); initTornadoes(ctx); return ctx;
 }
 const state=()=> (window as unknown as {__kotoTornadoes:{state:{riding:boolean;returning:boolean;fuel:number;fireAge:number;nextFire:number;blue:number[]|null;fire:number[]|null}}}).__kotoTornadoes.state;
@@ -62,6 +64,21 @@ describe('two winds in the game',()=> {
     expect(summonBlueWind(reloaded)).toBe(true);expect(boardWind(reloaded)).toBe(true);expect(land(reloaded)).toBe(true);
     expect(reloaded.save.inv.babusia_pie).toBe(2);
   });
+  it('offers a nearby whistle button and boards onto the wind pad even if the hero stands on rough ground',()=> {
+    const ctx=context();summonBlueWind(ctx);updateTornadoes(ctx,0.05,true);
+    expect(ctx.hud.setWindBoard).toHaveBeenLastCalledWith(true);
+    // The child is next to the wind, but the ground under the child cannot seat four heroes.
+    ctx.world.isSolid=(x)=>x<42;
+    ctx.input.press('wind:board');updateTornadoes(ctx,0.05,true);
+    expect(state().riding).toBe(true);expect(ctx.hud.setWindBoard).toHaveBeenLastCalledWith(false);
+  });
+  it('shows no boarding button when far away or while another scene holds the party',()=> {
+    const ctx=context();summonBlueWind(ctx);ctx.player.pos.x+=12;ctx.input.press('wind:board');updateTornadoes(ctx,0.05,true);
+    expect(ctx.hud.setWindBoard).toHaveBeenLastCalledWith(false);
+    ctx.player.pos.x-=12;ctx.napping=true;updateTornadoes(ctx,0.05,true);
+    expect(ctx.hud.setWindBoard).toHaveBeenLastCalledWith(false);
+    ctx.napping=false;updateTornadoes(ctx,0.05,true);expect(state().riding).toBe(false);
+  });
   it('does not release the party into water or a newly blocked landing',()=> {
     const ctx=context();summonBlueWind(ctx);boardWind(ctx);
     ctx.world.isWater=()=>true;
@@ -75,9 +92,11 @@ describe('two winds in the game',()=> {
     const ctx=context();ctx.house={centre:new THREE.Vector3(0,3,0)} as Ctx['house'];
     expect(spawnFireWind(ctx,17,0)).toBe(false);
     expect(spawnFireWind(ctx,30,0)).toBe(true);
+    expect(setMapMarker).toHaveBeenCalledWith('wind:fire',expect.objectContaining({icon:'map-fire-wind',pointer:true}));
     expect(spawnFireWind(ctx,35,0)).toBe(false);
     ctx.house!.centre.set(30,3,0);updateTornadoes(ctx,0.1,true);
     expect(state().fire).toBeNull();expect(hurtHero).not.toHaveBeenCalled();
+    expect(setMapMarker).toHaveBeenLastCalledWith('wind:fire',null);
   });
   it('warns before contact, then damages through the normal credited combat path at a bounded rate',()=> {
     const ctx=context();ctx.player.pos.set(28,3.001,0);
@@ -176,6 +195,14 @@ describe('two winds in the game',()=> {
     expect(Math.hypot(at[0]-ctx.player.pos.x,at[2]-ctx.player.pos.z)).toBeGreaterThan(11);
     expect(state().fireAge).toBeLessThan(2.5);expect(hurtHero).not.toHaveBeenCalled();
     expect(spawnFireWind(ctx,50,50)).toBe(false);
+    vi.restoreAllMocks();
+  });
+  it('retries a blocked encounter soon, instead of losing the encounter for another long interval',()=> {
+    vi.spyOn(Math,'random').mockReturnValue(0.25);
+    const ctx=context();ctx.save.tales.done.push('fish');ctx.input.moveY=1;ctx.world.isWater=()=>true;
+    advance(ctx,93);expect(state().fire).toBeNull();expect(state().nextFire).toBeLessThanOrEqual(5);
+    ctx.world.isWater=()=>false;advance(ctx,5);
+    expect(state().fire).not.toBeNull();
     vi.restoreAllMocks();
   });
 

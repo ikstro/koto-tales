@@ -1284,6 +1284,8 @@ shoot('gift', giftBox(), 150, 150, { oy: 0.55 });
     const wind = createTornadoLook(kind); wind.draw(1.7, false); wind.root.position.x = x; pair.add(wind.root);
   }
   shoot('new-tornadoes', fittedBox(pair, 3.8, 3.6, -0.1), 200, 200, { oy: 1.05, shadow: null });
+  const fireWind=createTornadoLook('fire'); fireWind.draw(1.7,false);
+  shoot('map-fire-wind',fittedBox(fireWind.root,2.2,3.4,-0.1),160,180,{oy:0.8,shadow:null});
 }
 
 document.getElementById('out').textContent = JSON.stringify({ sprites: out, nine });

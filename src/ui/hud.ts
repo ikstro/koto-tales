@@ -421,6 +421,10 @@ export class Hud {
   private windRiding = false;
   private windReturning = false;
   private windStuds = -1;
+  private windBoardPiece: Piece;
+  private windBoardLit: HTMLImageElement[] = [];
+  private windBoardOn = false;
+  private windBoardShown = false;
   private kitRing: Piece;
   private kitLit: HTMLImageElement[] = [];
   private kitPiece: Piece;
@@ -653,6 +657,10 @@ export class Hud {
     // food: an apple by the picnic, a cone by the ice-cream kiosk (after the note, before the fly piece)
     this.foodPiece = this.gAct.add('food' as SpriteName, SIDE_X + 6, KIT_Y + 6, 'tile6-sh');
     this.foodPiece.el.classList.add('prompt', 'hidden');
+    this.windBoardPiece=this.gAct.add('sticker-on',SIDE_X+6,KIT_Y+6,'sticker-sh');
+    this.windBoardPiece.el.classList.add('wind-board','prompt','hidden');
+    for(let i=0;i<8;i++) this.windBoardLit.push(this.windBoardPiece.layer(`ring-lit-${i}` as SpriteName,'sp lit'));
+    this.windBoardPiece.pr.appendChild(windPicture.cloneNode(true));
     // the ✕ last: it lies on top of the pieces sharing its place, so placing can always be cancelled
     this.cancelPiece = this.gAct.add('close', SIDE_X + 6, KIT_Y + 6, 'tile6-sh');
     this.cancelPiece.el.classList.add('small', 'hidden');
@@ -668,6 +676,7 @@ export class Hud {
     );
     this.press(this.bolt, this.bolt.target(104), () => input.press('bolt'));
     this.press(this.windTile,this.windTile.target(104),()=>input.press('jump'));
+    this.press(this.windBoardPiece,this.windBoardPiece.target(110),()=>this.windBoardShown && input.press('wind:board'));
     this.press(jump, jump.target(104), () => input.press('jump'));
     this.press(this.kitPiece, this.kitPiece.target(116, 116, 18), () => this.kitTap());
     this.press(this.cancelPiece, this.cancelPiece.target(96), () => input.press('kit:cancel'), { ui: true });
@@ -1496,9 +1505,18 @@ export class Hud {
   }
 
   private refreshWindCell():void {
+    this.windBoardLit.forEach((l,i)=>l.style.visibility=i<Math.ceil(this.windFuel*8)?'':'hidden');
+    this.windBoardPiece.el.classList.toggle('dim',this.windFuel<1/8);
     const cell=this.carriedCells.get('wind_whistle');
     if(!cell) return;
     cell.charge?.forEach((l,i)=>l.style.visibility=i<Math.ceil(this.windFuel*8)?'':'hidden');
+  }
+
+  /** A nearby friendly wind offers an explicit boarding action, separate from the saucer. */
+  setWindBoard(on:boolean):void {
+    if(on===this.windBoardOn) return;
+    this.windBoardOn=on;
+    this.syncFly();
   }
 
   setPlayer(id: HeroId): void {
@@ -1651,7 +1669,13 @@ export class Hud {
 
   /** One piece in the shared slot by the box: the note, else food, else the fly piece, else the remote; none while placing (the ✕ is there). */
   private syncFly(): void {
-    const free = !this.kitSelected;
+    const wind=this.windBoardOn && !this.kitSelected;
+    if(wind!==this.windBoardShown) {
+      this.windBoardShown=wind;
+      this.windBoardPiece.el.classList.toggle('hidden',!wind);
+      if(wind) this.windBoardPiece.drop(0,50);
+    }
+    const free = !this.kitSelected && !wind;
     const note = this.noteOn && free;
     if (note !== this.noteShown) {
       this.noteShown = note;
