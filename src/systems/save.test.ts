@@ -12,7 +12,8 @@ describe('save', () => {
   it('adds the daily wind-gift guard to v23 without losing inventory or progress', () => {
     const s=migrate({ ...freshSave(), v:23, wind:undefined, coins:42, inv:{apple:3}, tales:{...freshSave().tales,done:['fish','dog']} });
     expect(s.v).toBe(SAVE_VERSION);
-    expect(s.wind).toEqual({giftDay:-1,fuel:300});
+    expect(s.wind).toMatchObject({giftDay:-1,fuel:300});
+    expect(s.wind.fireIn).toBeNull(); // The live system schedules the first encounter once.
     expect(s.coins).toBe(42);
     expect(s.inv.apple).toBe(3);
     expect(s.tales.done).toEqual(['fish','dog']);
@@ -20,11 +21,22 @@ describe('save', () => {
     expect(migrate({...s,wind:{giftDay:'bad'}}).wind.giftDay).toBe(-1);
   });
   it('adds fuel to v24 without resetting the gift, and preserves spent fuel across reloads',()=> {
-    expect(migrate({...freshSave(),v:24,wind:{giftDay:4}}).wind).toEqual({giftDay:4,fuel:300});
-    const save={...freshSave(),wind:{giftDay:4,fuel:82.75}};
+    expect(migrate({...freshSave(),v:24,wind:{giftDay:4}}).wind).toMatchObject({giftDay:4,fuel:300});
+    const save={...freshSave(),wind:{giftDay:4,fuel:82.75,fireIn:29.25}};
     expect(migrate(JSON.parse(JSON.stringify(save))).wind).toEqual(save.wind);
     for(const [fuel,want] of [[-1,0],[999,300],[NaN,300],[Infinity,300]] as const)
       expect(migrate({...save,wind:{giftDay:4,fuel}}).wind.fuel).toBe(want);
+  });
+  it('migrates v25 without changing progress, fuel or gifts, then keeps the encounter countdown',()=> {
+    const old={...freshSave(),v:25,wind:{giftDay:4,fuel:82.75},coins:19};
+    old.tales.done=['fish','dog'];
+    const current=migrate(old);expect(current.v).toBe(SAVE_VERSION);
+    expect(current.wind).toMatchObject({giftDay:4,fuel:82.75});
+    expect(current.coins).toBe(19);expect(current.tales.done).toEqual(['fish','dog']);
+    current.wind.fireIn=12.5;
+    expect(migrate(JSON.parse(JSON.stringify(current))).wind.fireIn).toBe(12.5);
+    expect(migrate({...current,wind:{...current.wind,fireIn:NaN}}).wind.fireIn).toBeNull();
+    expect(migrate({...current,wind:{...current.wind,fireIn:999}}).wind.fireIn).toBe(160);
   });
   it('migrates a v1 save without losing progress', () => {
     const v1 = { v: 1, seed: 1, hero: 'pupsia', coins: 42, inv: { apple: 3 }, found: ['apple'], picked: ['0,0,1'], coinMilestones: [10], said: ['tip_move'], edits: { '1,2,3': 14 } };

@@ -186,6 +186,17 @@ describe('two winds in the game',()=> {
     ctx.input.moveX=1;advance(ctx,1);expect(state().nextFire).toBeCloseTo(first-1);
     vi.restoreAllMocks();
   });
+  it('keeps walking already accumulated when an old saved game is closed and resumed',()=> {
+    vi.spyOn(Math,'random').mockReturnValue(0.25);
+    const ctx=context();ctx.save.tales.done.push('fish');ctx.input.moveX=1;advance(ctx,60);
+    expect(ctx.save.wind.fireIn).toBeCloseTo(32.5);
+    const saved=migrate(JSON.parse(JSON.stringify(ctx.save)));
+    const reloaded=context();disposeTornadoes(reloaded);reloaded.save=saved;initTornadoes(reloaded);
+    expect(state().nextFire).toBeCloseTo(32.5);
+    reloaded.input.moveX=1;advance(reloaded,33);
+    expect(state().fire).not.toBeNull();
+    vi.restoreAllMocks();
+  });
   it('spawns an encounter ahead of a travelling hero, with a full warning and only one active wind',()=> {
     vi.spyOn(Math,'random').mockReturnValue(0.25);
     const ctx=context();ctx.save.tales.done.push('fish');ctx.input.moveY=1;

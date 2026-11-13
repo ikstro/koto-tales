@@ -20,6 +20,12 @@ const row = (s: Section[], key: string): Row => {
 };
 
 describe('contents: everything in the game, for the parents', () => {
+  it('explains the actual fire-wind prerequisite and the saved walking countdown',()=> {
+    const save=freshSave();
+    expect(row(contentsOf(save,PLACES),'new-tornadoes').status).toContain('спочатку заверши казку про рибку');
+    save.tales.done.push('fish');save.wind.fireIn=12.5;
+    expect(row(contentsOf(save,PLACES),'new-tornadoes').status).toContain('~13 с ходьби');
+  });
   it('Ukrainian plurals after a number', () => {
     const w = ['рибку', 'рибки', 'рибок'] as const;
     expect([1, 2, 5, 11, 21, 24, 112].map((n) => plural(n, w))).toEqual(['рибку', 'рибки', 'рибок', 'рибок', 'рибку', 'рибки', 'рибок']);

@@ -81,7 +81,8 @@ export function initTornadoes(ctx: Ctx): void {
     ctx.scene.add(look.root);
     return {look,pos:new THREE.Vector3(),active:false,age:0};
   };
-  const s:State={fire:wind('fire'),blue:wind('blue'),time:0,started:false,riding:false,recallAt:0,nextFire:nextFireDelay(),fireStep:0,fireHit:0,engaged:0,landingAt:0,hintAt:0,route:[],returnDistance:0,returning:false,descent:null,passengers:[],tale:null,off:[]};
+  const s:State={fire:wind('fire'),blue:wind('blue'),time:0,started:false,riding:false,recallAt:0,nextFire:ctx.save.wind.fireIn??nextFireDelay(),fireStep:0,fireHit:0,engaged:0,landingAt:0,hintAt:0,route:[],returnDistance:0,returning:false,descent:null,passengers:[],tale:null,off:[]};
+  ctx.save.wind.fireIn=s.nextFire;
   states.set(ctx,s);
   s.off.push(events.on('effect:start', ({kind}) => { if(kind==='wind') summonBlueWind(ctx); }));
   s.off.push(events.on('hero:teleport', () => release(ctx,s)));
@@ -384,6 +385,7 @@ export function updateTornadoes(ctx:Ctx,dt:number,low:boolean):void {
     }
   }
   if(s.riding || (!ctx.sleeping && !ctx.napping)) fireStep(ctx,s,dt);
+  ctx.save.wind.fireIn=Math.max(0,s.nextFire);
   if(!s.riding && !ctx.napping && ctx.player.body.onGround)
     ctx.save.wind.fuel=Math.min(TORNADO.blue.range,ctx.save.wind.fuel+TORNADO.blue.range/TORNADO.blue.recharge*dt);
   ctx.hud.setWindCharge(s.riding,ctx.save.wind.fuel/TORNADO.blue.range,s.returning || !!s.descent);

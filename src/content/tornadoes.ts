@@ -5,10 +5,11 @@ export const TORNADO = {
 } as const;
 
 export const nextFireDelay = (): number => TORNADO.fire.spawnMin + Math.random() * (TORNADO.fire.spawnMax - TORNADO.fire.spawnMin);
-export interface WindSave { giftDay: number; fuel: number }
-export const freshWind = (): WindSave => ({ giftDay: -1, fuel: TORNADO.blue.range });
+export interface WindSave { giftDay: number; fuel: number; fireIn: number | null }
+export const freshWind = (): WindSave => ({ giftDay: -1, fuel: TORNADO.blue.range, fireIn: null });
 export const normalWind = (raw: unknown): WindSave => {
-  const {giftDay:day, fuel} = (raw ?? {}) as Partial<WindSave>;
+  const {giftDay:day, fuel, fireIn} = (raw ?? {}) as Partial<WindSave>;
   return { giftDay: typeof day === 'number' && Number.isInteger(day) && day >= -1 ? day : -1,
-    fuel: typeof fuel === 'number' && Number.isFinite(fuel) ? Math.max(0, Math.min(TORNADO.blue.range, fuel)) : TORNADO.blue.range };
+    fuel: typeof fuel === 'number' && Number.isFinite(fuel) ? Math.max(0, Math.min(TORNADO.blue.range, fuel)) : TORNADO.blue.range,
+    fireIn: typeof fireIn === 'number' && Number.isFinite(fireIn) ? Math.max(0,Math.min(TORNADO.fire.spawnMax,fireIn)) : null };
 };

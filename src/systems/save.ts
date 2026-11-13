@@ -25,7 +25,7 @@ import { homeChunks } from './explore';
  * last save that loaded fine is kept as a spare copy.
  */
 export interface SaveData {
-  /** Gift guard and remaining flight fuel survive recalling and restarting. */
+  /** Gift guard, flight fuel and remaining encounter wait survive restarting. */
   wind: WindSave;
   v: number;
   /** The dishes cooked at least once: their pages in the book of recipes. */
@@ -151,7 +151,7 @@ export const freshBoss = (): BossSave => ({ kind: 'eater', levels: { eater: 1, n
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 25;
+export const SAVE_VERSION = 26;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -297,6 +297,7 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
   22: (d) => ({ ...d, v: 23, chess: freshChess() }),
   23: (d) => ({ ...d, v: 24, wind: freshWind() }),
   24: (d) => ({ ...d, v: 25, wind: normalWind(d.wind) }),
+  25: (d) => ({ ...d, v: 26, wind: normalWind(d.wind) }),
 };
 
 export function migrate(raw: Raw): SaveData {
