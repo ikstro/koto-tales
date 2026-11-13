@@ -364,6 +364,7 @@ export const SPRITES = {
   'b-bigchess-sh': {w: 200,h: 200,oy: 0.6,x: 30,y: 66,cw: 150,ch: 120},
   'new-chess-kingdom': {w: 200,h: 200,oy: 0.9,x: 36,y: 51,cw: 127,ch: 138},
   'new-chess-kingdom-sh': {w: 200,h: 200,oy: 0.9,x: 34,y: 80,cw: 166,ch: 120},
+  'new-tornadoes': {w: 200,h: 200,oy: 1.05,x: 31,y: 68,cw: 137,ch: 81},
 } satisfies Record<string, SpriteMeta>;
 
 export type SpriteName = keyof typeof SPRITES;

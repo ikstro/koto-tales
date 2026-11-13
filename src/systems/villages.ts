@@ -172,8 +172,8 @@ function taskNow(ctx: Ctx, race: Race): TaskNow | null {
 }
 
 /** Whether (x, z) is in a village or at a freed castle (safe, hearts come back fast). */
-export function inVillage(ctx: Ctx, x: number, z: number): boolean {
-  return sites(ctx).some((v) => Math.hypot(v.x + 0.5 - x, v.z + 0.5 - z) < VILLAGE_SAFE) || inFreedCastle(ctx, x, z) || inChess(ctx, x, z);
+export function inVillage(ctx: Ctx, x: number, z: number, margin = 0): boolean {
+  return sites(ctx).some((v) => Math.hypot(v.x + 0.5 - x, v.z + 0.5 - z) < VILLAGE_SAFE + margin) || inFreedCastle(ctx, x, z, margin) || inChess(ctx, x, z, margin);
 }
 
 /** The guest house the hero stands at (for systems/sleep.ts), if any. */

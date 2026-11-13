@@ -51,7 +51,7 @@ import {
 } from '../content/babusia';
 import { BUILDINGS } from '../content/buildings';
 import { HERO_ORDER, HERO_STATS } from '../content/heroes';
-import { ITEMS, type ItemId } from '../content/items';
+import { ITEMS, type ItemCard, type ItemId } from '../content/items';
 import type { LineId } from '../content/lines';
 import { PROLOGUE, taleById, type TaleGift } from '../content/tales';
 import type { Ctx } from '../core/ctx';
@@ -318,7 +318,7 @@ export function herBeds(ctx: Ctx): Beds {
 // ─── gifts ───────────────────────────────────────────────────────────────────
 
 export function giveItem(ctx: Ctx, id: ItemId, n: number): void {
-  ctx.save.inv[id] = (ctx.save.inv[id] ?? 0) + n;
+  ctx.save.inv[id] = (ITEMS[id] as ItemCard).reusable ? 1 : (ctx.save.inv[id] ?? 0) + n;
   if (!ctx.save.found.includes(id)) ctx.save.found.push(id);
   pushCarried(ctx);
 }

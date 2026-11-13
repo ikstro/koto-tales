@@ -45,6 +45,7 @@ import { initWeather, updateWeather } from '../systems/weather';
 import { createCloudSea } from '../render/cloudSea';
 import { updateLanterns } from '../render/lanterns';
 import { updateHeroMark } from '../render/heroMark';
+import { initTornadoes, updateTornadoes } from '../systems/tornadoes';
 import { cutaway } from '../render/skins/cutaway';
 import { music } from '../voice/music';
 import { sfx } from '../voice/sfx';
@@ -110,6 +111,7 @@ export class Game {
     this.cam = new FollowCamera(ctx.camera, FRAMINGS[ctx.params.cam ?? 1] ?? FRAMINGS[1]);
     initNarration(ctx);
     initWeather(ctx, quality);
+    initTornadoes(ctx);
     // there from the start, empty, so its shader is built under the title and never mid-play
     ctx.clouds = createCloudSea(ctx.scene);
     initTvNews(ctx);
@@ -239,7 +241,9 @@ export class Game {
     createHeroes(ctx, hero, at, handoff);
     ctx.playing = true;
     ctx.hud.show(ctx.params.hud);
-    ctx.hud.onKitPick = (id) => pick(ctx, id as BuildingId);
+    ctx.hud.onKitPick = (id) => {
+      if (!ctx.sleeping && !ctx.napping) pick(ctx, id as BuildingId);
+    };
     this.wireMenu();
     initProgress(ctx);
     initBabusia(ctx);
@@ -383,8 +387,11 @@ export class Game {
         ctx.album.open(ctx.save);
         events.emit('album:open', {});
         ctx.hud.onPause?.(true);
+        return;
       }
       if (ctx.input.take('close')) ctx.album.close();
+
+      updateTornadoes(ctx, dt, this.quality.level <= 0);
 
       if (ctx.napping) for (const h of ctx.heroes.values()) h.model.update(dt, 0);
       else updateHeroes(ctx, dt);

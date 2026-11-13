@@ -63,6 +63,8 @@ export type TaleFrom = 'pupsia' | 'babusia' | Race;
 export type TaleGift = { item: ItemId; n?: number } | { building: BuildingId };
 
 export interface TaleCard {
+  /** A wind takes part in this tale; summoned/restored by systems/tornadoes.ts. */
+  wind?: 'fire' | 'blue';
   id: string;
   /** Its title in the book, for the parents (the «Зміст гри» page). */
   name: string;
@@ -146,6 +148,24 @@ export const TALES: TaleCard[] = [
     sticker: 'heart',
     coins: 10,
     companion: 'sirko',
+  },
+  {
+    id: 'wind_friend',
+    name: 'Друг із вітру',
+    from: 'pupsia',
+    follows: 'dog',
+    needs: ['boombox'],
+    wind: 'blue',
+    open: 'tale_wind_friend_open',
+    steps: [
+      { kind: 'gather', at: 'here', item: 'shell', goal: 3, spread: [8, 14], ask: 'tale_wind_friend_1', picture: 'item-shell' },
+      { kind: 'music', at: 'here', goal: 10, ask: 'tale_wind_friend_2', picture: 'b-boombox' },
+    ],
+    thanks: 'tale_wind_friend_thanks',
+    retell: 'tale_wind_friend_retell',
+    sticker: 'item-shell',
+    coins: 20,
+    gifts: [{ item: 'wind_whistle', n: 1 }],
   },
   {
     id: 'treasure',

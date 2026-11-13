@@ -1,5 +1,5 @@
 /**
- * npm run perf -- [--url https://ikstro.com/koto-tales/] [--tier 1] [--size 800x500]
+ * npm run perf -- [--url https://ikstro.com/koto-tales/] [--tier 1] [--size 800x500] [--gpu d3d11]
  *
  * Plays a fixed route headless and reports what a player would feel as freezes:
  *   the real start (the title's ▶, then touching a sleeping hero), a walk, the signal buildings put up
@@ -38,7 +38,7 @@ if (!base) {
   base = server.resolvedUrls.local[0];
 }
 
-const browser = await chromium.launch({ executablePath: findShell(), headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--mute-audio'] });
+const browser = await chromium.launch({ executablePath: findShell(), headless: true, args: [`--use-angle=${arg('gpu', 'swiftshader')}`, '--enable-unsafe-swiftshader', '--mute-audio'] });
 const page = await browser.newPage({ viewport: { width: W, height: H } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));

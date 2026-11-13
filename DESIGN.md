@@ -291,6 +291,17 @@ A gentle mood, never a danger: Бабуся is its queen and walks in any of it.
 - **Under a roof** the drops fade out: in the house, in Бабуся's, under any ceiling of blocks; a tree's crown is no roof.
 - All drops and flakes are one draw in a box following the camera, moved by the shader; fewer at lower quality levels. Built before the title, hidden, so their shaders are ready.
 
+## Tornadoes
+Two winds (the owner's call, 2026-11-13; rules `src/content/tornadoes.ts`, system `src/systems/tornadoes.ts`). They do not change the weather picker or the ground.
+- **Fire wind**: red and gold toy curls with rising sparks. A 2.5-second warning before it moves; 2.5 blocks/s (the heroes run at 5), six seconds of chasing then five of wandering. Contact takes one heart through the normal invulnerability window; helpers only tumble. It lasts at most 45 seconds; after the prologue, an encounter may appear every two minutes outside safe places.
+- **Using the danger**: lure ordinary monsters into it. A bounded hit once a second uses the existing combat rewards and quest events. No hits on dancing/waiting monsters, armoured monsters or the runaway gift; bosses keep their own rules. A distant encounter earns nothing by itself.
+- **Safety**: its whole radius keeps out of home, villages, freed castles, the chess kingdom, the hostesses' yard and the boss arena. Nothing catches fire, buildings stand and the earth stays as it was.
+- **Blue wind**: pale-blue toy curls with short glowing blue bolts, harmless. The reusable «Вітряний свисток» recalls one existing wind; extra calls never create a crowd. Its first tale «Друг із вітру» comes after Сірко: three shells, then music, then the whistle.
+- **The ride**: touch the wind nearby, and the four heroes and their walking companions rise together (Сірко keeps his post). The normal joystick steers, the jump piece asks to land. The party rides in front of the curls so the active hero stays visible. The camera keeps its view and scale. No shooting or placing buildings while carried.
+- **Landing**: a bounded search checks free dry ground for every hero, not water, crowns, roofs or locked castle/boss areas. Without a nearby landing the party stays aboard and Пупся asks for free dry land. Flying moves continuously with the normal world-streaming budget; there is no instant long-distance teleport into unprepared land.
+- **A gift**: one pie on the day's first landing; saved before delivery, so recalling or restarting cannot repeat it. A ride is temporary, not saved: closing the game aboard starts safely at the usual doorstep next time, with all inventory and progress.
+- **Budget**: one wind of each kind at most, two instanced draws each, no real lights, extra shadow passes or 3D textures. High quality has 96 curls and 32 accents; low quality has 48 curls and 12 sparks / 16 bolt segments. Prepared under the title; animation pauses with the game and drawing stops outside the view.
+
 ## The land-eater's wasteland
 - **The lake monster lives in a lake**: it looks for one further and further from home, up to 360 blocks, and rates a big lake with a gentle shore first. One left on dry land by an older version moves to a lake on load. With no lake in reach the land-eater comes instead.
 - **Jump**: the jump piece lifts the hero two blocks (from the ground or while swimming, never in the air); the helpers jump a moment later, so the party gets out together. Walking into a one-block step still hops by itself.

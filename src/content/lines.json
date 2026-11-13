@@ -1008,5 +1008,17 @@
   "garden_harvest_apple": { "speaker": "pupsia", "text": "Ура, яблука! Червоні-червоні!" },
   "reward_garden": { "speaker": "narrator", "text": "Грядка в скриньці! Що посадиш, те й виросте." }
 ,
-  "first_bigchess": { "speaker": "pupsia", "text": "Великі шахи! Доведи фігурку до монетки — тільки так, як вона ходить!" }
+  "first_bigchess": { "speaker": "pupsia", "text": "Великі шахи! Доведи фігурку до монетки — тільки так, як вона ходить!" },
+  "item_wind_whistle": { "speaker": "narrator", "text": "Вітряний свисток! Свисни — і синій вихор прилетить." },
+  "tale_wind_friend_open": { "speaker": "pupsia", "text": "Мені наснився синій вихор. Він розгубив свої мушлі!" },
+  "tale_wind_friend_1": { "speaker": "pupsia", "text": "Мушлі розлетілися навколо! Зберімо їх для нашого вітряного друга." },
+  "tale_wind_friend_thanks": { "speaker": "pupsia", "text": "Мур! Вихор дарує нам свисток. Тепер він прилітатиме на поклик!" },
+  "tale_wind_friend_retell": { "speaker": "narrator", "text": "Казка про добрий вихор, якому друзі збирають мушлі й влаштовують танці." },
+  "tale_wind_friend_2": { "speaker": "pupsia", "text": "А тепер увімкни колонку поруч. Вихор хоче потанцювати!" },
+  "tornado_fire_spot": { "speaker": "pupsia", "text": "Ой, вогняний вихор! Відбігай убік, а монстрів заманюй до нього!" },
+  "tornado_blue_spot": { "speaker": "pupsia", "text": "Мур! Синій вихор кличе покататися. Торкнись його — полетимо разом!" },
+  "tornado_ride": { "speaker": "pupsia", "text": "Веди кружечком, куди хочеш. Натисни пружинку — і ми приземлимося!" },
+  "tornado_land": { "speaker": "pupsia", "text": "Тут незручно сідати. Полетімо до вільної сухої землі!" },
+  "tornado_gift": { "speaker": "pupsia", "text": "Мау! Вихор приніс подарунок! Наступний принесе, коли настане новий день." },
+  "new_tornadoes": { "speaker": "pupsia", "text": "У світі кружляє вогняний вихор, а доброго зустрінемо в новій казці!" }
 }

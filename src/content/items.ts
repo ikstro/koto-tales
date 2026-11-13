@@ -25,6 +25,8 @@ export interface ItemCard {
    * fires by itself near its lock (a key).
    */
   use?: Effect | 'auto';
+  /** A toy tool stays in the box when used; its effect is still the normal item action. */
+  reusable?: true;
   /** Льоша made it up: its album sticker has the gold rim. */
   lyosha?: true;
   /** A kitchen product: the power it brings to an own dish («власна страва», content/recipes.ts surpriseOf). */
@@ -97,6 +99,7 @@ export const ITEMS = {
   surprise_freeze: { id: 'surprise_freeze', name: 'Власна страва: завмирайка', about: 'Страва, яку діти вигадали самі: монстри поруч завмирають на 3 секунди.', line: 'item_surprise_freeze', biomes: 'any', weight: 0, color: 0xc9a26b, use: { kind: 'freeze', for: 3, reach: 9 } },
   surprise_light: { id: 'surprise_light', name: 'Власна страва: світла', about: 'Страва, яку діти вигадали самі: 45 секунд поруч не з’являються монстри.', line: 'item_surprise_light', biomes: 'any', weight: 0, color: 0xf08a24, use: { kind: 'light', for: 45, reach: 9 } },
   surprise_peace: { id: 'surprise_peace', name: 'Власна страва: танцювальна', about: 'Страва, яку діти вигадали самі: монстри поруч танцюють 6 секунд.', line: 'item_surprise_peace', biomes: 'any', weight: 0, color: 0x8d6e63, use: { kind: 'peace', for: 6, reach: 8 } },
+  wind_whistle: { id: 'wind_whistle', name: 'Вітряний свисток', about: 'Багаторазовий свисток кличе синій вихор: торкнися його, керуй джойстиком і вистрибни на вільну землю.', line: 'item_wind_whistle', biomes: 'any', weight: 0, color: 0x43bfff, reusable: true, use: { kind: 'wind' }, lyosha: true },
 } satisfies Record<string, ItemCard>;
 
 export type ItemId = keyof typeof ITEMS;
@@ -164,6 +167,7 @@ export const ITEM_ORDER: ItemId[] = [
   'surprise_freeze',
   'surprise_light',
   'surprise_peace',
+  'wind_whistle',
 ];
 
 export const PICKUPS = {

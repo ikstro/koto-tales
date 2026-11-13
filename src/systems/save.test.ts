@@ -9,6 +9,16 @@ import { freshChess } from '../content/chess';
 import { SAVE_VERSION, freshSave, migrate, reconcileTerrain, restartSave } from './save';
 
 describe('save', () => {
+  it('adds the daily wind-gift guard to v23 without losing inventory or progress', () => {
+    const s=migrate({ ...freshSave(), v:23, wind:undefined, coins:42, inv:{apple:3}, tales:{...freshSave().tales,done:['fish','dog']} });
+    expect(s.v).toBe(SAVE_VERSION);
+    expect(s.wind).toEqual({giftDay:-1});
+    expect(s.coins).toBe(42);
+    expect(s.inv.apple).toBe(3);
+    expect(s.tales.done).toEqual(['fish','dog']);
+    expect(migrate({...s,wind:{giftDay:7}}).wind.giftDay).toBe(7);
+    expect(migrate({...s,wind:{giftDay:'bad'}}).wind.giftDay).toBe(-1);
+  });
   it('migrates a v1 save without losing progress', () => {
     const v1 = { v: 1, seed: 1, hero: 'pupsia', coins: 42, inv: { apple: 3 }, found: ['apple'], picked: ['0,0,1'], coinMilestones: [10], said: ['tip_move'], edits: { '1,2,3': 14 } };
     const s = migrate(v1);

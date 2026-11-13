@@ -153,6 +153,17 @@ export const RELEASES: Release[] = [
       },
     ],
   },
+  {
+    id: 4,
+    things: [{
+      id: 'tornadoes',
+      pic: 'new-tornadoes',
+      line: 'new_tornadoes',
+      caption: 'Два вихори',
+      name: 'Вогняний і синій вихори',
+      about: 'Вогняний вихор гуляє далеко від безпечних місць і відганяє монстрів. У казці «Друг із вітру» можна отримати свисток, який кличе доброго синього вихора для мандрів і подарунків.',
+    }],
+  },
 ];
 
 /** The newest release (a new game starts here, seeing nothing as new). */

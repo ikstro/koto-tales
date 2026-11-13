@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ARTIFACTS } from '../content/artifacts';
 import { BUILDINGS, type BuildingId } from '../content/buildings';
 import { COMPANIONS } from '../content/companions';
-import { ITEMS, type ItemId } from '../content/items';
+import { ITEMS, type ItemCard, type ItemId } from '../content/items';
 import { MONSTERS, type MonsterKind } from '../content/monsters';
 import type { Ctx } from '../core/ctx';
 import { giveArtifact } from '../systems/artifacts';
@@ -30,7 +30,7 @@ export function applyDebugParams(ctx: Ctx): void {
     for (const id of give) {
       if (id in BUILDINGS) addToKit(ctx, id as BuildingId, 1);
       else if (id in ITEMS) {
-        ctx.save.inv[id as ItemId] = (ctx.save.inv[id as ItemId] ?? 0) + 3;
+        ctx.save.inv[id as ItemId] = (ITEMS[id as ItemId] as ItemCard).reusable ? 1 : (ctx.save.inv[id as ItemId] ?? 0) + 3;
         if (!ctx.save.found.includes(id)) ctx.save.found.push(id);
         pushCarried(ctx);
       } else if (id in ARTIFACTS) giveArtifact(ctx, id);

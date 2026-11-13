@@ -75,6 +75,7 @@ export function startEffect(ctx: Ctx, e: Effect): void {
     }
     // told by `effect:start`: systems/babusia.ts (the bell), systems/gadgets.ts (the magic can)
     case 'babusia':
+    case 'wind':
     case 'bloom':
     case 'peace':
     case 'light':
@@ -91,7 +92,7 @@ export function carried(ctx: Ctx): { id: ItemId; count: number }[] {
   return ITEM_ORDER.flatMap((id) => {
     const u = useOf(id);
     const n = ctx.save.inv[id] ?? 0;
-    return u && u !== 'auto' && n > 0 ? [{ id, count: n }] : [];
+    return u && u !== 'auto' && n > 0 ? [{ id, count: (ITEMS[id] as ItemCard).reusable ? 1 : n }] : [];
   });
 }
 
@@ -99,8 +100,8 @@ export function carried(ctx: Ctx): { id: ItemId; count: number }[] {
 export function useItem(ctx: Ctx, id: ItemId): boolean {
   const u = useOf(id);
   const n = ctx.save.inv[id] ?? 0;
-  if (!u || u === 'auto' || n <= 0) return false;
-  ctx.save.inv[id] = n - 1;
+  if (!u || u === 'auto' || n <= 0 || ctx.sleeping || ctx.napping) return false;
+  ctx.save.inv[id] = (ITEMS[id] as ItemCard).reusable ? 1 : n - 1;
   sfx.play('sticker', { pitch: 1.15 });
   startEffect(ctx, u);
   events.emit('item:used', { item: id });

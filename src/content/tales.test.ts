@@ -38,6 +38,13 @@ describe('tale cards', () => {
 });
 
 describe('which tale comes', () => {
+  it('the wind friend follows the early lessons and the dog, and gives a reusable whistle', () => {
+    const wind=TALES.find(t=>t.id==='wind_friend')!;
+    expect(talesLeft(['fish'],all).map(t=>t.id)).not.toContain(wind.id);
+    expect(nextTale(save({done:['fish','babusia_hi','first_dinner','dog'],after:2}),all,2,true)?.id).toBe(wind.id);
+    expect(wind.wind).toBe('blue');
+    expect(wind.gifts).toEqual([{item:'wind_whistle',n:1}]);
+  });
   it('a new story begins with the prologue at once', () => {
     expect(nextTale(freshTales(), none, 0, false)?.id).toBe(PROLOGUE);
   });
@@ -75,7 +82,7 @@ describe('which tale comes', () => {
   });
 
   it('Льоша’s tales come first', () => {
-    const mine = { ...TALES[3], id: 'mine', lyosha: true };
+    const mine = { ...TALES.find(t => t.id === 'treasure')!, id: 'mine', lyosha: true };
     TALES.push(mine);
     try {
       expect(talesLeft(['fish'], all)[0].id).toBe('mine');

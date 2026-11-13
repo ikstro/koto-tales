@@ -30,6 +30,8 @@ import { SKIN_NAMES, type AnySkin } from '../render/skins';
  *   ?step=<s>  (test only: a slow frame may step the game this far, default 0.05 s)
  */
 export interface Params {
+  /** Test only: a wind encounter beside the party, still respecting safe areas. */
+  tornado: 'fire' | 'blue' | 'both' | null;
   /** ?mute=1 silences everything (automated checks). */
   mute: boolean;
   /** ?difficulty=easy|normal|hard overrides the saved level (checks). */
@@ -100,6 +102,7 @@ export function readParams(): Params {
   };
   const tier = num('tier');
   return {
+    tornado: one('tornado', ['fire', 'blue', 'both'] as const),
     mute: q.get('mute') === '1',
     difficulty: one('difficulty', ['easy', 'normal', 'hard'] as const),
     skin: one('skin', SKIN_NAMES),

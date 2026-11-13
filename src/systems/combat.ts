@@ -283,7 +283,7 @@ function bounces(ctx: Ctx, m: Monster): boolean {
 export function updateCombat(ctx: Ctx, dt: number): void {
   updateBones(ctx, dt);
   const { input, player } = ctx;
-  if (ctx.playing && !ctx.sleeping) {
+  if (ctx.playing && !ctx.sleeping && !ctx.napping) {
     if (input.take('fire') || input.fireHeld) fireArrow(ctx, player);
     if (input.take('bolt')) castBolt(ctx, player);
   }

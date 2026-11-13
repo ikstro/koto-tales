@@ -68,6 +68,8 @@ found and when its sticker is tapped). Add the id to `ITEM_ORDER` (album order) 
 - `use?: Effect` — the party carries it (the box's second row shows it with a count); a tap uses one:
   the plate closes and the effect starts. `use: 'auto'` — never shown in the row; fires by itself near
   its lock (keys).
+- `reusable: true` — a tool stays in the box on use (shown once, without accumulating copies).
+  The wind whistle uses `{ kind: 'wind' }` to recall one friendly wind, not a consumable charge.
 - Prompt pieces (apple, cone) are buildings' food, not items; they stay as they are.
 - A music disc is an item `disc_<song>` in `ITEM_ORDER`, weight 0, no `use`, plus one entry in `DISC_SONGS`
   (`src/content/music.ts`) and a line `song_<song>`. Found, its song joins the note's round. The song itself
@@ -86,6 +88,7 @@ found and when its sticker is tapped). Add the id to `ITEM_ORDER` (album order) 
 | `home` | the party is carried home (portal) | — (not allowed) |
 | `babusia` | the party is carried to her gate | — (not allowed) |
 | `bloom` | daisies and poppies come up round the hero | — (not allowed) |
+| `wind` | recalls the friendly blue wind; tap it to ride, joystick to steer, jump to land | — (not allowed) |
 A new kind = one entry in `EFFECTS` + one branch in `src/systems/effects.ts` (engine work).
 
 ## Artifact — `src/content/artifacts.ts`
@@ -129,6 +132,8 @@ lighthouse. Asker (`from`): Пупся (a dream), a race (a paper plane) or `bab
 `coins`, and optionally an `artifact`, a `companion` and/or `gifts` (`[{ item, n? } | { building }]`, straight
 into the box); `weather` (the weather she makes) and `after` (a word from someone else after the thanks). The `monster` of a `thief` step says who runs off (Зомбік unless said). Things to gather: `TALE_ITEMS` (`src/assets/tales.ts`). A thief of `pole` or `disc` shows it in
 its hand (`IN_HAND`, `src/systems/tales.ts`).
+`wind: 'blue' | 'fire'` brings a wind into a tale, and restores it on resume (fire still respects safe areas).
+The first blue-wind tale, `wind_friend`, follows `dog`: gather three shells → music → the reusable whistle.
 Бабуся's tales: no family details, no surnames, nothing bad happens to either hostess (DESIGN.md «Бабуся», «Оля»). Both say
 «котики». Food is what grandmothers cook, never cakes.
 
@@ -156,3 +161,5 @@ speaker); "a new hero" from a wish is otherwise a companion card or a monster ca
 - `npm run hud -- --only b-<id>` — bakes only those sprites, keeps the rest.
 - Debug: `?spawn=<monster>` beside the hero, `?give=<building|item|artifact|companion>`, `?tale=<id>`
   (all with `&autostart=1`).
+- Wind encounter: `?tornado=fire|blue|both&autostart=1`; `?give=wind_whistle` adds the reusable tool.
+  Winds are a separate bounded engine system, not ordinary monster cards (`content/tornadoes.ts`, `systems/tornadoes.ts`).

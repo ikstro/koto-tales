@@ -166,9 +166,9 @@ function toWorld(b: { centre: THREE.Vector3; yaw: number }, p: { x: number; y: n
 }
 
 /** Whether (x, z) is in the kingdom: no monster appears, hearts come back fast (always: it is a kingdom of toys). */
-export function inChess(ctx: Ctx, x: number, z: number): boolean {
+export function inChess(ctx: Ctx, x: number, z: number, margin = 0): boolean {
   const k = siteOf(ctx);
-  return !!k && Math.hypot(k.x + 0.5 - x, k.z + 0.5 - z) < CHESS.safe;
+  return !!k && Math.hypot(k.x + 0.5 - x, k.z + 0.5 - z) < CHESS.safe + margin;
 }
 
 /** In front of the kingdom's portal (a jump, the saucer). */

@@ -127,8 +127,8 @@ function toWorld(b: { centre: THREE.Vector3; yaw: number }, p: { x: number; y: n
 }
 
 /** Whether (x, z) is at a freed castle (safe like a village, hearts come back fast). */
-export function inFreedCastle(ctx: Ctx, x: number, z: number): boolean {
-  return sites(ctx).some((v) => Math.hypot(v.x + 0.5 - x, v.z + 0.5 - z) < CASTLE_SAFE && saveOf(ctx, v.race).freed);
+export function inFreedCastle(ctx: Ctx, x: number, z: number, margin = 0): boolean {
+  return sites(ctx).some((v) => Math.hypot(v.x + 0.5 - x, v.z + 0.5 - z) < CASTLE_SAFE + margin && saveOf(ctx, v.race).freed);
 }
 
 // ─── building, showing and parking ───────────────────────────────────────────

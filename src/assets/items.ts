@@ -3,6 +3,7 @@
  * front facing +Z. One mesh per colour; geometry cached across skins.
  */
 import * as THREE from 'three';
+import { windWhistleParts } from './windWhistle';
 import type { ItemId, Skin } from '../contracts';
 import { DISH_BUILDERS } from './dishes';
 import { Kit, type PartBuilder, type Paint, type V3 } from './parts/kit';
@@ -544,6 +545,8 @@ const ITEM_BUILDERS: Record<ItemId, Builder> = {
   disc_carol: record('#ffe3a3'),
   // Платівка «Бабусина пісня»: a record with its own label on its little stand
   disc_granny: record('#ffd23a'),
+  // A blue reusable wind whistle with a hollow golden ring.
+  wind_whistle: windWhistleParts,
 };
 
 export const ITEM_IDS = Object.keys(ITEM_BUILDERS) as ItemId[];

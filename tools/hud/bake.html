@@ -31,6 +31,7 @@ import { createCampfire } from '/src/assets/props.ts';
 import { createCampfireLog } from '/src/assets/campfireLogs.ts';
 import { createBallPit, createChessCorner, createEasel, createSlideTower } from '/src/assets/playroom.ts';
 import { createChessKingdom } from '/src/assets/chess.ts';
+import { createTornadoLook } from '/src/render/tornado.ts';
 
 const U = 40, DPR = 2, LO = 1.5, TILT = THREE.MathUtils.degToRad(34);
 const canvas = document.getElementById('c');
@@ -1275,6 +1276,14 @@ shoot('gift', giftBox(), 150, 150, { oy: 0.55 });
   const easel = createEasel(skin); easel.update(0.5);
   pic('new-easel', easel.root, 2.4, 3.6, -0.35, 1.2);
   shoot('new-sirko', roundTile(1, C.mustard, folkPrint('sirko', C.mustard, 0.5, 1), 0.6), 130, 130, { shadow: 'tile6-sh' });
+}
+
+{
+  const pair = new THREE.Group();
+  for (const [kind, x] of [['fire', -2.1], ['blue', 2.1]]) {
+    const wind = createTornadoLook(kind); wind.draw(1.7, false); wind.root.position.x = x; pair.add(wind.root);
+  }
+  shoot('new-tornadoes', fittedBox(pair, 3.8, 3.6, -0.1), 200, 200, { oy: 1.05, shadow: null });
 }
 
 document.getElementById('out').textContent = JSON.stringify({ sprites: out, nine });

@@ -1,4 +1,5 @@
 import { freshBabusia, type BabusiaSave } from '../content/babusia';
+import { freshWind, normalWind, type WindSave } from '../content/tornadoes';
 import { freshHome, normHome, type HomeSave } from '../content/home';
 import { TERRAIN_VERSION, type HeroId, type ItemId, type MonsterKind } from '../contracts';
 import { BUILDINGS, KIT_ORDER, type BuildingId } from '../content/buildings';
@@ -24,6 +25,8 @@ import { homeChunks } from './explore';
  * last save that loaded fine is kept as a spare copy.
  */
 export interface SaveData {
+  /** A daily gift survives recalling the wind and restarting the browser. */
+  wind: WindSave;
   v: number;
   /** The dishes cooked at least once: their pages in the book of recipes. */
   recipes: string[];
@@ -148,7 +151,7 @@ export const freshBoss = (): BossSave => ({ kind: 'eater', levels: { eater: 1, n
 export const freshKit = (): SaveData['kit'] => Object.fromEntries(KIT_ORDER.flatMap((id) => (BUILDINGS[id].count === null ? [] : [[id, BUILDINGS[id].count]])));
 export const freshProgress = (): ProgressSave => ({ level: 0, kind: 'monsters', start: null, got: [] });
 
-export const SAVE_VERSION = 23;
+export const SAVE_VERSION = 24;
 export const WORLD_SEED = 20261128;
 const KEY = 'koto-tales-save';
 const SPARE = 'koto-tales-save-spare';
@@ -159,6 +162,7 @@ const BEFORE_RESTART = 'koto-tales-save-before-restart';
 export function freshSave(): SaveData {
   return {
     v: SAVE_VERSION,
+    wind: freshWind(),
     babusia: freshBabusia(),
     home: freshHome(),
     weather: 0,
@@ -291,6 +295,7 @@ const MIGRATIONS: Record<number, (d: Raw) => Raw> = {
   21: (d) => ({ ...d, v: 22, whatsNew: 0 }),
   // v23: the chess kingdom (TERRAIN_VERSION 5 flattens its square; buildings standing there go back to the kit).
   22: (d) => ({ ...d, v: 23, chess: freshChess() }),
+  23: (d) => ({ ...d, v: 24, wind: freshWind() }),
 };
 
 export function migrate(raw: Raw): SaveData {
@@ -303,7 +308,7 @@ export function migrate(raw: Raw): SaveData {
     v = d.v as number;
   }
   const slice = <T extends object>(fresh: T, raw: unknown): T => ({ ...fresh, ...(raw && typeof raw === 'object' ? raw : {}) });
-  return { ...freshSave(), ...d, home: normHome(d.home), kitchen: slice(freshKitchen(), d.kitchen), news: slice(freshNews(), d.news), chess: slice(freshChess(), d.chess) } as SaveData;
+  return { ...freshSave(), ...d, wind: normalWind(d.wind), home: normHome(d.home), kitchen: slice(freshKitchen(), d.kitchen), news: slice(freshNews(), d.news), chess: slice(freshChess(), d.chess) } as SaveData;
 }
 
 /**
