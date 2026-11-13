@@ -34,6 +34,9 @@ interface State {
   nextFire: number;
   fireStep: number;
   fireHit: number;
+  fireHeading: number;
+  fireTurnUntil: number;
+  firePassUntil: number;
   engaged: number;
   landingAt: number;
   hintAt: number;
@@ -50,7 +53,7 @@ interface State {
 const states = new WeakMap<Ctx, State>();
 const dir = new THREE.Vector3();
 const tapBox = new THREE.Box3();
-const FIRE_TURNS=[0,0.6,-0.6,1.2,-1.2] as const;
+const FIRE_TURNS=[0,0.6,-0.6,1.2,-1.2,Math.PI/2,-Math.PI/2,2.4,-2.4,Math.PI] as const;
 
 function nearBlue(ctx:Ctx,s:State):boolean {
   const p=ctx.player.pos,b=s.blue.pos;
@@ -84,7 +87,7 @@ export function initTornadoes(ctx: Ctx): void {
     ctx.scene.add(look.root);
     return {look,pos:new THREE.Vector3(),active:false,age:0};
   };
-  const s:State={fire:wind('fire'),blue:wind('blue'),time:0,started:false,riding:false,recallAt:0,nextFire:ctx.save.wind.fireIn??nextFireDelay(),fireStep:0,fireHit:0,engaged:0,landingAt:0,hintAt:0,route:[],returnDistance:0,returning:false,descent:null,passengers:[],tale:null,off:[],decorAt:0,decorBreaks:0};
+  const s:State={fire:wind('fire'),blue:wind('blue'),time:0,started:false,riding:false,recallAt:0,nextFire:ctx.save.wind.fireIn??nextFireDelay(),fireStep:0,fireHit:0,fireHeading:0,fireTurnUntil:0,firePassUntil:0,engaged:0,landingAt:0,hintAt:0,route:[],returnDistance:0,returning:false,descent:null,passengers:[],tale:null,off:[],decorAt:0,decorBreaks:0};
   ctx.save.wind.fireIn=s.nextFire;
   states.set(ctx,s);
   setMapMarker('wind:meeting',null); // Remove the obsolete permanent destination on hot reload too.
@@ -148,6 +151,7 @@ export function spawnFireWind(ctx: Ctx, x?:number,z?:number): boolean {
     if(y===null) continue;
     s.fire.pos.set(px,y,pz);
     s.fire.age=0; s.fire.active=true; s.fireStep=0; s.fireHit=0; s.engaged=0;
+    s.fireHeading=Math.atan2(p.x-px,p.z-pz); s.fireTurnUntil=0; s.firePassUntil=0;
     setMapMarker('wind:fire',{pos:s.fire.pos,icon:'map-fire-wind',pointer:true,zoneRadius:TORNADO.fire.reach});
     ctx.effects.ring(s.fire.pos,0xff7722,3);
     voice.say('tornado_fire_spot',{priority:8});
@@ -334,14 +338,23 @@ function fireStep(ctx:Ctx,s:State,dt:number):void {
     const step=Math.min(s.fireStep,0.2); s.fireStep=0;
     const prey=windPrey(ctx.monsters,f.pos,rule.monsterSight,(x,z)=>!fireProtected(ctx,x,z));
     const chase=grounded && (f.age-rule.warn)%(rule.chaseFor+rule.restFor)<rule.chaseFor && d<24 && !fireProtected(ctx,p.x,p.z);
-    const angle=prey?Math.atan2(prey.pos.x-f.pos.x,prey.pos.z-f.pos.z):chase?Math.atan2(p.x-f.pos.x,p.z-f.pos.z):s.time*0.42;
+    const desired=prey?Math.atan2(prey.pos.x-f.pos.x,prey.pos.z-f.pos.z):chase?Math.atan2(p.x-f.pos.x,p.z-f.pos.z):s.time*0.42;
+    const targetDistance=prey?Math.hypot(prey.pos.x-f.pos.x,prey.pos.z-f.pos.z):chase?d:Infinity;
+    // Sweep through a nearby target instead of stopping on it or reversing every tick.
+    if(targetDistance<rule.reach && s.time>=s.firePassUntil) s.firePassUntil=s.time+1.2;
+    const angle=s.time<Math.max(s.firePassUntil,s.fireTurnUntil)?s.fireHeading:desired;
     const speed=prey?rule.monsterSpeed:rule.speed;
-    const distance=prey?Math.min(speed*step,Math.hypot(prey.pos.x-f.pos.x,prey.pos.z-f.pos.z)):speed*step;
+    const distance=speed*step;
     for(const turn of FIRE_TURNS) {
       const x=f.pos.x+Math.sin(angle+turn)*distance,z=f.pos.z+Math.cos(angle+turn)*distance;
       if(fireProtected(ctx,x,z)) continue;
       const y=fireGroundAt(ctx.world,x,z);
-      if(y!==null && Math.abs(y-f.pos.y)<1.1) { f.pos.set(x,y,z); break; }
+      if(y!==null && Math.abs(y-f.pos.y)<1.1) {
+        f.pos.set(x,y,z); s.fireHeading=angle+turn;
+        // Keep an escape direction briefly; immediately seeking again pins it to the same wall.
+        if(turn!==0) s.fireTurnUntil=s.time+0.8;
+        break;
+      }
     }
   }
 

@@ -237,4 +237,27 @@ describe('two winds in the game',()=> {
     expect(state().fire![2]).toBeGreaterThan(z+2);
   });
 
+  it.each(['hero','monster'] as const)('sweeps past a stationary %s instead of standing on the target',kind=> {
+    const ctx=context();ctx.player.pos.set(kind==='hero'?31:26,3.001,0);
+    if(kind==='monster') ctx.monsters=[{alive:true,state:'chase',card:{},pos:new THREE.Vector3(31,3.001,0)}] as Ctx['monsters'];
+    spawnFireWind(ctx,30,0);advance(ctx,2.5);
+    const path:number[][]=[];
+    for(let i=0;i<40;i++) {advance(ctx,0.05);path.push(state().fire!);}
+    expect(Math.max(...path.map(p=>Math.hypot(p[0]-31,p[2])))).toBeGreaterThan(1.5);
+    expect(Math.max(...path.map(p=>p[0]))-Math.min(...path.map(p=>p[0]))).toBeGreaterThan(2);
+  });
+
+  it.each(['wall','water','cliff'] as const)('escapes sideways around a %s rather than remaining pinned in front of it',kind=> {
+    const ctx=context();ctx.player.pos.set(35,3.001,0);
+    const blocked=(x:number,z:number)=>x>=31&&x<33&&Math.abs(z)<3;
+    if(kind==='wall') ctx.world.isSolid=(x,_y,z)=>blocked(x,z);
+    if(kind==='water') ctx.world.isWater=(x,_y,z)=>blocked(x,z);
+    if(kind==='cliff') ctx.world.groundHeight=(x,z)=>blocked(x,z)?7:3;
+    spawnFireWind(ctx,30.5,0);
+    const path:number[][]=[];
+    for(let i=0;i<260;i++) {advance(ctx,0.05);path.push(state().fire!);}
+    expect(path.some(p=>p[0]>33)).toBe(true);
+    expect(path.every(p=>!blocked(Math.floor(p[0]),Math.floor(p[2])))).toBe(true);
+  });
+
 });
